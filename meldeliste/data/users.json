@@ -1,0 +1,175 @@
+{
+  "t-1": {
+    "id": "t-1",
+    "role": "teacher",
+    "name": "Lehrer*in",
+    "subjects": [
+      "default"
+    ],
+    "stats": {}
+  },
+  "s-mi97xvc1-nvod": {
+    "id": "s-mi97xvc1-nvod",
+    "role": "student",
+    "firstName": "Marc",
+    "lastName": "Wermke",
+    "salutation": "",
+    "className": "10A",
+    "password": "123",
+    "name": "Marc Wermke",
+    "stats": {
+      "default": {
+        "signals": 0,
+        "calls": 1,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "daily": {
+          "2025-11-21": {
+            "signals": 0,
+            "calls": 1
+          }
+        }
+      },
+      "Mathematik": {
+        "signals": 7,
+        "calls": 10,
+        "ratings": {
+          "0": 1,
+          "--": 1,
+          "-": 2,
+          "+": 3,
+          "++": 3
+        },
+        "daily": {
+          "2025-11-21": {
+            "signals": 2,
+            "calls": 2,
+            "toiletSeconds": 140
+          },
+          "2025-11-22": {
+            "signals": 5,
+            "calls": 8,
+            "toiletSeconds": 170
+          }
+        },
+        "toiletSeconds": 310
+      },
+      "Deutsch": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
+      }
+    }
+  },
+  "t-mi97yzvp-kg36": {
+    "id": "t-mi97yzvp-kg36",
+    "role": "teacher",
+    "firstName": "",
+    "lastName": "Briel",
+    "salutation": "Herr",
+    "className": "",
+    "password": "123",
+    "name": "Herr Briel",
+    "stats": {}
+  },
+  "s-mi98d1ih-i11l": {
+    "id": "s-mi98d1ih-i11l",
+    "role": "student",
+    "firstName": "Lucas",
+    "lastName": "Verberne",
+    "salutation": "",
+    "className": "10a",
+    "password": "1234",
+    "name": "Lucas Verberne",
+    "stats": {
+      "default": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "daily": {}
+      }
+    }
+  },
+  "t-mi98l3de-kuar": {
+    "id": "t-mi98l3de-kuar",
+    "role": "teacher",
+    "firstName": "",
+    "lastName": "Briel",
+    "salutation": "Herr",
+    "className": "",
+    "password": "12345678",
+    "name": "Herr Briel",
+    "stats": {},
+    "teachings": [
+      {
+        "className": "10A",
+        "subject": "Mathematik"
+      },
+      {
+        "className": "10B",
+        "subject": "Deutsch"
+      }
+    ]
+  },
+  "t-mi98lw9d-e2xu": {
+    "id": "t-mi98lw9d-e2xu",
+    "role": "admin",
+    "firstName": "",
+    "lastName": "Wermke",
+    "salutation": "Herr",
+    "className": "",
+    "password": "123",
+    "name": "Herr Wermke",
+    "stats": {
+      "Mathematik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "daily": {}
+      }
+    },
+    "teachings": [
+      {
+        "className": "10A",
+        "subject": "Informatik"
+      }
+    ]
+  },
+  "t-mia8xoth-54x7": {
+    "id": "t-mia8xoth-54x7",
+    "role": "admin",
+    "firstName": "",
+    "lastName": "Wermke",
+    "salutation": "Herr",
+    "className": "",
+    "password": "123",
+    "name": "Herr Wermke",
+    "stats": {},
+    "teachings": []
+  }
+}
