@@ -1,0 +1,19 @@
+{
+  "10A|Mathematik": {
+    "current": {
+      "text": "Buch S.5 ganz",
+      "ts": 1763850868626
+    },
+    "previous": {
+      "text": "S. 5 Nr. 10",
+      "ts": 1763816767062
+    }
+  },
+  "10A|Deutsch": {
+    "current": null,
+    "previous": {
+      "text": "S5",
+      "ts": 1763812357688
+    }
+  }
+}
