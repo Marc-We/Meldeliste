@@ -1,0 +1,413 @@
+{
+  "room-mi7mjg6i-p90s": {
+    "entries": [
+      {
+        "ts": 1763654828069,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "signal"
+      },
+      {
+        "ts": 1763654839728,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "called",
+        "rating": "0"
+      },
+      {
+        "ts": 1763654845361,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "signal"
+      },
+      {
+        "ts": 1763654851864,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "called",
+        "rating": "++"
+      }
+    ]
+  },
+  "room-mi7mvhdc-lidy": {
+    "entries": [
+      {
+        "ts": 1763655379610,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "signal"
+      },
+      {
+        "ts": 1763655430058,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "called"
+      },
+      {
+        "ts": 1763655442317,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "called"
+      },
+      {
+        "ts": 1763655458825,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "called",
+        "rating": "+"
+      },
+      {
+        "ts": 1763655460498,
+        "userId": "s-mi7mhgkz-8xfd",
+        "action": "called",
+        "rating": "++"
+      },
+      {
+        "ts": 1763745210283,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      },
+      {
+        "ts": 1763745216640,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called",
+        "rating": "+"
+      },
+      {
+        "ts": 1763745222053,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called",
+        "rating": "+"
+      },
+      {
+        "ts": 1763745317092,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763745322535,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      },
+      {
+        "ts": 1763745326495,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      }
+    ]
+  },
+  "room-mi94tqi5-xglj": {
+    "entries": [
+      {
+        "ts": 1763746390440,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746393640,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763746395396,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "++"
+      },
+      {
+        "ts": 1763746396398,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      },
+      {
+        "ts": 1763746401702,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746404325,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746405070,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746405765,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746406447,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746407125,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746407769,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746408370,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746408955,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746409529,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746410162,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746410780,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746411346,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746411910,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746412498,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746413076,
+        "userId": "s-mi94cji9-95f6",
+        "action": "signal"
+      },
+      {
+        "ts": 1763746415081,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      },
+      {
+        "ts": 1763746415215,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      }
+    ]
+  },
+  "room-mi95nppo-m402": {
+    "entries": [
+      {
+        "ts": 1763747514416,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      },
+      {
+        "ts": 1763748088017,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      },
+      {
+        "ts": 1763748088164,
+        "userId": "s-mi94cji9-95f6",
+        "action": "called"
+      },
+      {
+        "ts": 1763748106454,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "--"
+      },
+      {
+        "ts": 1763748107782,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763748108210,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "++"
+      },
+      {
+        "ts": 1763748108843,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "0"
+      },
+      {
+        "ts": 1763748115015,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763748115175,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763748115339,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763748115494,
+        "userId": "s-mi94cji9-95f6",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763751284438,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      }
+    ]
+  },
+  "room-mi99fxye-nq9m": {
+    "entries": [
+      {
+        "ts": 1763754063647,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      },
+      {
+        "ts": 1763762292078,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      },
+      {
+        "ts": 1763762293461,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "+"
+      }
+    ]
+  },
+  "room-mia85ou1-mc7s": {
+    "entries": [
+      {
+        "ts": 1763812082287,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      },
+      {
+        "ts": 1763812099754,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      },
+      {
+        "ts": 1763812261358,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763812264885,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "++"
+      },
+      {
+        "ts": 1763812266890,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "--"
+      },
+      {
+        "ts": 1763812269338,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "+"
+      },
+      {
+        "ts": 1763812270277,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "0"
+      }
+    ]
+  },
+  "room-mia8g1oj-82w7": {
+    "entries": [
+      {
+        "ts": 1763812629307,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      },
+      {
+        "ts": 1763812640415,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "++"
+      },
+      {
+        "ts": 1763812641758,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "-"
+      }
+    ]
+  },
+  "room-mia8leul-u2o7": {
+    "entries": [
+      {
+        "ts": 1763813013669,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      },
+      {
+        "ts": 1763813023930,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      }
+    ]
+  },
+  "room-miaaw77n-2yq5": {
+    "entries": [
+      {
+        "ts": 1763817486690,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      }
+    ]
+  },
+  "room-miabjcp8-gc3h": {
+    "entries": [
+      {
+        "ts": 1763850849968,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "++"
+      },
+      {
+        "ts": 1763850854544,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "rating",
+        "rating": "-"
+      },
+      {
+        "ts": 1763850921433,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      },
+      {
+        "ts": 1763850934046,
+        "userId": "s-mi97xvc1-nvod",
+        "action": "called"
+      }
+    ]
+  }
+}

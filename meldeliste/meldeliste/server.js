@@ -330,18 +330,7 @@ function sendRoster(roomId) {
   wss.clients.forEach((client) => {
     if (client.readyState !== client.OPEN) return;
     if (client.roomId !== roomId) return;
-    client.send(payload);
-  });
-}
-
-function sendRoomSettings(roomId) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-  const payload = JSON.stringify({ type: 'roomSettings', roomId, allowSelfCall: Boolean(room.allowSelfCall) });
-  wss.clients.forEach((client) => {
-    if (client.readyState !== client.OPEN) return;
-    if (client.roomId !== roomId) return;
-    client.send(payload);
+    if (client.role === 'teacher' || client.role === 'admin') client.send(payload);
   });
 }
 
@@ -380,7 +369,6 @@ function updatePresence(roomId) {
 }
 
 function appendLog(roomId, entry) {
-  if (!entry.id) entry.id = genId('log');
   if (!logs.has(roomId)) logs.set(roomId, { entries: [] });
   logs.get(roomId).entries.push(entry);
   saveLogs();
@@ -405,7 +393,6 @@ function sendLogUpdates(roomId) {
         ...e,
         name: users.get(e.userId)?.name || 'Unbekannt',
         rating: isTeacher ? e.rating : undefined,
-        selfCall: e.selfCall || false,
       }));
     client.send(JSON.stringify({ type: isTeacher ? 'log' : 'myLog', roomId, entries: filtered }));
   });
@@ -578,7 +565,6 @@ wss.on('connection', (ws) => {
         className,
         teacherId: ws.userId,
         active: true,
-        allowSelfCall: false,
         createdAt: Date.now(),
       };
       rooms.set(id, room);
@@ -682,8 +668,6 @@ wss.on('connection', (ws) => {
       updatePresence(roomId);
       sendLogUpdates(roomId);
       sendStats(roomId);
-      sendRoster(roomId);
-      sendRoomSettings(roomId);
       // falls Toilettenstatus existiert, erneut an alle senden, damit Lampen sichtbar bleiben
       const tState = getToiletState(roomId, ws.userId);
       if (tState && tState.status !== 'back') {
@@ -695,6 +679,7 @@ wss.on('connection', (ws) => {
       if (ws.role === 'teacher' || ws.role === 'admin') {
         broadcastQuestions(roomId);
         broadcastPoll(roomId);
+        sendRoster(roomId);
       }
       return;
     }
@@ -710,18 +695,6 @@ wss.on('connection', (ws) => {
       ws.roomId = null;
       updatePresence(roomId);
       sendRoster(roomId);
-      return;
-    }
-
-    if (type === 'toggleSelfCall' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const roomId = msg.roomId || ws.roomId;
-      const room = rooms.get(roomId);
-      if (!room) return;
-      room.allowSelfCall = Boolean(msg.allow);
-      rooms.set(roomId, room);
-      saveRooms();
-      wss.clients.forEach((client) => sendRoomList(client));
-      sendRoomSettings(roomId);
       return;
     }
 
@@ -1092,44 +1065,6 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (type === 'selfCall') {
-      const roomId = msg.roomId || ws.roomId;
-      const room = rooms.get(roomId);
-      if (!room || !room.allowSelfCall) return;
-      const actor = users.get(ws.userId);
-      if (!actor || actor.role !== 'student') return;
-      if (room.className && actor.className && actor.className !== room.className) return;
-      ws.roomId = roomId;
-      if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
-      roomMembers.get(roomId).add(ws.userId);
-      if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
-      const counter = roomCounters.get(roomId);
-      const current = counter.get(ws.userId) || { signals: 0, calls: 0, toiletSeconds: 0 };
-      current.calls = Math.max(0, (current.calls || 0) + 1);
-      counter.set(ws.userId, current);
-
-      const subject = room.subject || 'default';
-      const s = ensureStats(actor, subject);
-      s.calls = Math.max(0, (s.calls || 0) + 1);
-      const today = new Date().toISOString().slice(0, 10);
-      const d = ensureDaily(actor, subject, today);
-      d.calls = Math.max(0, (d.calls || 0) + 1);
-      saveUsers();
-
-      // remove raised hand of this user (if any)
-      const readySet = readyMap.get(roomId);
-      if (readySet) readySet.delete(ws.userId);
-
-      const ts = Date.now();
-      appendLog(roomId, { ts, userId: ws.userId, action: 'called', selfCall: true });
-      sendToUser(ws.userId, { type: 'called', roomId });
-      broadcastRoom(roomId, { type: 'reset', roomId, userId: ws.userId });
-      broadcastRoom(roomId, { type: 'selfCallNotice', roomId, userId: ws.userId, name: actor.name || 'Schüler', ts });
-      updatePresence(roomId);
-      sendStats(roomId);
-      return;
-    }
-
     if (type === 'ack' && ws.role === 'teacher') {
       // unchanged logic...
       const roomId = msg.roomId || ws.roomId;
@@ -1187,51 +1122,6 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (type === 'logDelete' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const roomId = msg.roomId || ws.roomId;
-      const entryId = msg.entryId;
-      if (!roomId || !entryId) return;
-      const room = rooms.get(roomId);
-      if (!room) return;
-      const logObj = logs.get(roomId);
-      if (!logObj || !Array.isArray(logObj.entries)) return;
-      const idx = logObj.entries.findIndex((e) => e.id === entryId);
-      if (idx === -1) return;
-      const removed = logObj.entries.splice(idx, 1)[0];
-      logs.set(roomId, logObj);
-      // adjust stats if needed
-      if (removed && removed.userId) {
-        const subject = room.subject || 'default';
-        const user = users.get(removed.userId);
-        if (removed.action === 'called') {
-          if (user) {
-            const s = ensureStats(user, subject);
-            s.calls = Math.max(0, (s.calls || 0) - 1);
-            const today = new Date().toISOString().slice(0, 10);
-            const d = ensureDaily(user, subject, today);
-            d.calls = Math.max(0, (d.calls || 0) - 1);
-            saveUsers();
-          }
-          if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
-          const counter = roomCounters.get(roomId);
-          const current = counter.get(removed.userId) || { signals: 0, calls: 0, toiletSeconds: 0 };
-          current.calls = Math.max(0, (current.calls || 0) - 1);
-          counter.set(removed.userId, current);
-        }
-        if (removed.action === 'rating' && removed.rating) {
-          if (user) {
-            const s = ensureStats(user, subject);
-            s.ratings[removed.rating] = Math.max(0, (s.ratings[removed.rating] || 0) - 1);
-            saveUsers();
-          }
-        }
-      }
-      saveLogs();
-      sendLogUpdates(roomId);
-      sendStats(roomId);
-      return;
-    }
-
     if (type === 'roomListRequest') {
       sendRoomList(ws);
       return;
@@ -1256,26 +1146,6 @@ wss.on('connection', (ws) => {
 });
 
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0'; // bind to all interfaces for LAN access
-
-function listLocalIps() {
-  const os = require('os');
-  const ifaces = os.networkInterfaces();
-  const ips = [];
-  Object.values(ifaces).forEach(list => {
-    (list || []).forEach(addr => {
-      if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
-    });
-  });
-  return ips;
-}
-
-server.listen(PORT, HOST, () => {
-  const ips = listLocalIps();
-  console.log(`WebSocket server listening on ws://${HOST}:${PORT}`);
-  if (ips.length) {
-    console.log(`LAN reachability: http://${ips[0]}:${PORT} (or any of: ${ips.join(', ')})`);
-  } else {
-    console.log('No LAN IPv4 address detected; check your network connection.');
-  }
+server.listen(PORT, () => {
+  console.log(`WebSocket server listening on ws://localhost:${PORT}`);
 });
