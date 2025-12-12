@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meldeliste</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(120% 80% at 15% 20%, #162240, #0a0c10 60%);
+      color: #e7edff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: min(560px, 100%);
+      background: #111522;
+      border: 1px solid #1f2943;
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+    }
+    h1 { margin: 0 0 12px; }
+    p { margin: 0 0 14px; color: #8ea0c3; }
+    a {
+      display: block;
+      margin: 8px 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      background: #36c38c;
+      color: #06110b;
+      text-align: center;
+    }
+    a.secondary {
+      background: transparent;
+      color: #e7edff;
+      border: 1px solid #2b3652;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Meldeliste</h1>
+    <p>Wähle die Ansicht, die du öffnen möchtest.</p>
+    <a href="/dashboard.html">Lehrer-Dashboard</a>
+    <a class="secondary" href="/client.html">Schüler-Client</a>
+  </div>
+</body>
+</html>

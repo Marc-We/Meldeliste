@@ -1,0 +1,14 @@
+{
+  "name": "meldeliste",
+  "version": "1.0.0",
+  "description": "Einfache WebSocket-Meldeliste für Lehrer/Schüler",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
+
