@@ -95,8 +95,8 @@
         "daily": {}
       },
       "Mathematik": {
-        "signals": 6,
-        "calls": 0,
+        "signals": 7,
+        "calls": 1,
         "ratings": {
           "0": 0,
           "--": 0,
@@ -107,8 +107,8 @@
         "toiletSeconds": 0,
         "daily": {
           "2026-01-25": {
-            "signals": 6,
-            "calls": 0,
+            "signals": 7,
+            "calls": 1,
             "toiletSeconds": 0
           }
         }

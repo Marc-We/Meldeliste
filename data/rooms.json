@@ -144,5 +144,14 @@
     "active": false,
     "createdAt": 1769335059038,
     "closedAt": 1769337193084
+  },
+  "room-mktlwg5l-1952": {
+    "id": "room-mktlwg5l-1952",
+    "name": "Raum",
+    "subject": "Mathematik",
+    "className": "10A",
+    "teacherId": "t-mi98l3de-kuar",
+    "active": true,
+    "createdAt": 1769337561801
   }
 }

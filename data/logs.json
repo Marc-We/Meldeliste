@@ -298,5 +298,15 @@
   },
   "room-mktket0e-79bj": {
     "entries": []
+  },
+  "room-mktlwg5l-1952": {
+    "entries": [
+      {
+        "id": "log-mktlwkyi-ayfh",
+        "ts": 1769337568026,
+        "userId": "s-mi98d1ih-i11l",
+        "action": "called"
+      }
+    ]
   }
 }

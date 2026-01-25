@@ -95,11 +95,6 @@
     </div>
 
     <div class="panel">
-      <h2>Gedankenrunde</h2>
-      <div id="thoughtState" class="small">Nicht aktiv</div>
-    </div>
-
-    <div class="panel">
       <h2>Profil</h2>
       <div class="row">
         <label style="flex:1">
@@ -150,6 +145,17 @@
       </div>
     </div>
 
+    <div class="panel" id="thoughtPanel" style="display:none">
+      <h2>Gedankenrunde</h2>
+      <div id="thoughtState" class="small">Nicht aktiv</div>
+    </div>
+
+    <div class="panel" id="pollPanel">
+      <h2>Umfrage</h2>
+      <div id="pollContainer"><div class="empty">Keine Umfrage</div></div>
+      <button id="pollVote" class="ghost" style="margin-top:8px">Abstimmen</button>
+    </div>
+
     <div class="panel">
       <h2>Deine Stunde</h2>
       <div class="statbox">
@@ -166,12 +172,6 @@
       <div class="log" id="logBox">
         <div class="empty">Noch keine Einträge</div>
       </div>
-    </div>
-
-    <div class="panel" id="pollPanel">
-      <h2>Umfrage</h2>
-      <div id="pollContainer"><div class="empty">Keine Umfrage</div></div>
-      <button id="pollVote" class="ghost" style="margin-top:8px">Abstimmen</button>
     </div>
   </div>
 
@@ -214,6 +214,7 @@
     const pollBox = document.getElementById('pollPanel');
     const pollContainer = document.getElementById('pollContainer');
     const pollVoteBtn = document.getElementById('pollVote');
+    const thoughtPanel = document.getElementById('thoughtPanel');
     const thoughtState = document.getElementById('thoughtState');
 
     let ws = null;
@@ -350,8 +351,10 @@
     function renderThoughtState() {
       if (thoughtActive) {
         thoughtState.textContent = 'Gedankenrunde aktiv – schreibe deine Gedanken und sende sie.';
+        thoughtPanel.style.display = 'block';
       } else {
         thoughtState.textContent = 'Nicht aktiv';
+        thoughtPanel.style.display = 'none';
       }
     }
 

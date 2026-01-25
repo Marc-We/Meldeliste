@@ -266,6 +266,7 @@
     const questionsPanel = document.getElementById('questionsPanel');
     const statsPanel = document.getElementById('statsPanel');
     const toolsPanel = document.getElementById('toolsPanel');
+    const classStatsPanel = document.getElementById('classStatsPanel');
     const roomNameInput = document.getElementById('roomName');
     const roomClassInput = document.getElementById('roomClass');
     const roomSubjectInput = document.getElementById('roomSubject');
@@ -291,7 +292,6 @@
     const teachSubjectSelect = document.getElementById('teachSubject');
     const addTeachingBtn = document.getElementById('addTeaching');
     const teachingsList = document.getElementById('teachingsList');
-    const classStatsPanel = document.getElementById('classStatsPanel');
     const classStatsTitle = document.getElementById('classStatsTitle');
     const classStatsGrid = document.getElementById('classStatsGrid');
     const classStatsClose = document.getElementById('classStatsClose');
@@ -670,10 +670,11 @@
       setPanelVisible(homeworkPanel, hasRoom);
       setPanelVisible(statsPanel, hasRoom);
       setPanelVisible(toolsPanel, hasRoom);
+      setPanelVisible(classStatsPanel, Boolean(classStats.className));
 
       const order = hasRoom
-        ? [currentRoomPanel, questionBanner, questionsPanel, logPanel, homeworkPanel, statsPanel, toolsPanel, teachingsPanel, roomsPanel]
-        : [profilePanel, catalogPanel, roomsPanel, teachingsPanel];
+        ? [currentRoomPanel, questionBanner, questionsPanel, logPanel, homeworkPanel, statsPanel, toolsPanel, teachingsPanel, classStatsPanel, roomsPanel]
+        : [profilePanel, catalogPanel, roomsPanel, teachingsPanel, classStatsPanel];
       order.forEach((panel) => {
         if (panel && panel.parentElement === layout) {
           layout.appendChild(panel);
@@ -772,6 +773,7 @@
       if (msg.type === 'classStats') {
         classStats = { className: msg.className || '', students: msg.students || [] };
         renderClassStats();
+        updateLayout();
       }
       if (msg.type === 'authError') {
         authStatus.textContent = `Fehler: ${msg.reason || 'Anmeldung fehlgeschlagen'}`;
@@ -902,6 +904,7 @@
     classStatsClose.onclick = () => {
       classStats = { className: '', students: [] };
       renderClassStats();
+      updateLayout();
     };
 
     createPollBtn.onclick = () => {
