@@ -66,6 +66,7 @@
     .log { max-height: 260px; overflow: auto; }
     .log table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--text); }
     .log th, .log td { padding: 8px 6px; border-bottom: 1px solid #1c2440; text-align: left; }
+    .log .trash { padding: 4px 6px; font-size: 12px; border-radius: 6px; }
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
     .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
     .stat-card.clickable { cursor: pointer; }
@@ -115,6 +116,7 @@
       </div>
       <div class="row" style="margin-top:12px">
         <button id="saveProfile" class="ghost">Profil speichern</button>
+        <button id="logoutBtn" class="ghost">Ausloggen</button>
         <div class="pill" id="profileInfo">Noch kein Profil gespeichert</div>
       </div>
       <div class="row" style="margin-top:6px">
@@ -244,6 +246,7 @@
     const lastNameInput = document.getElementById('lastName');
     const passwordInput = document.getElementById('password');
     const saveProfileBtn = document.getElementById('saveProfile');
+    const logoutBtn = document.getElementById('logoutBtn');
     const profileInfo = document.getElementById('profileInfo');
     const modeRegisterBtn = document.getElementById('modeRegister');
     const modeLoginBtn = document.getElementById('modeLogin');
@@ -518,9 +521,17 @@
         const time = new Date(e.ts).toLocaleTimeString();
         const action = e.action === 'rating' ? 'Bewertung' : 'Aufruf';
         const rating = e.rating ? e.rating : '';
-        return `<tr><td>${time}</td><td>${e.name}</td><td>${action}</td><td>${rating}</td></tr>`;
+        return `<tr><td>${time}</td><td>${e.name}</td><td>${action}</td><td>${rating}</td><td><button class="ghost trash" data-log="${e.id}">🗑</button></td></tr>`;
       }).join('');
-      logBox.innerHTML = `<table><thead><tr><th>Zeit</th><th>Name</th><th>Aktion</th><th>Bew.</th></tr></thead><tbody>${rows}</tbody></table>`;
+      logBox.innerHTML = `<table><thead><tr><th>Zeit</th><th>Name</th><th>Aktion</th><th>Bew.</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+      logBox.querySelectorAll('[data-log]').forEach((btn) => {
+        btn.onclick = () => {
+          if (!ws || ws.readyState !== WebSocket.OPEN || !currentRoom) return;
+          const logId = btn.getAttribute('data-log');
+          if (!logId) return;
+          ws.send(JSON.stringify({ type: 'logDelete', roomId: currentRoom, logId }));
+        };
+      });
     }
 
     function renderStats() {
@@ -782,6 +793,10 @@
       localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(profile));
       renderProfileInfo();
       sendInit();
+    };
+    logoutBtn.onclick = () => {
+      localStorage.removeItem('meldelisteProfileTeacher');
+      location.reload();
     };
 
     modeRegisterBtn.onclick = () => {

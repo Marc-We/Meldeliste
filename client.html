@@ -121,6 +121,7 @@
       </div>
       <div class="row" style="margin-top:12px">
         <button id="saveProfile" class="ghost">Speichern & ${'{'}authMode{'}'}</button>
+        <button id="logoutBtn" class="ghost">Ausloggen</button>
       </div>
       <div class="pill" id="profileInfo">Noch kein Profil gespeichert</div>
       <div class="row" style="margin-top:6px">
@@ -192,6 +193,7 @@
     const classInput = document.getElementById('className');
     const passwordInput = document.getElementById('password');
     const saveProfileBtn = document.getElementById('saveProfile');
+    const logoutBtn = document.getElementById('logoutBtn');
     const profileInfo = document.getElementById('profileInfo');
     const modeRegisterBtn = document.getElementById('modeRegister');
     const modeLoginBtn = document.getElementById('modeLogin');
@@ -466,6 +468,10 @@
       renderProfileInfo();
       localStorage.setItem('meldelisteProfile', JSON.stringify(profile));
       sendInit();
+    };
+    logoutBtn.onclick = () => {
+      localStorage.removeItem('meldelisteProfile');
+      location.reload();
     };
 
     modeRegisterBtn.onclick = () => {

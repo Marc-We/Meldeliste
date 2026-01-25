@@ -299,41 +299,17 @@
   "room-mktket0e-79bj": {
     "entries": [
       {
-        "ts": 1769335068791,
-        "userId": "s-mi98d1ih-i11l",
+        "id": "log-mktl7phy-19np",
+        "ts": 1769336407510,
+        "userId": "s-mktl7jvs-mlyv",
         "action": "called"
       },
       {
-        "ts": 1769335074399,
-        "userId": "s-mi98d1ih-i11l",
-        "action": "called"
-      },
-      {
-        "ts": 1769335079439,
-        "userId": "s-mi98d1ih-i11l",
-        "action": "called"
-      },
-      {
-        "ts": 1769335678391,
-        "userId": "s-mi98d1ih-i11l",
-        "action": "called"
-      },
-      {
-        "ts": 1769335686249,
-        "userId": "s-mi98d1ih-i11l",
-        "action": "called"
-      },
-      {
-        "ts": 1769335697874,
-        "userId": "s-mi98d1ih-i11l",
+        "id": "log-mktl9d9s-piei",
+        "ts": 1769336484976,
+        "userId": "s-mktl7jvs-mlyv",
         "action": "rating",
-        "rating": "--"
-      },
-      {
-        "ts": 1769335700458,
-        "userId": "s-mi98d1ih-i11l",
-        "action": "rating",
-        "rating": "++"
+        "rating": "+"
       }
     ]
   }

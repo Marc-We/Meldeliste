@@ -2,6 +2,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -355,13 +356,26 @@ function updatePresence(roomId) {
 
 function appendLog(roomId, entry) {
   if (!logs.has(roomId)) logs.set(roomId, { entries: [] });
-  logs.get(roomId).entries.push(entry);
+  const logEntry = { id: entry.id || genId('log'), ...entry };
+  logs.get(roomId).entries.push(logEntry);
   saveLogs();
   sendLogUpdates(roomId);
 }
 
 function sendLogUpdates(roomId) {
-  const log = logs.get(roomId)?.entries || [];
+  const roomLog = logs.get(roomId);
+  const log = roomLog?.entries || [];
+  let touched = false;
+  log.forEach((e) => {
+    if (!e.id) {
+      e.id = genId('log');
+      touched = true;
+    }
+  });
+  if (touched) {
+    logs.set(roomId, { entries: log });
+    saveLogs();
+  }
   // send to each socket in the room with role-based visibility
   wss.clients.forEach((client) => {
     if (client.readyState !== client.OPEN) return;
@@ -1044,6 +1058,49 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (type === 'logDelete' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const logId = String(msg.logId || '').trim();
+      if (!roomId || !logId) return;
+      const roomLog = logs.get(roomId);
+      if (!roomLog || !Array.isArray(roomLog.entries)) return;
+      const idx = roomLog.entries.findIndex((e) => e.id === logId);
+      if (idx === -1) return;
+      const entry = roomLog.entries[idx];
+      roomLog.entries.splice(idx, 1);
+      logs.set(roomId, roomLog);
+      saveLogs();
+
+      const room = rooms.get(roomId);
+      if (room) {
+        const subject = room.subject || 'default';
+        const targetUser = users.get(entry.userId);
+        if (entry.action === 'called' && targetUser) {
+          const s = ensureStats(targetUser, subject);
+          s.calls = Math.max(0, (s.calls || 0) - 1);
+          const dateKey = new Date(entry.ts || Date.now()).toISOString().slice(0, 10);
+          const d = ensureDaily(targetUser, subject, dateKey);
+          d.calls = Math.max(0, (d.calls || 0) - 1);
+          saveUsers();
+          const counter = roomCounters.get(roomId);
+          if (counter) {
+            const current = counter.get(entry.userId) || { signals: 0, calls: 0, toiletSeconds: 0 };
+            current.calls = Math.max(0, (current.calls || 0) - 1);
+            counter.set(entry.userId, current);
+          }
+        }
+        if (entry.action === 'rating' && entry.rating && targetUser) {
+          const s = ensureStats(targetUser, subject);
+          s.ratings[entry.rating] = Math.max(0, (s.ratings[entry.rating] || 0) - 1);
+          saveUsers();
+        }
+      }
+
+      sendLogUpdates(roomId);
+      sendStats(roomId);
+      return;
+    }
+
     if (type === 'roomListRequest') {
       sendRoomList(ws);
       return;
@@ -1068,6 +1125,17 @@ wss.on('connection', (ws) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`WebSocket server listening on ws://localhost:${PORT}`);
+function getLocalIp() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return null;
+}
+server.listen(PORT, '0.0.0.0', () => {
+  const ip = getLocalIp();
+  console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  if (ip) console.log(`LAN: http://${ip}:${PORT}`);
 });
