@@ -1,9 +1,19 @@
 {
   "10A|Mathematik": {
-    "current": null,
+    "current": {
+      "text": "AB NR 1+2",
+      "ts": 1769344624529
+    },
     "previous": {
       "text": "test3",
       "ts": 1763808739408
+    }
+  },
+  "10A|Deutsch": {
+    "current": null,
+    "previous": {
+      "text": "Buch S. 5 Nr. 4",
+      "ts": 1769344666642
     }
   }
 }

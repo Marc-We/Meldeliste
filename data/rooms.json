@@ -161,7 +161,38 @@
     "subject": "Mathematik",
     "className": "10A",
     "teacherId": "t-mktnvwjm-rsat",
-    "active": true,
-    "createdAt": 1769340909419
+    "active": false,
+    "createdAt": 1769340909419,
+    "closedAt": 1769344633365
+  },
+  "room-mktq47ex-rn37": {
+    "id": "room-mktq47ex-rn37",
+    "name": "MZR",
+    "subject": "Deutsch",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769344642185,
+    "closedAt": 1769344668978
+  },
+  "room-mktq52vu-8t9k": {
+    "id": "room-mktq52vu-8t9k",
+    "name": "Raum",
+    "subject": "Deutsch",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769344682970,
+    "closedAt": 1769345929733
+  },
+  "room-mktqvygp-avft": {
+    "id": "room-mktqvygp-avft",
+    "name": "Raum",
+    "subject": "Deutsch",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769345936953,
+    "closedAt": 1769345949478
   }
 }

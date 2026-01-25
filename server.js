@@ -18,6 +18,7 @@ const LOGS_FILE = path.join(DATA_DIR, 'logs.json');
 const CLASSES_FILE = path.join(DATA_DIR, 'classes.json');
 const SUBJECTS_FILE = path.join(DATA_DIR, 'subjects.json');
 const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
+const ROOM_STATS_FILE = path.join(DATA_DIR, 'room_stats.json');
 
 // --- Helpers for persistence -------------------------------------------------
 function ensureDir(dir) {
@@ -51,6 +52,7 @@ let logs = new Map(Object.entries(loadJson(LOGS_FILE, {})));
 let classes = new Set(loadJson(CLASSES_FILE, []));
 let subjects = new Set(loadJson(SUBJECTS_FILE, []));
 let homework = new Map(Object.entries(loadJson(HOMEWORK_FILE, {}))); // key `${class}|${subject}` -> {text, ts}
+let roomStats = new Map(Object.entries(loadJson(ROOM_STATS_FILE, {})));
 
 // Seeds for demo if empty
 if (users.size === 0) {
@@ -89,6 +91,10 @@ function saveHomework() {
 function saveHomework() {
   const plain = Object.fromEntries(homework);
   saveJson(HOMEWORK_FILE, plain);
+}
+function saveRoomStats() {
+  const plain = Object.fromEntries(roomStats);
+  saveJson(ROOM_STATS_FILE, plain);
 }
 
 // socket tracking
@@ -265,6 +271,43 @@ function ensureStats(user, subject) {
     };
   }
   return user.stats[subject];
+}
+
+function ensureRoomStatsEntry(roomId, room) {
+  let entry = roomStats.get(roomId);
+  if (!entry) {
+    entry = {
+      roomId,
+      name: room?.name || '',
+      className: room?.className || '',
+      subject: room?.subject || 'default',
+      createdAt: room?.createdAt || Date.now(),
+      closedAt: room?.closedAt || null,
+      students: {},
+    };
+  } else {
+    entry.name = entry.name || room?.name || '';
+    entry.className = entry.className || room?.className || '';
+    entry.subject = entry.subject || room?.subject || 'default';
+    entry.createdAt = entry.createdAt || room?.createdAt || Date.now();
+    if (room?.closedAt) entry.closedAt = room.closedAt;
+    if (!entry.students) entry.students = {};
+  }
+  roomStats.set(roomId, entry);
+  return entry;
+}
+
+function ensureRoomStudentStats(entry, userId) {
+  if (!entry.students) entry.students = {};
+  if (!entry.students[userId]) {
+    entry.students[userId] = {
+      signals: 0,
+      calls: 0,
+      toiletSeconds: 0,
+      ratings: { '--': 0, '-': 0, '0': 0, '+': 0, '++': 0 },
+    };
+  }
+  return entry.students[userId];
 }
 
 function aggregateTotalStats(user) {
@@ -857,6 +900,8 @@ wss.on('connection', (ws) => {
       };
       rooms.set(id, room);
       saveRooms();
+      ensureRoomStatsEntry(id, room);
+      saveRoomStats();
       // Hausaufgabe der vorherigen Stunde sichern als previous, current leeren
       const hwKey = `${className}|${subject}`;
       const hwEntry = normalizeHomework(homeworkMap.get(hwKey));
@@ -883,6 +928,10 @@ wss.on('connection', (ws) => {
       room.closedAt = Date.now();
       rooms.set(roomId, room);
       saveRooms();
+      const statsEntry = ensureRoomStatsEntry(roomId, room);
+      statsEntry.closedAt = room.closedAt;
+      roomStats.set(roomId, statsEntry);
+      saveRoomStats();
       broadcastRoom(roomId, { type: 'roomClosed', roomId });
       wss.clients.forEach((client) => sendRoomList(client));
       return;
@@ -940,6 +989,67 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (type === 'classStudentStats' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const userId = String(msg.userId || '').trim();
+      if (!className || !userId) return;
+      if (ws.role === 'teacher') {
+        const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
+        if (!teaches.some((t) => t.className === className)) return;
+      }
+      const target = users.get(userId);
+      if (!target || target.role !== 'student' || (target.className || '') !== className) return;
+      const sessions = Array.from(roomStats.values())
+        .filter((entry) => entry && entry.className === className && entry.students && entry.students[userId])
+        .map((entry) => ({
+          roomId: entry.roomId,
+          name: entry.name || 'Raum',
+          subject: entry.subject || 'default',
+          createdAt: entry.createdAt || null,
+          closedAt: entry.closedAt || null,
+          stats: entry.students[userId] || {},
+        }))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      ws.send(JSON.stringify({
+        type: 'classStudentStats',
+        className,
+        student: { userId: target.id, name: target.name || 'Unbekannt' },
+        sessions,
+      }));
+      return;
+    }
+
+    if (type === 'studentSubjectStats' && ws.role === 'student') {
+      const userId = ws.userId;
+      const grouped = new Map();
+      Array.from(roomStats.values())
+        .filter((entry) => entry && entry.students && entry.students[userId])
+        .forEach((entry) => {
+          const subject = entry.subject || 'default';
+          if (!grouped.has(subject)) grouped.set(subject, []);
+          grouped.get(subject).push({
+            roomId: entry.roomId,
+            name: entry.name || 'Raum',
+            className: entry.className || '',
+            createdAt: entry.createdAt || null,
+            closedAt: entry.closedAt || null,
+            stats: entry.students[userId] || {},
+          });
+        });
+      const subjectsList = Array.from(grouped.entries()).map(([subject, sessions]) => {
+        const total = sessions.reduce((acc, s) => {
+          acc.signals += s.stats?.signals || 0;
+          acc.calls += s.stats?.calls || 0;
+          acc.toiletSeconds += s.stats?.toiletSeconds || 0;
+          return acc;
+        }, { signals: 0, calls: 0, toiletSeconds: 0 });
+        sessions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        return { subject, total, sessions };
+      }).sort((a, b) => a.subject.localeCompare(b.subject, 'de'));
+      ws.send(JSON.stringify({ type: 'studentSubjectStats', subjects: subjectsList }));
+      return;
+    }
+
     if (type === 'join') {
       const roomId = msg.roomId;
       const room = rooms.get(roomId);
@@ -972,6 +1082,7 @@ wss.on('connection', (ws) => {
       if (!questionsMap.has(roomId)) questionsMap.set(roomId, []);
       if (!pollsMap.has(roomId)) pollsMap.set(roomId, null);
       if (!thoughtsMap.has(roomId)) thoughtsMap.set(roomId, { active: false, entries: [] });
+      ensureRoomStatsEntry(roomId, room);
       updatePresence(roomId);
       sendLogUpdates(roomId);
       sendStats(roomId);
@@ -1026,6 +1137,13 @@ wss.on('connection', (ws) => {
         current.signals = Math.max(0, current.signals - 1);
         counter.set(ws.userId, current);
       }
+      if (room) {
+        const entry = ensureRoomStatsEntry(roomId, room);
+        const s = ensureRoomStudentStats(entry, ws.userId);
+        s.signals = Math.max(0, (s.signals || 0) - 1);
+        roomStats.set(roomId, entry);
+        saveRoomStats();
+      }
 
       broadcastRoom(roomId, { type: 'reset', roomId, userId: ws.userId });
       const impSet = importantMap.get(roomId);
@@ -1061,6 +1179,11 @@ wss.on('connection', (ws) => {
       const d = ensureDaily(user, subject, today);
       d.signals = Math.max(0, (d.signals || 0) + 1);
       saveUsers();
+      const entry = ensureRoomStatsEntry(roomId, room);
+      const roomStat = ensureRoomStudentStats(entry, ws.userId);
+      roomStat.signals = Math.max(0, (roomStat.signals || 0) + 1);
+      roomStats.set(roomId, entry);
+      saveRoomStats();
       broadcastRoom(roomId, { type: 'ready', roomId, userId: ws.userId, name: user.name });
       updatePresence(roomId);
       sendStats(roomId);
@@ -1099,9 +1222,17 @@ wss.on('connection', (ws) => {
       const room = rooms.get(roomId);
       if (!room) return;
       const text = String(msg.text || '').trim();
+      const anonymous = msg.anonymous !== false;
       if (!text) return;
       if (!questionsMap.has(roomId)) questionsMap.set(roomId, []);
-      const entry = { id: genId('q'), text, ts: Date.now() };
+      const entry = {
+        id: genId('q'),
+        text,
+        ts: Date.now(),
+        anonymous,
+        userId: anonymous ? undefined : ws.userId,
+        name: anonymous ? undefined : (user?.name || 'Unbekannt'),
+      };
       questionsMap.get(roomId).push(entry);
       // broadcast only to teacher/admin in the room
       const payload = JSON.stringify({ type: 'question', roomId, question: entry });
@@ -1298,6 +1429,11 @@ wss.on('connection', (ws) => {
       const current = counter.get(ws.userId) || { signals: 0, calls: 0, toiletSeconds: 0 };
       current.toiletSeconds = Math.max(0, (current.toiletSeconds || 0) + durationSec);
       counter.set(ws.userId, current);
+      const entry = ensureRoomStatsEntry(roomId, room);
+      const s = ensureRoomStudentStats(entry, ws.userId);
+      s.toiletSeconds = Math.max(0, (s.toiletSeconds || 0) + durationSec);
+      roomStats.set(roomId, entry);
+      saveRoomStats();
 
       broadcastRoom(roomId, { type: 'toilet', roomId, userId: ws.userId, status: 'back', durationSec });
       updatePresence(roomId);
@@ -1330,6 +1466,11 @@ wss.on('connection', (ws) => {
       const current = counter.get(targetUserId) || { signals: 0, calls: 0, toiletSeconds: 0 };
       current.calls = Math.max(0, (current.calls || 0) + 1);
       counter.set(targetUserId, current);
+      const entry = ensureRoomStatsEntry(roomId, room);
+      const s = ensureRoomStudentStats(entry, targetUserId);
+      s.calls = Math.max(0, (s.calls || 0) + 1);
+      roomStats.set(roomId, entry);
+      saveRoomStats();
 
       // clear all raised hands in room
       readyMap.set(roomId, new Set());
@@ -1357,6 +1498,11 @@ wss.on('connection', (ws) => {
         s.ratings[rating] = Math.max(0, (s.ratings[rating] || 0) + 1);
         saveUsers();
       }
+      const entry = ensureRoomStatsEntry(roomId, room);
+      const s = ensureRoomStudentStats(entry, targetUserId);
+      s.ratings[rating] = Math.max(0, (s.ratings[rating] || 0) + 1);
+      roomStats.set(roomId, entry);
+      saveRoomStats();
       appendLog(roomId, { ts: Date.now(), userId: targetUserId, action: 'rating', rating });
       sendStats(roomId);
       return;
@@ -1392,11 +1538,21 @@ wss.on('connection', (ws) => {
             current.calls = Math.max(0, (current.calls || 0) - 1);
             counter.set(entry.userId, current);
           }
+          const statsEntry = ensureRoomStatsEntry(roomId, room);
+          const roomStat = ensureRoomStudentStats(statsEntry, entry.userId);
+          roomStat.calls = Math.max(0, (roomStat.calls || 0) - 1);
+          roomStats.set(roomId, statsEntry);
+          saveRoomStats();
         }
         if (entry.action === 'rating' && entry.rating && targetUser) {
           const s = ensureStats(targetUser, subject);
           s.ratings[entry.rating] = Math.max(0, (s.ratings[entry.rating] || 0) - 1);
           saveUsers();
+          const statsEntry = ensureRoomStatsEntry(roomId, room);
+          const rs = ensureRoomStudentStats(statsEntry, entry.userId);
+          rs.ratings[entry.rating] = Math.max(0, (rs.ratings[entry.rating] || 0) - 1);
+          roomStats.set(roomId, statsEntry);
+          saveRoomStats();
         }
       }
 

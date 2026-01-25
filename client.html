@@ -78,6 +78,8 @@
     .called.show { display: block; }
     .statbox { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 10px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .card.clickable { cursor: pointer; }
+    .card.clickable:hover { border-color: #2b3652; background: #0c1424; }
     .card h3 { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
     .card .num { font-size: 24px; font-weight: 800; }
     .log { max-height: 240px; overflow: auto; margin-top: 10px; }
@@ -154,8 +156,12 @@
       </div>
       <div class="called" id="calledBox" title="Klicken zum Schließen">Du wurdest aufgerufen – bitte melden!</div>
       <div style="margin-top:12px">
-        <label>Frage (anonym)</label>
+        <label>Frage</label>
         <textarea id="questionText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+        <label class="row" style="align-items:center; gap:8px; margin-top:6px;">
+          <input id="questionAnonymous" type="checkbox" checked>
+          Anonym fragen
+        </label>
         <button id="sendQuestion" class="ghost" style="margin-top:6px">Frage senden</button>
       </div>
     </div>
@@ -171,21 +177,27 @@
       <button id="pollVote" class="ghost" style="margin-top:8px">Abstimmen</button>
     </div>
 
-    <div class="panel">
-      <h2>Deine Stunde</h2>
-      <div class="statbox">
-        <div class="card">
-          <h3>Meldungen (Stunde / Gesamt)</h3>
-          <div class="num" id="countSignals">0 / 0</div>
+    <div class="panel" id="statsPanel">
+      <h2 id="statsTitle">Deine Stunde</h2>
+      <div id="sessionStats">
+        <div class="statbox">
+          <div class="card">
+            <h3>Meldungen (Stunde / Gesamt)</h3>
+            <div class="num" id="countSignals">0 / 0</div>
+          </div>
+          <div class="card">
+            <h3>Aufrufe (Stunde / Gesamt)</h3>
+            <div class="num" id="countCalls">0 / 0</div>
+          </div>
         </div>
-        <div class="card">
-          <h3>Aufrufe (Stunde / Gesamt)</h3>
-          <div class="num" id="countCalls">0 / 0</div>
+        <div class="daily" id="dailyStats"></div>
+        <div class="log" id="logBox">
+          <div class="empty">Noch keine Einträge</div>
         </div>
       </div>
-      <div class="daily" id="dailyStats"></div>
-      <div class="log" id="logBox">
-        <div class="empty">Noch keine Einträge</div>
+      <div id="subjectStats" style="display:none">
+        <div class="statbox" id="subjectGrid"></div>
+        <div class="log" id="subjectDetail"><div class="empty">Fach anklicken, um Details zu sehen</div></div>
       </div>
     </div>
   </div>
@@ -230,11 +242,17 @@
     const leaveBtn = document.getElementById('leaveBtn');
     const calledBox = document.getElementById('calledBox');
     const questionText = document.getElementById('questionText');
+    const questionAnonymous = document.getElementById('questionAnonymous');
     const sendQuestionBtn = document.getElementById('sendQuestion');
+    const statsTitle = document.getElementById('statsTitle');
+    const sessionStats = document.getElementById('sessionStats');
     const countSignals = document.getElementById('countSignals');
     const countCalls = document.getElementById('countCalls');
     const dailyStatsEl = document.getElementById('dailyStats');
     const logBox = document.getElementById('logBox');
+    const subjectStatsEl = document.getElementById('subjectStats');
+    const subjectGrid = document.getElementById('subjectGrid');
+    const subjectDetail = document.getElementById('subjectDetail');
     const homeworkPanel = document.getElementById('homeworkPanel');
     const homeworkList = document.getElementById('homeworkList');
     const pollBox = document.getElementById('pollPanel');
@@ -293,6 +311,9 @@
     let currentRoom = null;
     let myLog = [];
     let myStats = { session: { signals: 0, calls: 0 }, total: { signals: 0, calls: 0 }, daily: {} };
+    let subjectStats = [];
+    let selectedSubject = '';
+    let lastAuth = null;
     let poll = null;
     let pollSelection = [];
     let thoughtActive = false;
@@ -346,6 +367,7 @@
       readyBtn.disabled = !currentRoom;
       leaveBtn.disabled = !currentRoom;
       sendQuestionBtn.disabled = !currentRoom;
+      updateStatsMode();
     }
 
     function renderProfileInfo() {
@@ -401,6 +423,47 @@
       }
     }
 
+    function renderSubjectStats() {
+      if (!subjectStats.length) {
+        subjectGrid.innerHTML = '<div class="empty">Keine Daten</div>';
+        subjectDetail.innerHTML = '<div class="empty">Keine Details</div>';
+        return;
+      }
+      subjectGrid.innerHTML = subjectStats.map((s) => {
+        const total = s.total || { signals: 0, calls: 0 };
+        return `
+          <div class="card clickable" data-subject="${s.subject}">
+            <h3>${s.subject}</h3>
+            <div class="num">M ${total.signals || 0} · A ${total.calls || 0}</div>
+          </div>
+        `;
+      }).join('');
+      subjectGrid.querySelectorAll('[data-subject]').forEach((card) => {
+        card.onclick = () => {
+          selectedSubject = card.getAttribute('data-subject') || '';
+          renderSubjectDetail();
+        };
+      });
+      if (!selectedSubject) {
+        selectedSubject = subjectStats[0]?.subject || '';
+      }
+      renderSubjectDetail();
+    }
+
+    function renderSubjectDetail() {
+      const entry = subjectStats.find((s) => s.subject === selectedSubject);
+      if (!entry || !entry.sessions || !entry.sessions.length) {
+        subjectDetail.innerHTML = '<div class="empty">Keine Details</div>';
+        return;
+      }
+      const rows = entry.sessions.map((s) => {
+        const time = s.createdAt ? new Date(s.createdAt).toLocaleString() : '-';
+        const stats = s.stats || {};
+        return `<tr><td>${time}</td><td>${s.name || '-'}</td><td>${s.className || '-'}</td><td>${stats.signals || 0}</td><td>${stats.calls || 0}</td></tr>`;
+      }).join('');
+      subjectDetail.innerHTML = `<table><thead><tr><th>Zeit</th><th>Raum</th><th>Klasse</th><th>Meldungen</th><th>Aufrufe</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
     function renderPoll() {
       if (!poll) {
         pollContainer.innerHTML = '<div class="empty">Keine Umfrage</div>';
@@ -451,6 +514,15 @@
       ws.onopen = () => {
         setConnection(true);
         ws.send(JSON.stringify({ type: 'catalogsRequest' }));
+        const remembered = localStorage.getItem('meldelisteRemember');
+        if (remembered && !profile.userId) {
+          try {
+            const auth = JSON.parse(remembered);
+            if (auth?.email && auth?.password) {
+              ws.send(JSON.stringify({ type: 'authLogin', role: 'student', email: auth.email, password: auth.password }));
+            }
+          } catch (e) {}
+        }
       };
       ws.onclose = () => {
         setConnection(false);
@@ -472,6 +544,21 @@
       ws.send(JSON.stringify({ type: 'join', roomId }));
     }
 
+    function requestSubjectStats() {
+      if (!ws || ws.readyState !== WebSocket.OPEN || !profile.userId) return;
+      ws.send(JSON.stringify({ type: 'studentSubjectStats' }));
+    }
+
+    function updateStatsMode() {
+      const hasRoom = Boolean(currentRoom);
+      statsTitle.textContent = hasRoom ? 'Deine Stunde' : 'Deine Statistiken';
+      setVisible(sessionStats, hasRoom);
+      setVisible(subjectStatsEl, !hasRoom);
+      if (!hasRoom) {
+        requestSubjectStats();
+      }
+    }
+
     function handleMessage(msg) {
       if (msg.type === 'profile' && msg.user) {
         profile.userId = msg.user.id;
@@ -482,9 +569,13 @@
         authMode = 'login';
         setAuthStatus('');
         renderProfileInfo();
+        if (lastAuth?.email && lastAuth?.password) {
+          localStorage.setItem('meldelisteRemember', JSON.stringify(lastAuth));
+        }
         localStorage.setItem('meldelisteProfile', JSON.stringify(profile));
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'homeworkListRequest' }));
+          requestSubjectStats();
         }
       }
       if (msg.type === 'catalogs') {
@@ -517,6 +608,11 @@
       if (msg.type === 'myStats') {
         myStats = { session: msg.session || {}, total: msg.total || {}, daily: msg.daily || {} };
         renderStats();
+      }
+
+      if (msg.type === 'studentSubjectStats') {
+        subjectStats = msg.subjects || [];
+        renderSubjectStats();
       }
       if (msg.type === 'authStatus') {
         if (msg.status === 'verify_required') {
@@ -603,6 +699,7 @@
           return;
         }
         pendingEmail = email;
+        lastAuth = { email, password };
         ws.send(JSON.stringify({ type: 'authRegister', role: 'student', email, firstName, lastName, className, password }));
         return;
       }
@@ -612,6 +709,7 @@
           return;
         }
         pendingEmail = email;
+        lastAuth = { email, password };
         ws.send(JSON.stringify({ type: 'authLogin', role: 'student', email, password }));
         return;
       }
@@ -648,6 +746,7 @@
     };
     logoutBtn.onclick = () => {
       localStorage.removeItem('meldelisteProfile');
+      localStorage.removeItem('meldelisteRemember');
       location.reload();
     };
 
@@ -680,6 +779,7 @@
         leaveBtn.disabled = true;
         withdrawBtn.disabled = true;
       }
+      updateStatsMode();
     };
 
     readyBtn.onclick = () => {
@@ -703,7 +803,7 @@
       if (thoughtActive) {
         ws.send(JSON.stringify({ type: 'thoughtSubmit', roomId: currentRoom, text }));
       } else {
-        ws.send(JSON.stringify({ type: 'questionSubmit', roomId: currentRoom, text }));
+        ws.send(JSON.stringify({ type: 'questionSubmit', roomId: currentRoom, text, anonymous: questionAnonymous.checked }));
       }
       questionText.value = '';
     };
@@ -737,6 +837,7 @@
       leaveBtn.disabled = true;
       withdrawBtn.disabled = true;
       renderCalled(false);
+      updateStatsMode();
     };
 
     calledBox.onclick = () => {
@@ -758,6 +859,7 @@
       renderProfileInfo();
     }
     renderClassOptions();
+    updateStatsMode();
 
     connect();
   </script>

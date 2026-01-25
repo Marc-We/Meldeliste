@@ -196,6 +196,13 @@
         </div>
       </div>
       <div class="stats-grid" id="classStatsGrid"></div>
+      <div id="classStudentPanel" style="display:none; margin-top:12px;">
+        <div class="row" style="justify-content: space-between; align-items: center;">
+          <div class="pill" id="classStudentTitle">-</div>
+          <button id="classStudentClose" class="ghost">Schliessen</button>
+        </div>
+        <div class="log" id="classStudentTable"><div class="small">Keine Daten</div></div>
+      </div>
     </div>
 
     <details class="panel" id="toolsPanel">
@@ -251,7 +258,7 @@
     </div>
 
     <div class="panel" id="questionsPanel">
-      <h2>Fragen (anonym)</h2>
+      <h2>Fragen</h2>
       <div class="questions" id="questionsBox"><div class="small">Keine Fragen</div></div>
     </div>
 
@@ -321,6 +328,10 @@
     const teachingsList = document.getElementById('teachingsList');
     const classStatsTitle = document.getElementById('classStatsTitle');
     const classStatsGrid = document.getElementById('classStatsGrid');
+    const classStudentPanel = document.getElementById('classStudentPanel');
+    const classStudentTitle = document.getElementById('classStudentTitle');
+    const classStudentTable = document.getElementById('classStudentTable');
+    const classStudentClose = document.getElementById('classStudentClose');
     const classStatsClose = document.getElementById('classStatsClose');
     const pollQuestionInput = document.getElementById('pollQuestion');
     const pollOptionsInput = document.getElementById('pollOptions');
@@ -358,6 +369,7 @@
     let thoughts = [];
     let homeworkItems = [];
     let classStats = { className: '', students: [] };
+    let classStudentStats = { className: "", student: null, sessions: [] };
 
     function setConnection(ok) {
       dot.classList.toggle('ok', ok);
@@ -637,11 +649,13 @@
 
     function renderClassStats() {
       if (!classStats.className) {
+        classStudentPanel.style.display = 'none';
         classStatsPanel.style.display = 'none';
         return;
       }
       classStatsTitle.textContent = `Klasse ${classStats.className}`;
       if (!classStats.students.length) {
+        classStudentPanel.style.display = 'none';
         classStatsGrid.innerHTML = '<div class="small">Keine Daten</div>';
         classStatsPanel.style.display = 'block';
         return;
@@ -650,13 +664,45 @@
         const total = s.total || { signals: 0, calls: 0, ratings: { '--':0,'-':0,'0':0,'+':0,'++':0 } };
         const ratings = total.ratings || {};
         return `
-          <div class="stat-card">
+          <div class="stat-card clickable" data-user="${s.userId}">
             <h4>${s.name}</h4>
             <div class="small">Gesamt: Meldungen ${total.signals || 0} · Aufrufe ${total.calls || 0}</div>
             <div class="small">Bew.: -- ${ratings['--']||0} | - ${ratings['-']||0} | 0 ${ratings['0']||0} | + ${ratings['+']||0} | ++ ${ratings['++']||0}</div>
           </div>`;
       }).join('');
+      classStatsGrid.querySelectorAll('[data-user]').forEach((card) => {
+        card.onclick = () => {
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          const userId = card.getAttribute('data-user');
+          if (!userId) return;
+          ws.send(JSON.stringify({ type: 'classStudentStats', className: classStats.className, userId }));
+        };
+      });
       classStatsPanel.style.display = 'block';
+      renderClassStudentStats();
+    }
+
+    function renderClassStudentStats() {
+      if (!classStudentStats.student) {
+        classStudentPanel.style.display = 'none';
+        return;
+      }
+      classStudentTitle.textContent = `${classStudentStats.student.name} (Klasse ${classStudentStats.className})`;
+      const sessions = classStudentStats.sessions || [];
+      if (!sessions.length) {
+        classStudentTable.innerHTML = '<div class="small">Keine Daten</div>';
+        classStudentPanel.style.display = 'block';
+        return;
+      }
+      const rows = sessions.map((s) => {
+        const time = s.createdAt ? new Date(s.createdAt).toLocaleString() : '-';
+        const stats = s.stats || {};
+        const ratings = stats.ratings || {};
+        const ratingText = `-- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}`;
+        return `<tr><td>${time}</td><td>${s.name || '-'}</td><td>${s.subject || 'default'}</td><td>${stats.signals || 0}</td><td>${stats.calls || 0}</td><td>${ratingText}</td></tr>`;
+      }).join('');
+      classStudentTable.innerHTML = `<table><thead><tr><th>Zeit</th><th>Raum</th><th>Fach</th><th>Meldungen</th><th>Aufrufe</th><th>Bewertungen</th></tr></thead><tbody>${rows}</tbody></table>`;
+      classStudentPanel.style.display = 'block';
     }
 
     function renderPoll() {
@@ -720,10 +766,13 @@
       const sorted = [...questions].sort((a, b) => b.ts - a.ts);
       questionsBox.innerHTML = sorted.map(q => {
         const time = new Date(q.ts).toLocaleTimeString();
-        return `<div class="q-item"><div>${q.text}</div><div class="q-time">${time}</div></div>`;
+        const isAnon = q.anonymous !== false;
+        const author = isAnon ? 'Anonym' : (q.name || 'Unbekannt');
+        return `<div class="q-item"><div>${q.text}</div><div class="q-time">${time} | ${author}</div></div>`;
       }).join('');
       const latest = sorted[0];
-      questionBannerText.innerHTML = `<div>${latest.text}</div><div class="q-time">${new Date(latest.ts).toLocaleTimeString()}</div>`;
+      const latestAuthor = latest.anonymous !== false ? 'Anonym' : (latest.name || 'Unbekannt');
+      questionBannerText.innerHTML = `<div>${latest.text}</div><div class="q-time">${new Date(latest.ts).toLocaleTimeString()} | ${latestAuthor}</div>`;
       questionBanner.style.display = 'block';
     }
 
@@ -840,7 +889,14 @@
       }
       if (msg.type === 'classStats') {
         classStats = { className: msg.className || '', students: msg.students || [] };
+        classStudentStats = { className: msg.className || '', student: null, sessions: [] };
         renderClassStats();
+        updateLayout();
+      }
+
+      if (msg.type === 'classStudentStats') {
+        classStudentStats = { className: msg.className || '', student: msg.student || null, sessions: msg.sessions || [] };
+        renderClassStudentStats();
         updateLayout();
       }
       if (msg.type === 'authStatus') {
@@ -1069,6 +1125,11 @@
       classStats = { className: '', students: [] };
       renderClassStats();
       updateLayout();
+    };
+
+    classStudentClose.onclick = () => {
+      classStudentStats = { className: '', student: null, sessions: [] };
+      renderClassStudentStats();
     };
 
     createPollBtn.onclick = () => {

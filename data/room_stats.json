@@ -1,0 +1,46 @@
+{
+  "room-mktq52vu-8t9k": {
+    "roomId": "room-mktq52vu-8t9k",
+    "name": "Raum",
+    "className": "10A",
+    "subject": "Deutsch",
+    "createdAt": 1769344682970,
+    "closedAt": 1769345929733,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 2,
+        "calls": 0,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  },
+  "room-mktqvygp-avft": {
+    "roomId": "room-mktqvygp-avft",
+    "name": "Raum",
+    "className": "10A",
+    "subject": "Deutsch",
+    "createdAt": 1769345936953,
+    "closedAt": 1769345949478,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 1,
+        "calls": 1,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  }
+}
