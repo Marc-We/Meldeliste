@@ -36,53 +36,35 @@
         }
       },
       "Mathematik": {
-        "signals": 7,
-        "calls": 10,
+        "signals": 2,
+        "calls": 2,
         "ratings": {
-          "0": 1,
-          "--": 1,
-          "-": 2,
-          "+": 3,
-          "++": 3
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 1,
+          "++": 0
         },
         "daily": {
           "2025-11-21": {
             "signals": 2,
             "calls": 2,
             "toiletSeconds": 140
-          },
-          "2025-11-22": {
-            "signals": 5,
-            "calls": 8,
-            "toiletSeconds": 170
           }
         },
-        "toiletSeconds": 310
-      },
-      "Deutsch": {
-        "signals": 0,
-        "calls": 0,
-        "ratings": {
-          "0": 0,
-          "--": 0,
-          "-": 0,
-          "+": 0,
-          "++": 0
-        },
-        "toiletSeconds": 0,
-        "daily": {}
+        "toiletSeconds": 140
       }
     }
   },
   "t-mi97yzvp-kg36": {
     "id": "t-mi97yzvp-kg36",
     "role": "teacher",
-    "firstName": "",
-    "lastName": "Briel",
+    "firstName": "Marc",
+    "lastName": "Wermke",
     "salutation": "Herr",
-    "className": "",
+    "className": "10A",
     "password": "123",
-    "name": "Herr Briel",
+    "name": "Marc Wermke",
     "stats": {}
   },
   "s-mi98d1ih-i11l": {
@@ -108,20 +90,20 @@
         "daily": {}
       },
       "Mathematik": {
-        "signals": 0,
-        "calls": 0,
+        "signals": 4,
+        "calls": 5,
         "ratings": {
           "0": 0,
-          "--": 0,
+          "--": 1,
           "-": 0,
           "+": 0,
-          "++": 0
+          "++": 1
         },
         "toiletSeconds": 0,
         "daily": {
-          "2025-12-12": {
-            "signals": 0,
-            "calls": 0,
+          "2026-01-25": {
+            "signals": 4,
+            "calls": 5,
             "toiletSeconds": 0
           }
         }
@@ -142,10 +124,6 @@
       {
         "className": "10A",
         "subject": "Mathematik"
-      },
-      {
-        "className": "10B",
-        "subject": "Deutsch"
       }
     ]
   },
@@ -178,17 +156,5 @@
         "subject": "Informatik"
       }
     ]
-  },
-  "t-mia8xoth-54x7": {
-    "id": "t-mia8xoth-54x7",
-    "role": "admin",
-    "firstName": "",
-    "lastName": "Wermke",
-    "salutation": "Herr",
-    "className": "",
-    "password": "123",
-    "name": "Herr Wermke",
-    "stats": {},
-    "teachings": []
   }
 }

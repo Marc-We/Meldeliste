@@ -10,8 +10,6 @@ const LOGS_FILE = path.join(DATA_DIR, 'logs.json');
 const CLASSES_FILE = path.join(DATA_DIR, 'classes.json');
 const SUBJECTS_FILE = path.join(DATA_DIR, 'subjects.json');
 const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
-const POLL_TEMPLATES_FILE = path.join(DATA_DIR, 'polls.json');
-const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
 // --- Helpers for persistence -------------------------------------------------
 function ensureDir(dir) {
@@ -45,8 +43,6 @@ let logs = new Map(Object.entries(loadJson(LOGS_FILE, {})));
 let classes = new Set(loadJson(CLASSES_FILE, []));
 let subjects = new Set(loadJson(SUBJECTS_FILE, []));
 let homework = new Map(Object.entries(loadJson(HOMEWORK_FILE, {}))); // key `${class}|${subject}` -> {text, ts}
-let pollTemplates = new Map(Object.entries(loadJson(POLL_TEMPLATES_FILE, {}))); // userId -> [{id,question,options,multiple}]
-ensureDir(UPLOAD_DIR);
 
 // Seeds for demo if empty
 if (users.size === 0) {
@@ -82,9 +78,6 @@ function saveSubjects() {
 function saveHomework() {
   saveJson(HOMEWORK_FILE, Object.fromEntries(homework));
 }
-function savePollTemplates() {
-  saveJson(POLL_TEMPLATES_FILE, Object.fromEntries(pollTemplates));
-}
 function saveHomework() {
   const plain = Object.fromEntries(homework);
   saveJson(HOMEWORK_FILE, plain);
@@ -103,8 +96,6 @@ const questionsMap = new Map(); // roomId -> [{id,text,ts}]
 const pollsMap = new Map(); // roomId -> {id, question, options:[{id,text,count}], multiple, votes: Map<userId, string[]>}
 const thoughtsMap = new Map(); // roomId -> {active:boolean, entries:string[]}
 const homeworkMap = homework; // alias for clarity
-const rosterCache = new Map(); // className -> [{userId,name}]
-const uploadsMap = new Map(); // roomId -> [{userId,name,fileName,url,ts}]
 
 function normalizeHomework(entry) {
   if (!entry) return { current: null, previous: null };
@@ -179,6 +170,26 @@ function ensureStats(user, subject) {
     };
   }
   return user.stats[subject];
+}
+
+function aggregateTotalStats(user) {
+  const total = {
+    signals: 0,
+    calls: 0,
+    toiletSeconds: 0,
+    ratings: { '--': 0, '-': 0, '0': 0, '+': 0, '++': 0 },
+  };
+  const stats = user?.stats || {};
+  Object.values(stats).forEach((s) => {
+    total.signals += s?.signals || 0;
+    total.calls += s?.calls || 0;
+    total.toiletSeconds += s?.toiletSeconds || 0;
+    const ratings = s?.ratings || {};
+    ratingKeys.forEach((key) => {
+      total.ratings[key] = (total.ratings[key] || 0) + (ratings[key] || 0);
+    });
+  });
+  return total;
 }
 
 function ensureDaily(user, subject, date) {
@@ -308,43 +319,6 @@ function broadcastHomework(className, subject, entry) {
   });
 }
 
-function sendRoster(roomId) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-  const cls = room.className;
-  if (!cls) return;
-  let roster = rosterCache.get(cls);
-  if (!roster) {
-    roster = Array.from(users.values())
-      .filter((u) => u.className === cls)
-      .map((u) => ({ userId: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() }));
-    rosterCache.set(cls, roster);
-  }
-  const members = roomMembers.get(roomId) || new Set();
-  const payload = JSON.stringify({
-    type: 'roster',
-    roomId,
-    className: cls,
-    roster: roster.map((r) => ({ ...r, inRoom: members.has(r.userId) })),
-  });
-  wss.clients.forEach((client) => {
-    if (client.readyState !== client.OPEN) return;
-    if (client.roomId !== roomId) return;
-    client.send(payload);
-  });
-}
-
-function sendRoomSettings(roomId) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-  const payload = JSON.stringify({ type: 'roomSettings', roomId, allowSelfCall: Boolean(room.allowSelfCall) });
-  wss.clients.forEach((client) => {
-    if (client.readyState !== client.OPEN) return;
-    if (client.roomId !== roomId) return;
-    client.send(payload);
-  });
-}
-
 function broadcastQuestions(roomId) {
   const list = questionsMap.get(roomId) || [];
   const payload = JSON.stringify({ type: 'questionList', roomId, questions: list });
@@ -380,7 +354,6 @@ function updatePresence(roomId) {
 }
 
 function appendLog(roomId, entry) {
-  if (!entry.id) entry.id = genId('log');
   if (!logs.has(roomId)) logs.set(roomId, { entries: [] });
   logs.get(roomId).entries.push(entry);
   saveLogs();
@@ -405,7 +378,6 @@ function sendLogUpdates(roomId) {
         ...e,
         name: users.get(e.userId)?.name || 'Unbekannt',
         rating: isTeacher ? e.rating : undefined,
-        selfCall: e.selfCall || false,
       }));
     client.send(JSON.stringify({ type: isTeacher ? 'log' : 'myLog', roomId, entries: filtered }));
   });
@@ -578,7 +550,6 @@ wss.on('connection', (ws) => {
         className,
         teacherId: ws.userId,
         active: true,
-        allowSelfCall: false,
         createdAt: Date.now(),
       };
       rooms.set(id, room);
@@ -647,6 +618,25 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (type === 'classStats' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      if (!className) return;
+      if (ws.role === 'teacher') {
+        const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
+        if (!teaches.some((t) => t.className === className)) return;
+      }
+      const students = Array.from(users.values())
+        .filter((u) => u && u.role === 'student' && (u.className || '') === className)
+        .map((u) => ({
+          userId: u.id,
+          name: u.name || 'Unbekannt',
+          total: aggregateTotalStats(u),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      ws.send(JSON.stringify({ type: 'classStats', className, students }));
+      return;
+    }
+
     if (type === 'join') {
       const roomId = msg.roomId;
       const room = rooms.get(roomId);
@@ -682,8 +672,6 @@ wss.on('connection', (ws) => {
       updatePresence(roomId);
       sendLogUpdates(roomId);
       sendStats(roomId);
-      sendRoster(roomId);
-      sendRoomSettings(roomId);
       // falls Toilettenstatus existiert, erneut an alle senden, damit Lampen sichtbar bleiben
       const tState = getToiletState(roomId, ws.userId);
       if (tState && tState.status !== 'back') {
@@ -709,19 +697,6 @@ wss.on('connection', (ws) => {
       if (imp) imp.delete(ws.userId);
       ws.roomId = null;
       updatePresence(roomId);
-      sendRoster(roomId);
-      return;
-    }
-
-    if (type === 'toggleSelfCall' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const roomId = msg.roomId || ws.roomId;
-      const room = rooms.get(roomId);
-      if (!room) return;
-      room.allowSelfCall = Boolean(msg.allow);
-      rooms.set(roomId, room);
-      saveRooms();
-      wss.clients.forEach((client) => sendRoomList(client));
-      sendRoomSettings(roomId);
       return;
     }
 
@@ -815,15 +790,6 @@ wss.on('connection', (ws) => {
       updatePresence(roomId);
       return;
     }
-    if (type === 'importantWithdraw') {
-      const roomId = msg.roomId || ws.roomId;
-      if (!roomId) return;
-      const set = importantMap.get(roomId);
-      if (set) set.delete(ws.userId);
-      broadcastRoom(roomId, { type: 'important', roomId, userId: ws.userId, status: 'cleared' });
-      updatePresence(roomId);
-      return;
-    }
 
     if (type === 'questionSubmit') {
       const roomId = msg.roomId || ws.roomId;
@@ -857,44 +823,6 @@ wss.on('connection', (ws) => {
         question,
         options: options.map((t, idx) => ({ id: `opt-${idx}`, text: t, count: 0 })),
         multiple,
-        votes: new Map(),
-      };
-      pollsMap.set(roomId, poll);
-      broadcastPoll(roomId);
-      return;
-    }
-
-    if (type === 'pollTemplateCreate' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const question = String(msg.question || '').trim();
-      const options = Array.isArray(msg.options) ? msg.options.map((t) => String(t || '').trim()).filter(Boolean) : [];
-      const multiple = Boolean(msg.multiple);
-      if (!question || options.length < 2) return;
-      const tmpl = { id: genId('tmpl'), question, options, multiple };
-      const list = pollTemplates.get(ws.userId) || [];
-      list.push(tmpl);
-      pollTemplates.set(ws.userId, list);
-      savePollTemplates();
-      ws.send(JSON.stringify({ type: 'pollTemplates', templates: list }));
-      return;
-    }
-
-    if (type === 'pollTemplateList') {
-      const list = pollTemplates.get(ws.userId) || [];
-      ws.send(JSON.stringify({ type: 'pollTemplates', templates: list }));
-      return;
-    }
-
-    if (type === 'pollTemplateActivate' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const roomId = msg.roomId || ws.roomId;
-      const tmplId = String(msg.templateId || '').trim();
-      const list = pollTemplates.get(ws.userId) || [];
-      const tmpl = list.find((t) => t.id === tmplId);
-      if (!tmpl) return;
-      const poll = {
-        id: genId('poll'),
-        question: tmpl.question,
-        options: tmpl.options.map((t, idx) => ({ id: `opt-${idx}`, text: t, count: 0 })),
-        multiple: tmpl.multiple,
         votes: new Map(),
       };
       pollsMap.set(roomId, poll);
@@ -954,39 +882,6 @@ wss.on('connection', (ws) => {
         }
       });
       ws.send(JSON.stringify(payload));
-      return;
-    }
-
-    if (type === 'homeworkUpload') {
-      const roomId = msg.roomId || ws.roomId;
-      const room = rooms.get(roomId);
-      if (!room) return;
-      const user = users.get(ws.userId);
-      if (!user || user.role !== 'student') return;
-      const file = msg.file || {};
-      const name = String(file.name || '').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const data = file.data || '';
-      if (!name || !data) return;
-      // simple base64 -> buffer
-      const buffer = Buffer.from(data, 'base64');
-      const dir = path.join(UPLOAD_DIR, room.className || 'unknown', room.subject || 'default');
-      ensureDir(dir);
-      const ts = Date.now();
-      const filePath = path.join(dir, `${ts}-${name}`);
-      fs.writeFileSync(filePath, buffer);
-      const urlPath = filePath.replace(__dirname, '').replace(/\\/g, '/');
-      const entry = { userId: ws.userId, name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(), fileName: name, url: urlPath, ts };
-      if (!uploadsMap.has(roomId)) uploadsMap.set(roomId, []);
-      uploadsMap.get(roomId).push(entry);
-      // notify teachers/admins
-      const payload = JSON.stringify({ type: 'homeworkUpload', roomId, entry });
-      wss.clients.forEach((client) => {
-        if (client.readyState !== client.OPEN) return;
-        if (client.roomId !== roomId) return;
-        if (client.role === 'teacher' || client.role === 'admin') client.send(payload);
-      });
-      // ack to student
-      ws.send(JSON.stringify({ type: 'homeworkUploadAck', fileName: name }));
       return;
     }
 
@@ -1092,44 +987,6 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (type === 'selfCall') {
-      const roomId = msg.roomId || ws.roomId;
-      const room = rooms.get(roomId);
-      if (!room || !room.allowSelfCall) return;
-      const actor = users.get(ws.userId);
-      if (!actor || actor.role !== 'student') return;
-      if (room.className && actor.className && actor.className !== room.className) return;
-      ws.roomId = roomId;
-      if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
-      roomMembers.get(roomId).add(ws.userId);
-      if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
-      const counter = roomCounters.get(roomId);
-      const current = counter.get(ws.userId) || { signals: 0, calls: 0, toiletSeconds: 0 };
-      current.calls = Math.max(0, (current.calls || 0) + 1);
-      counter.set(ws.userId, current);
-
-      const subject = room.subject || 'default';
-      const s = ensureStats(actor, subject);
-      s.calls = Math.max(0, (s.calls || 0) + 1);
-      const today = new Date().toISOString().slice(0, 10);
-      const d = ensureDaily(actor, subject, today);
-      d.calls = Math.max(0, (d.calls || 0) + 1);
-      saveUsers();
-
-      // remove raised hand of this user (if any)
-      const readySet = readyMap.get(roomId);
-      if (readySet) readySet.delete(ws.userId);
-
-      const ts = Date.now();
-      appendLog(roomId, { ts, userId: ws.userId, action: 'called', selfCall: true });
-      sendToUser(ws.userId, { type: 'called', roomId });
-      broadcastRoom(roomId, { type: 'reset', roomId, userId: ws.userId });
-      broadcastRoom(roomId, { type: 'selfCallNotice', roomId, userId: ws.userId, name: actor.name || 'Schüler', ts });
-      updatePresence(roomId);
-      sendStats(roomId);
-      return;
-    }
-
     if (type === 'ack' && ws.role === 'teacher') {
       // unchanged logic...
       const roomId = msg.roomId || ws.roomId;
@@ -1187,51 +1044,6 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (type === 'logDelete' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const roomId = msg.roomId || ws.roomId;
-      const entryId = msg.entryId;
-      if (!roomId || !entryId) return;
-      const room = rooms.get(roomId);
-      if (!room) return;
-      const logObj = logs.get(roomId);
-      if (!logObj || !Array.isArray(logObj.entries)) return;
-      const idx = logObj.entries.findIndex((e) => e.id === entryId);
-      if (idx === -1) return;
-      const removed = logObj.entries.splice(idx, 1)[0];
-      logs.set(roomId, logObj);
-      // adjust stats if needed
-      if (removed && removed.userId) {
-        const subject = room.subject || 'default';
-        const user = users.get(removed.userId);
-        if (removed.action === 'called') {
-          if (user) {
-            const s = ensureStats(user, subject);
-            s.calls = Math.max(0, (s.calls || 0) - 1);
-            const today = new Date().toISOString().slice(0, 10);
-            const d = ensureDaily(user, subject, today);
-            d.calls = Math.max(0, (d.calls || 0) - 1);
-            saveUsers();
-          }
-          if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
-          const counter = roomCounters.get(roomId);
-          const current = counter.get(removed.userId) || { signals: 0, calls: 0, toiletSeconds: 0 };
-          current.calls = Math.max(0, (current.calls || 0) - 1);
-          counter.set(removed.userId, current);
-        }
-        if (removed.action === 'rating' && removed.rating) {
-          if (user) {
-            const s = ensureStats(user, subject);
-            s.ratings[removed.rating] = Math.max(0, (s.ratings[removed.rating] || 0) - 1);
-            saveUsers();
-          }
-        }
-      }
-      saveLogs();
-      sendLogUpdates(roomId);
-      sendStats(roomId);
-      return;
-    }
-
     if (type === 'roomListRequest') {
       sendRoomList(ws);
       return;
@@ -1256,26 +1068,6 @@ wss.on('connection', (ws) => {
 });
 
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0'; // bind to all interfaces for LAN access
-
-function listLocalIps() {
-  const os = require('os');
-  const ifaces = os.networkInterfaces();
-  const ips = [];
-  Object.values(ifaces).forEach(list => {
-    (list || []).forEach(addr => {
-      if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
-    });
-  });
-  return ips;
-}
-
-server.listen(PORT, HOST, () => {
-  const ips = listLocalIps();
-  console.log(`WebSocket server listening on ws://${HOST}:${PORT}`);
-  if (ips.length) {
-    console.log(`LAN reachability: http://${ips[0]}:${PORT} (or any of: ${ips.join(', ')})`);
-  } else {
-    console.log('No LAN IPv4 address detected; check your network connection.');
-  }
+server.listen(PORT, () => {
+  console.log(`WebSocket server listening on ws://localhost:${PORT}`);
 });

@@ -76,13 +76,6 @@
     }
     .called { padding: 10px; border: 1px solid rgba(54,195,140,0.4); background: rgba(54,195,140,0.08); border-radius: 10px; margin-top: 10px; display: none; cursor: pointer; }
     .called.show { display: block; }
-    .info { padding: 10px; border: 1px solid rgba(155,89,182,0.4); background: rgba(155,89,182,0.08); border-radius: 10px; margin-top: 10px; display: none; cursor: pointer; }
-    .info.show { display: block; }
-    .back-active {
-      background: #6e3fa5;
-      border: 1px solid #6e3fa5;
-      color: #fff;
-    }
     .statbox { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 10px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
     .card h3 { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
@@ -92,9 +85,6 @@
     .log th, .log td { padding: 8px 6px; border-bottom: 1px solid #1c2440; text-align: left; }
     .empty { color: var(--muted); font-size: 14px; }
     .daily { font-size: 13px; color: var(--muted); margin-top: 8px; }
-    .roster { display:grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr)); gap:8px; margin-top:10px; }
-    .roster .name { padding:8px; border:2px solid #f45b69; border-radius:10px; }
-    .roster .name.in { border-color:#36c38c; }
   </style>
 </head>
 <body>
@@ -107,11 +97,6 @@
     <div class="panel">
       <h2>Gedankenrunde</h2>
       <div id="thoughtState" class="small">Nicht aktiv</div>
-    </div>
-
-    <div class="panel" id="rosterPanel" style="display:none">
-      <h2>Anwesenheit</h2>
-      <div class="roster" id="rosterBox"><div class="empty">Keine Daten</div></div>
     </div>
 
     <div class="panel">
@@ -141,7 +126,6 @@
       <div class="row" style="margin-top:6px">
         <button id="modeRegister" class="ghost" style="flex:1">Registrieren</button>
         <button id="modeLogin" class="ghost" style="flex:1">Anmelden</button>
-        <button id="logout" class="ghost" style="flex:1">Profil löschen</button>
       </div>
       <div class="pill" id="authStatus"></div>
     </div>
@@ -155,15 +139,9 @@
       <div class="row" style="margin-top:12px">
         <button id="readyBtn" class="primary" disabled>Ich melde mich</button>
         <button id="withdrawBtn" class="ghost" disabled>Meldung zurücknehmen</button>
-        <button id="toiletBtn" class="ghost" disabled style="color:#fff; background:#6e3fa5; border-color:#6e3fa5;">Toilette</button>
-        <button id="backBtn" class="ghost" disabled>Ich bin zurück</button>
-        <button id="importantBtn" class="ghost" disabled style="color:#fff; background:#e74c3c; border-color:#e74c3c;">Wichtig</button>
-        <button id="selfCallBtn" class="ghost" disabled>Selbst aufrufen</button>
         <button id="leaveBtn" class="ghost" disabled>Raum verlassen</button>
       </div>
       <div class="called" id="calledBox" title="Klicken zum Schließen">Du wurdest aufgerufen – bitte melden!</div>
-      <div class="info" id="toiletInfo" title="Klicken zum Schließen">Toiletten-Erlaubnis: Laufzeit 0s</div>
-      <div class="info" id="importantInfo" title="Klicken zum Schließen" style="border-color: rgba(231,76,60,0.4); background: rgba(231,76,60,0.08);">Wichtig gemeldet</div>
       <div style="margin-top:12px">
         <label>Frage (anonym)</label>
         <textarea id="questionText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
@@ -181,10 +159,6 @@
         <div class="card">
           <h3>Aufrufe (Stunde / Gesamt)</h3>
           <div class="num" id="countCalls">0 / 0</div>
-        </div>
-        <div class="card">
-          <h3>Toilette (Sek., Stunde / Gesamt)</h3>
-          <div class="num" id="countToilet">0 / 0</div>
         </div>
       </div>
       <div class="daily" id="dailyStats"></div>
@@ -221,24 +195,16 @@
     const profileInfo = document.getElementById('profileInfo');
     const modeRegisterBtn = document.getElementById('modeRegister');
     const modeLoginBtn = document.getElementById('modeLogin');
-    const logoutBtn = document.getElementById('logout');
     const authStatus = document.getElementById('authStatus');
     const roomSelect = document.getElementById('roomSelect');
     const readyBtn = document.getElementById('readyBtn');
     const withdrawBtn = document.getElementById('withdrawBtn');
-    const toiletBtn = document.getElementById('toiletBtn');
-    const backBtn = document.getElementById('backBtn');
-    const importantBtn = document.getElementById('importantBtn');
-    const selfCallBtn = document.getElementById('selfCallBtn');
     const leaveBtn = document.getElementById('leaveBtn');
     const calledBox = document.getElementById('calledBox');
-    const toiletInfo = document.getElementById('toiletInfo');
-    const importantInfo = document.getElementById('importantInfo');
     const questionText = document.getElementById('questionText');
     const sendQuestionBtn = document.getElementById('sendQuestion');
     const countSignals = document.getElementById('countSignals');
     const countCalls = document.getElementById('countCalls');
-    const countToilet = document.getElementById('countToilet');
     const dailyStatsEl = document.getElementById('dailyStats');
     const logBox = document.getElementById('logBox');
     const homeworkPanel = document.getElementById('homeworkPanel');
@@ -247,8 +213,6 @@
     const pollContainer = document.getElementById('pollContainer');
     const pollVoteBtn = document.getElementById('pollVote');
     const thoughtState = document.getElementById('thoughtState');
-    const rosterPanel = document.getElementById('rosterPanel');
-    const rosterBox = document.getElementById('rosterBox');
 
     let ws = null;
     let profile = { role: 'student', userId: null, firstName: '', lastName: '', className: '', password: '' };
@@ -263,15 +227,12 @@
     let rooms = [];
     let currentRoom = null;
     let myLog = [];
-    let myStats = { session: { signals: 0, calls: 0, toiletSeconds: 0 }, total: { signals: 0, calls: 0, toiletSeconds: 0 }, daily: {} };
-    let toiletState = { status: 'idle', start: null };
-    let importantState = false;
+    let myStats = { session: { signals: 0, calls: 0 }, total: { signals: 0, calls: 0 }, daily: {} };
     let poll = null;
     let pollSelection = [];
     let thoughtActive = false;
     let pollCollapsed = false;
     let homeworkItems = [];
-    let roster = [];
 
     function renderHomework() {
       if (!homeworkItems.length) {
@@ -302,9 +263,6 @@
         readyBtn.disabled = true;
         leaveBtn.disabled = true;
         withdrawBtn.disabled = true;
-        toiletBtn.disabled = true;
-        backBtn.disabled = true;
-        importantBtn.disabled = true;
         return;
       }
       activeRooms.forEach((room) => {
@@ -322,9 +280,6 @@
       }
       readyBtn.disabled = !currentRoom;
       leaveBtn.disabled = !currentRoom;
-      toiletBtn.disabled = !currentRoom;
-      backBtn.disabled = !currentRoom || toiletState.status !== 'allowed';
-      importantBtn.disabled = !currentRoom;
       sendQuestionBtn.disabled = !currentRoom;
     }
 
@@ -340,35 +295,6 @@
 
     function renderCalled(on) {
       calledBox.classList.toggle('show', on);
-    }
-
-    function renderToilet(on, text) {
-      toiletInfo.classList.toggle('show', on);
-      if (text) toiletInfo.textContent = text;
-      const isAllowed = toiletState.status === 'allowed';
-      backBtn.disabled = !isAllowed;
-      backBtn.classList.toggle('back-active', isAllowed);
-      const disableOthers = isAllowed || toiletState.status === 'pending';
-      if (disableOthers) {
-        readyBtn.disabled = true;
-        withdrawBtn.disabled = true;
-        toiletBtn.disabled = true;
-        leaveBtn.disabled = true;
-        importantBtn.disabled = true;
-      } else if (currentRoom) {
-        readyBtn.disabled = false;
-        withdrawBtn.disabled = true;
-        toiletBtn.disabled = false;
-        leaveBtn.disabled = false;
-        importantBtn.disabled = false;
-      }
-    }
-    function renderImportant(on) {
-      importantState = on;
-      importantInfo.classList.toggle('show', on);
-      if (on) {
-        importantInfo.textContent = 'Wichtig gemeldet';
-      }
     }
 
     function renderLog() {
@@ -388,15 +314,12 @@
       const total = myStats.total || { signals: 0, calls: 0 };
       countSignals.textContent = `${session.signals || 0} / ${total.signals || 0}`;
       countCalls.textContent = `${session.calls || 0} / ${total.calls || 0}`;
-      const sessionToilet = myStats.session?.toiletSeconds || 0;
-      const totalToilet = myStats.total?.toiletSeconds || 0;
-      countToilet.textContent = `${sessionToilet} / ${totalToilet}`;
       const daily = myStats.daily || {};
       const days = Object.keys(daily).sort().slice(-5);
       if (!days.length) {
         dailyStatsEl.textContent = 'Keine Tagesdaten';
       } else {
-        dailyStatsEl.textContent = 'Letzte Tage: ' + days.map(d => `${d}: M ${daily[d].signals||0} · A ${daily[d].calls||0} · T ${daily[d].toiletSeconds||0}s`).join(' | ');
+        dailyStatsEl.textContent = 'Letzte Tage: ' + days.map(d => `${d}: M ${daily[d].signals||0} · A ${daily[d].calls||0}`).join(' | ');
       }
     }
 
@@ -508,31 +431,6 @@
       if (msg.type === 'authError') {
         authStatus.textContent = `Fehler: ${msg.reason || 'Anmeldung fehlgeschlagen'}`;
       }
-      if (msg.type === 'toiletAllowed') {
-        toiletState = { status: 'allowed', start: msg.start || Date.now() };
-        renderToilet(true, 'Toiletten-Erlaubnis: läuft...');
-      }
-      if (msg.type === 'toilet') {
-        if (msg.userId !== profile.userId) return;
-        if (msg.status === 'allowed') {
-          toiletState = { status: 'allowed', start: msg.start || Date.now() };
-          renderToilet(true, 'Toiletten-Erlaubnis: läuft...');
-        } else if (msg.status === 'back') {
-          toiletState = { status: 'idle', start: null };
-          renderToilet(false);
-        } else if (msg.status === 'pending') {
-          toiletState = { status: 'pending', start: null };
-          renderToilet(true, 'Warte auf Erlaubnis...');
-        }
-      }
-      if (msg.type === 'important') {
-        if (msg.userId !== profile.userId) return;
-        if (msg.status === 'pending') {
-          renderImportant(true);
-        } else if (msg.status === 'cleared') {
-          renderImportant(false);
-        }
-      }
       if (msg.type === 'poll' && msg.roomId === currentRoom) {
         poll = msg.poll;
         pollSelection = [];
@@ -558,10 +456,6 @@
         homeworkItems = (msg.items || []).filter((it) => it.homework && it.homework.current && it.homework.current.text);
         renderHomework();
       }
-      if (msg.type === 'roster' && msg.roomId === currentRoom) {
-        roster = msg.roster || [];
-        renderRoster();
-      }
     }
 
     saveProfileBtn.onclick = () => {
@@ -583,17 +477,6 @@
       renderProfileInfo();
     };
 
-    logoutBtn.onclick = () => {
-      localStorage.removeItem('meldelisteProfile');
-      profile = { role: 'student', userId: null, firstName: '', lastName: '', className: '', password: '' };
-      firstNameInput.value = '';
-      lastNameInput.value = '';
-      classInput.value = '';
-      passwordInput.value = '';
-      renderProfileInfo();
-      authStatus.textContent = 'Profil gelöscht';
-    };
-
     roomSelect.onchange = () => {
       currentRoom = roomSelect.value || null;
       if (currentRoom) {
@@ -601,18 +484,11 @@
         readyBtn.disabled = false;
         leaveBtn.disabled = false;
         withdrawBtn.disabled = true;
-        toiletBtn.disabled = false;
-        backBtn.disabled = true;
-        backBtn.classList.remove('back-active');
         renderCalled(false);
-        renderToilet(false);
       } else {
         readyBtn.disabled = true;
         leaveBtn.disabled = true;
         withdrawBtn.disabled = true;
-        toiletBtn.disabled = true;
-        backBtn.disabled = true;
-        backBtn.classList.remove('back-active');
       }
     };
 
@@ -621,7 +497,6 @@
       ws.send(JSON.stringify({ type: 'ready', roomId: currentRoom }));
       readyBtn.disabled = true;
       withdrawBtn.disabled = false;
-      toiletBtn.disabled = false;
     };
 
     withdrawBtn.onclick = () => {
@@ -629,31 +504,6 @@
       ws.send(JSON.stringify({ type: 'withdraw', roomId: currentRoom }));
       readyBtn.disabled = false;
       withdrawBtn.disabled = true;
-    };
-
-    toiletBtn.onclick = () => {
-      if (!currentRoom || !ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'toilet', roomId: currentRoom }));
-      toiletState = { status: 'pending', start: null };
-      renderToilet(true, 'Warte auf Erlaubnis...');
-    };
-
-    backBtn.onclick = () => {
-      if (!currentRoom || !ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: 'toiletBack', roomId: currentRoom }));
-      toiletState = { status: 'idle', start: null };
-      renderToilet(false);
-    };
-
-    importantBtn.onclick = () => {
-      if (!currentRoom || !ws || ws.readyState !== WebSocket.OPEN) return;
-      if (importantState) {
-        ws.send(JSON.stringify({ type: 'importantWithdraw', roomId: currentRoom }));
-        renderImportant(false);
-      } else {
-        ws.send(JSON.stringify({ type: 'important', roomId: currentRoom }));
-        renderImportant(true);
-      }
     };
 
     sendQuestionBtn.onclick = () => {
@@ -694,12 +544,7 @@
       readyBtn.disabled = true;
       leaveBtn.disabled = true;
       withdrawBtn.disabled = true;
-      toiletBtn.disabled = true;
-      backBtn.disabled = true;
-      backBtn.classList.remove('back-active');
       renderCalled(false);
-      renderToilet(false);
-      renderImportant(false);
     };
 
     calledBox.onclick = () => {

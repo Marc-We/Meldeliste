@@ -133,85 +133,15 @@
     "teacherId": "t-mi98l3de-kuar",
     "active": false,
     "createdAt": 1763808684966,
-    "closedAt": 1763811974349
+    "closedAt": 1769335041334
   },
-  "room-mia85ou1-mc7s": {
-    "id": "room-mia85ou1-mc7s",
-    "name": "Test",
-    "subject": "Mathematik",
-    "className": "10A",
-    "teacherId": "t-mi98l3de-kuar",
-    "active": false,
-    "createdAt": 1763812056313,
-    "closedAt": 1763812311341
-  },
-  "room-mia8bjdn-wucp": {
-    "id": "room-mia8bjdn-wucp",
-    "name": "MZR",
-    "subject": "Deutsch",
-    "className": "10A",
-    "teacherId": "t-mi98l3de-kuar",
-    "active": false,
-    "createdAt": 1763812329179,
-    "closedAt": 1763812365961
-  },
-  "room-mia8ck2j-i71s": {
-    "id": "room-mia8ck2j-i71s",
-    "name": "R101",
-    "subject": "Mathematik",
-    "className": "10A",
-    "teacherId": "t-mi98l3de-kuar",
-    "active": false,
-    "createdAt": 1763812376731,
-    "closedAt": 1763812478218
-  },
-  "room-mia8g1oj-82w7": {
-    "id": "room-mia8g1oj-82w7",
-    "name": "R101",
-    "subject": "Mathematik",
-    "className": "10A",
-    "teacherId": "t-mi98l3de-kuar",
-    "active": false,
-    "createdAt": 1763812539523,
-    "closedAt": 1763812772026
-  },
-  "room-mia8leul-u2o7": {
-    "id": "room-mia8leul-u2o7",
-    "name": "MZR",
-    "subject": "Mathematik",
-    "className": "10A",
-    "teacherId": "t-mi98l3de-kuar",
-    "active": false,
-    "createdAt": 1763812789869,
-    "closedAt": 1763813468573
-  },
-  "room-mia8t9ve-d0kq": {
-    "id": "room-mia8t9ve-d0kq",
-    "name": "101",
-    "subject": "Deutsch",
-    "className": "10A",
-    "teacherId": "t-mi98l3de-kuar",
-    "active": false,
-    "createdAt": 1763813156666,
-    "closedAt": 1763813467850
-  },
-  "room-miaaw77n-2yq5": {
-    "id": "room-miaaw77n-2yq5",
-    "name": "MZR",
-    "subject": "Mathematik",
-    "className": "10A",
-    "teacherId": "t-mi98l3de-kuar",
-    "active": false,
-    "createdAt": 1763816652419,
-    "closedAt": 1763817590102
-  },
-  "room-miabjcp8-gc3h": {
-    "id": "room-miabjcp8-gc3h",
+  "room-mktket0e-79bj": {
+    "id": "room-mktket0e-79bj",
     "name": "MZR",
     "subject": "Mathematik",
     "className": "10A",
     "teacherId": "t-mi98l3de-kuar",
     "active": true,
-    "createdAt": 1763817732620
+    "createdAt": 1769335059038
   }
 }
