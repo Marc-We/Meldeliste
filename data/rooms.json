@@ -151,7 +151,17 @@
     "subject": "Mathematik",
     "className": "10A",
     "teacherId": "t-mi98l3de-kuar",
+    "active": false,
+    "createdAt": 1769337561801,
+    "closedAt": 1769338248919
+  },
+  "room-mktnw76z-tg2r": {
+    "id": "room-mktnw76z-tg2r",
+    "name": "Raum",
+    "subject": "Mathematik",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
     "active": true,
-    "createdAt": 1769337561801
+    "createdAt": 1769340909419
   }
 }

@@ -3,6 +3,13 @@ const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
+let nodemailer = null;
+try {
+  nodemailer = require('nodemailer');
+} catch (err) {
+  nodemailer = null;
+}
 
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -145,9 +152,96 @@ const wss = new WebSocketServer({ server });
 
 // --- Utility functions -------------------------------------------------------
 const ratingKeys = ['--', '-', '0', '+', '++'];
+const CODE_TTL_MS = 15 * 60 * 1000;
 
 function genId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isEmailValid(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function hashSecret(secret) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(String(secret), salt, 64);
+  return `${salt}:${derived.toString('hex')}`;
+}
+
+function verifySecret(secret, stored) {
+  if (!stored) return false;
+  const parts = String(stored).split(':');
+  if (parts.length !== 2) return false;
+  const [salt, hashHex] = parts;
+  if (!salt || !hashHex) return false;
+  const derived = crypto.scryptSync(String(secret), salt, 64);
+  const hashBuf = Buffer.from(hashHex, 'hex');
+  if (hashBuf.length !== derived.length) return false;
+  return crypto.timingSafeEqual(hashBuf, derived);
+}
+
+function generateCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+let mailTransport = null;
+function getMailer() {
+  if (!nodemailer) return null;
+  if (mailTransport) return mailTransport;
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) return null;
+  const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true';
+  mailTransport = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+  return mailTransport;
+}
+
+function sendEmail(to, subject, text) {
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@example.com';
+  const transport = getMailer();
+  if (!transport) {
+    console.log(`[MAIL DEBUG] To: ${to}\n${subject}\n${text}`);
+    return;
+  }
+  transport.sendMail({ from, to, subject, text }, (err) => {
+    if (err) {
+      console.error('Failed to send email', err);
+    }
+  });
+}
+
+function findUserByEmail(email) {
+  const normalized = normalizeEmail(email);
+  for (const u of users.values()) {
+    if (normalizeEmail(u.email) === normalized) return u;
+  }
+  return null;
+}
+
+function publicUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    role: user.role,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    salutation: user.salutation,
+    className: user.className,
+    name: user.name,
+    teachings: user.teachings || [],
+  };
 }
 
 function ensureStats(user, subject) {
@@ -552,9 +646,192 @@ wss.on('connection', (ws) => {
       attachSocket(user.id, ws);
 
       // send profile back and room list
-      ws.send(JSON.stringify({ type: 'profile', user }));
+      ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
       sendRoomList(ws);
       sendCatalogs(ws);
+      return;
+    }
+
+    if (type === 'catalogsRequest') {
+      sendCatalogs(ws);
+      return;
+    }
+
+    if (type === 'authRegister') {
+      const role = msg.role === 'teacher' || msg.role === 'student' ? msg.role : 'student';
+      const email = normalizeEmail(msg.email);
+      const firstName = role === 'student' ? String(msg.firstName || '').trim() : '';
+      const lastName = String(msg.lastName || '').trim();
+      const className = role === 'student' ? String(msg.className || '').trim() : '';
+      const salutation = role === 'teacher' ? (msg.salutation === 'Frau' ? 'Frau' : 'Herr') : '';
+      const password = String(msg.password || '');
+
+      if (!email || !isEmailValid(email) || !password) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
+        return;
+      }
+      if (role === 'student' && (!firstName || !lastName || !className)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
+        return;
+      }
+      if (role === 'teacher' && !lastName) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
+        return;
+      }
+      if (role === 'student' && classes.size > 0 && !classes.has(className)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'class_invalid' }));
+        return;
+      }
+
+      const existing = findUserByEmail(email);
+      if (existing) {
+        if (!existing.emailVerified) {
+          const code = generateCode();
+          existing.verification = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
+          users.set(existing.id, existing);
+          saveUsers();
+          sendEmail(email, 'Meldeliste: Code bestaetigen', `Dein Code: ${code}`);
+          ws.send(JSON.stringify({ type: 'authStatus', status: 'verify_required', email }));
+          return;
+        }
+        ws.send(JSON.stringify({ type: 'authError', reason: 'email_exists' }));
+        return;
+      }
+
+      const id = genId(role === 'teacher' ? 't' : 's');
+      const name = role === 'teacher' ? `${salutation} ${lastName}`.trim() : `${firstName} ${lastName}`.trim();
+      const user = {
+        id,
+        role,
+        email,
+        emailVerified: false,
+        firstName,
+        lastName,
+        salutation,
+        className,
+        name,
+        passwordHash: hashSecret(password),
+        stats: {},
+        teachings: [],
+      };
+      const code = generateCode();
+      user.verification = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
+      users.set(id, user);
+      saveUsers();
+      sendEmail(email, 'Meldeliste: Code bestaetigen', `Willkommen!\n\nDein Code: ${code}`);
+      ws.send(JSON.stringify({ type: 'authStatus', status: 'verify_required', email }));
+      return;
+    }
+
+    if (type === 'authVerify') {
+      const email = normalizeEmail(msg.email);
+      const code = String(msg.code || '').trim();
+      const user = findUserByEmail(email);
+      if (!user || !code) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'not_found' }));
+        return;
+      }
+      if (user.emailVerified) {
+        ws.send(JSON.stringify({ type: 'authStatus', status: 'verified' }));
+        return;
+      }
+      const verify = user.verification || {};
+      if (!verify.codeHash || !verify.expiresAt || verify.expiresAt < Date.now()) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'code_expired' }));
+        return;
+      }
+      if (!verifySecret(code, verify.codeHash)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
+        return;
+      }
+      user.emailVerified = true;
+      delete user.verification;
+      users.set(user.id, user);
+      saveUsers();
+
+      ws.userId = user.id;
+      ws.role = user.role;
+      attachSocket(user.id, ws);
+      ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      sendRoomList(ws);
+      sendCatalogs(ws);
+      return;
+    }
+
+    if (type === 'authLogin') {
+      const email = normalizeEmail(msg.email);
+      const password = String(msg.password || '');
+      const requestedRole = msg.role === 'teacher' || msg.role === 'student' || msg.role === 'admin' ? msg.role : null;
+      const user = findUserByEmail(email);
+      if (!user) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'not_found' }));
+        return;
+      }
+      if (requestedRole && !(user.role === requestedRole || (requestedRole === 'teacher' && user.role === 'admin'))) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_role' }));
+        return;
+      }
+      if (!user.emailVerified) {
+        const code = generateCode();
+        user.verification = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
+        users.set(user.id, user);
+        saveUsers();
+        sendEmail(user.email, 'Meldeliste: Code bestaetigen', `Dein Code: ${code}`);
+        ws.send(JSON.stringify({ type: 'authStatus', status: 'verify_required', email: user.email }));
+        return;
+      }
+      if (!verifySecret(password, user.passwordHash)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_password' }));
+        return;
+      }
+      ws.userId = user.id;
+      ws.role = user.role;
+      attachSocket(user.id, ws);
+      ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      sendRoomList(ws);
+      sendCatalogs(ws);
+      return;
+    }
+
+    if (type === 'authResetRequest') {
+      const email = normalizeEmail(msg.email);
+      const user = findUserByEmail(email);
+      if (!user) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'not_found' }));
+        return;
+      }
+      const code = generateCode();
+      user.reset = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
+      users.set(user.id, user);
+      saveUsers();
+      sendEmail(email, 'Meldeliste: Passwort zuruecksetzen', `Dein Code: ${code}`);
+      ws.send(JSON.stringify({ type: 'authStatus', status: 'reset_sent', email }));
+      return;
+    }
+
+    if (type === 'authResetConfirm') {
+      const email = normalizeEmail(msg.email);
+      const code = String(msg.code || '').trim();
+      const password = String(msg.password || '');
+      const user = findUserByEmail(email);
+      if (!user || !code || !password) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
+        return;
+      }
+      const reset = user.reset || {};
+      if (!reset.codeHash || !reset.expiresAt || reset.expiresAt < Date.now()) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'code_expired' }));
+        return;
+      }
+      if (!verifySecret(code, reset.codeHash)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
+        return;
+      }
+      user.passwordHash = hashSecret(password);
+      delete user.reset;
+      users.set(user.id, user);
+      saveUsers();
+      ws.send(JSON.stringify({ type: 'authStatus', status: 'reset_done' }));
       return;
     }
 
@@ -640,7 +917,7 @@ wss.on('connection', (ws) => {
       if (!exists) user.teachings.push({ className, subject });
       users.set(ws.userId, user);
       saveUsers();
-      ws.send(JSON.stringify({ type: 'profile', user }));
+      ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
       return;
     }
 

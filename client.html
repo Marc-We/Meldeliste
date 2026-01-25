@@ -97,26 +97,41 @@
     <div class="panel">
       <h2>Profil</h2>
       <div class="row">
-        <label style="flex:1">
+        <label style="flex:1" id="emailRow">
+          E-Mail
+          <input id="email" type="email" placeholder="name@example.com">
+        </label>
+        <label style="flex:1" id="firstNameRow">
           Vorname
           <input id="firstName" placeholder="Dein Vorname">
         </label>
-        <label style="flex:1">
+        <label style="flex:1" id="lastNameRow">
           Nachname
           <input id="lastName" placeholder="Dein Nachname">
         </label>
-        <label style="width:160px">
+      </div>
+      <div class="row">
+        <label style="width:180px" id="classRow">
           Klasse
-          <input id="className" placeholder="z. B. 10A">
+          <select id="className"></select>
         </label>
-        <label style="width:160px">
+        <label style="width:180px" id="passwordRow">
           Passwort
           <input id="password" type="password" placeholder="Passwort">
         </label>
+        <label style="width:180px" id="confirmRow">
+          Passwort bestätigen
+          <input id="passwordConfirm" type="password" placeholder="Passwort wiederholen">
+        </label>
+        <label style="width:160px" id="codeRow">
+          Code
+          <input id="verifyCode" placeholder="123456">
+        </label>
       </div>
       <div class="row" style="margin-top:12px">
-        <button id="saveProfile" class="ghost">Speichern & ${'{'}authMode{'}'}</button>
+        <button id="saveProfile" class="ghost">Registrieren</button>
         <button id="logoutBtn" class="ghost">Ausloggen</button>
+        <button id="forgotBtn" class="ghost">Passwort vergessen</button>
       </div>
       <div class="pill" id="profileInfo">Noch kein Profil gespeichert</div>
       <div class="row" style="margin-top:6px">
@@ -188,16 +203,27 @@
 
     const dot = document.getElementById('dot');
     const connText = document.getElementById('connText');
+    const emailInput = document.getElementById('email');
     const firstNameInput = document.getElementById('firstName');
     const lastNameInput = document.getElementById('lastName');
     const classInput = document.getElementById('className');
     const passwordInput = document.getElementById('password');
+    const passwordConfirmInput = document.getElementById('passwordConfirm');
+    const verifyCodeInput = document.getElementById('verifyCode');
     const saveProfileBtn = document.getElementById('saveProfile');
     const logoutBtn = document.getElementById('logoutBtn');
+    const forgotBtn = document.getElementById('forgotBtn');
     const profileInfo = document.getElementById('profileInfo');
     const modeRegisterBtn = document.getElementById('modeRegister');
     const modeLoginBtn = document.getElementById('modeLogin');
     const authStatus = document.getElementById('authStatus');
+    const emailRow = document.getElementById('emailRow');
+    const firstNameRow = document.getElementById('firstNameRow');
+    const lastNameRow = document.getElementById('lastNameRow');
+    const classRow = document.getElementById('classRow');
+    const passwordRow = document.getElementById('passwordRow');
+    const confirmRow = document.getElementById('confirmRow');
+    const codeRow = document.getElementById('codeRow');
     const roomSelect = document.getElementById('roomSelect');
     const readyBtn = document.getElementById('readyBtn');
     const withdrawBtn = document.getElementById('withdrawBtn');
@@ -218,14 +244,50 @@
     const thoughtState = document.getElementById('thoughtState');
 
     let ws = null;
-    let profile = { role: 'student', userId: null, firstName: '', lastName: '', className: '', password: '' };
-    let authMode = 'register'; // 'login' or 'register'
+    let profile = { role: 'student', userId: null, email: '', firstName: '', lastName: '', className: '' };
+    let authMode = 'login'; // login | register | verify | reset-request | reset-confirm
+    let pendingEmail = '';
+    let classCatalog = [];
+
+    function setVisible(el, show) {
+      if (!el) return;
+      el.style.display = show ? '' : 'none';
+    }
 
     function updateAuthModeButtons() {
-      modeRegisterBtn.classList.toggle('primary', authMode === 'register');
-      modeLoginBtn.classList.toggle('primary', authMode === 'login');
-      modeRegisterBtn.classList.toggle('ghost', authMode !== 'register');
-      modeLoginBtn.classList.toggle('ghost', authMode !== 'login');
+      const isRegister = authMode === 'register';
+      const isLogin = authMode === 'login';
+      modeRegisterBtn.classList.toggle('primary', isRegister);
+      modeLoginBtn.classList.toggle('primary', isLogin);
+      modeRegisterBtn.classList.toggle('ghost', !isRegister);
+      modeLoginBtn.classList.toggle('ghost', !isLogin);
+      setVisible(modeRegisterBtn, true);
+      setVisible(modeLoginBtn, true);
+    }
+
+    function renderAuthFields() {
+      const isRegister = authMode === 'register';
+      const isLogin = authMode === 'login';
+      const isVerify = authMode === 'verify';
+      const isResetRequest = authMode === 'reset-request';
+      const isResetConfirm = authMode === 'reset-confirm';
+
+      setVisible(emailRow, true);
+      setVisible(firstNameRow, isRegister);
+      setVisible(lastNameRow, isRegister);
+      setVisible(classRow, isRegister);
+      setVisible(passwordRow, isRegister || isLogin || isResetConfirm);
+      setVisible(confirmRow, isRegister || isResetConfirm);
+      setVisible(codeRow, isVerify || isResetConfirm);
+      setVisible(forgotBtn, isLogin);
+
+      if (isRegister) saveProfileBtn.textContent = 'Registrieren';
+      if (isLogin) saveProfileBtn.textContent = 'Anmelden';
+      if (isVerify) saveProfileBtn.textContent = 'Code bestaetigen';
+      if (isResetRequest) saveProfileBtn.textContent = 'Code senden';
+      if (isResetConfirm) saveProfileBtn.textContent = 'Passwort speichern';
+
+      updateAuthModeButtons();
     }
     let rooms = [];
     let currentRoom = null;
@@ -290,10 +352,23 @@
       if (!profile.userId) {
         profileInfo.textContent = 'Noch kein Profil gespeichert';
       } else {
-        profileInfo.textContent = `Eingeloggt als ${profile.firstName || ''} ${profile.lastName || ''} (Klasse ${profile.className || '-'})`;
+        profileInfo.textContent = `Eingeloggt als ${profile.firstName || ''} ${profile.lastName || ''} (${profile.email || '-'})`;
       }
-      authStatus.textContent = authMode === 'register' ? 'Registrierungsmodus' : 'Anmeldemodus';
-      updateAuthModeButtons();
+      renderAuthFields();
+    }
+
+    function renderClassOptions() {
+      const prev = classInput.value;
+      classInput.innerHTML = '<option value="">Klasse waehlen</option>';
+      classCatalog.forEach((cls) => {
+        const opt = document.createElement('option');
+        opt.value = cls;
+        opt.textContent = cls;
+        classInput.appendChild(opt);
+      });
+      if (prev && classCatalog.includes(prev)) {
+        classInput.value = prev;
+      }
     }
 
     function renderCalled(on) {
@@ -375,9 +450,7 @@
       setConnection(false);
       ws.onopen = () => {
         setConnection(true);
-        sendInit();
-        // nach Login Hausaufgabenliste anfragen
-        ws.send(JSON.stringify({ type: 'homeworkListRequest' }));
+        ws.send(JSON.stringify({ type: 'catalogsRequest' }));
       };
       ws.onclose = () => {
         setConnection(false);
@@ -390,18 +463,8 @@
       };
     }
 
-    function sendInit() {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({
-        type: 'initProfile',
-        userId: profile.userId,
-        role: 'student',
-        firstName: profile.firstName || '',
-        lastName: profile.lastName || '',
-        className: profile.className || '',
-        password: profile.password || '',
-        mode: authMode,
-      }));
+    function setAuthStatus(text) {
+      authStatus.textContent = text || '';
     }
 
     function sendJoin(roomId) {
@@ -412,11 +475,21 @@
     function handleMessage(msg) {
       if (msg.type === 'profile' && msg.user) {
         profile.userId = msg.user.id;
+        profile.email = msg.user.email || profile.email;
         profile.firstName = msg.user.firstName || profile.firstName;
         profile.lastName = msg.user.lastName || profile.lastName;
         profile.className = msg.user.className || profile.className;
+        authMode = 'login';
+        setAuthStatus('');
         renderProfileInfo();
         localStorage.setItem('meldelisteProfile', JSON.stringify(profile));
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'homeworkListRequest' }));
+        }
+      }
+      if (msg.type === 'catalogs') {
+        classCatalog = msg.classes || [];
+        renderClassOptions();
       }
       if (msg.type === 'roomList') {
         rooms = msg.rooms || [];
@@ -445,8 +518,43 @@
         myStats = { session: msg.session || {}, total: msg.total || {}, daily: msg.daily || {} };
         renderStats();
       }
+      if (msg.type === 'authStatus') {
+        if (msg.status === 'verify_required') {
+          pendingEmail = msg.email || emailInput.value.trim();
+          authMode = 'verify';
+          setAuthStatus('Code gesendet. Bitte pruefen.');
+          renderAuthFields();
+        } else if (msg.status === 'reset_sent') {
+          pendingEmail = msg.email || emailInput.value.trim();
+          authMode = 'reset-confirm';
+          setAuthStatus('Reset-Code gesendet.');
+          renderAuthFields();
+        } else if (msg.status === 'reset_done') {
+          authMode = 'login';
+          setAuthStatus('Passwort aktualisiert. Bitte anmelden.');
+          renderAuthFields();
+        } else if (msg.status === 'verified') {
+          setAuthStatus('E-Mail bereits bestaetigt.');
+        }
+      }
       if (msg.type === 'authError') {
-        authStatus.textContent = `Fehler: ${msg.reason || 'Anmeldung fehlgeschlagen'}`;
+        const reason = msg.reason || 'Anmeldung fehlgeschlagen';
+        const messages = {
+          missing_fields: 'Bitte alle Felder ausfuellen.',
+          email_exists: 'E-Mail existiert bereits.',
+          not_found: 'Account nicht gefunden.',
+          wrong_password: 'Passwort falsch.',
+          email_unverified: 'E-Mail noch nicht bestaetigt.',
+          code_invalid: 'Code ungueltig.',
+          code_expired: 'Code abgelaufen.',
+          class_invalid: 'Klasse ungueltig.',
+          wrong_role: 'Falsche Rolle fuer diesen Account.',
+        };
+        setAuthStatus(messages[reason] || `Fehler: ${reason}`);
+        if (reason === 'email_unverified') {
+          authMode = 'verify';
+          renderAuthFields();
+        }
       }
       if (msg.type === 'poll' && msg.roomId === currentRoom) {
         poll = msg.poll;
@@ -476,13 +584,67 @@
     }
 
     saveProfileBtn.onclick = () => {
-      profile.firstName = firstNameInput.value.trim();
-      profile.lastName = lastNameInput.value.trim();
-      profile.className = classInput.value.trim();
-      profile.password = passwordInput.value.trim();
-      renderProfileInfo();
-      localStorage.setItem('meldelisteProfile', JSON.stringify(profile));
-      sendInit();
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+      const passwordConfirm = passwordConfirmInput.value;
+      const code = verifyCodeInput.value.trim();
+      const firstName = firstNameInput.value.trim();
+      const lastName = lastNameInput.value.trim();
+      const className = classInput.value;
+
+      if (authMode === 'register') {
+        if (!email || !firstName || !lastName || !className || !password || !passwordConfirm) {
+          setAuthStatus('Bitte alle Felder ausfuellen.');
+          return;
+        }
+        if (password !== passwordConfirm) {
+          setAuthStatus('Passwoerter stimmen nicht ueberein.');
+          return;
+        }
+        pendingEmail = email;
+        ws.send(JSON.stringify({ type: 'authRegister', role: 'student', email, firstName, lastName, className, password }));
+        return;
+      }
+      if (authMode === 'login') {
+        if (!email || !password) {
+          setAuthStatus('Bitte E-Mail und Passwort eingeben.');
+          return;
+        }
+        pendingEmail = email;
+        ws.send(JSON.stringify({ type: 'authLogin', role: 'student', email, password }));
+        return;
+      }
+      if (authMode === 'verify') {
+        const targetEmail = pendingEmail || email;
+        if (!targetEmail || !code) {
+          setAuthStatus('Bitte Code eingeben.');
+          return;
+        }
+        ws.send(JSON.stringify({ type: 'authVerify', email: targetEmail, code }));
+        return;
+      }
+      if (authMode === 'reset-request') {
+        if (!email) {
+          setAuthStatus('Bitte E-Mail eingeben.');
+          return;
+        }
+        pendingEmail = email;
+        ws.send(JSON.stringify({ type: 'authResetRequest', email }));
+        return;
+      }
+      if (authMode === 'reset-confirm') {
+        const targetEmail = pendingEmail || email;
+        if (!targetEmail || !code || !password || !passwordConfirm) {
+          setAuthStatus('Bitte alle Felder ausfuellen.');
+          return;
+        }
+        if (password !== passwordConfirm) {
+          setAuthStatus('Passwoerter stimmen nicht ueberein.');
+          return;
+        }
+        ws.send(JSON.stringify({ type: 'authResetConfirm', email: targetEmail, code, password }));
+      }
     };
     logoutBtn.onclick = () => {
       localStorage.removeItem('meldelisteProfile');
@@ -491,11 +653,18 @@
 
     modeRegisterBtn.onclick = () => {
       authMode = 'register';
+      setAuthStatus('');
       renderProfileInfo();
     };
     modeLoginBtn.onclick = () => {
       authMode = 'login';
+      setAuthStatus('');
       renderProfileInfo();
+    };
+    forgotBtn.onclick = () => {
+      authMode = 'reset-request';
+      setAuthStatus('Code wird an die E-Mail gesendet.');
+      renderAuthFields();
     };
 
     roomSelect.onchange = () => {
@@ -579,13 +748,16 @@
       try {
         const parsed = JSON.parse(saved);
         profile = { ...profile, ...parsed, role: 'student' };
+        emailInput.value = profile.email || '';
         firstNameInput.value = profile.firstName || '';
         lastNameInput.value = profile.lastName || '';
         classInput.value = profile.className || '';
-        passwordInput.value = profile.password || '';
         renderProfileInfo();
       } catch (e) {}
+    } else {
+      renderProfileInfo();
     }
+    renderClassOptions();
 
     connect();
   </script>
