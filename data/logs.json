@@ -357,5 +357,18 @@
         "action": "called"
       }
     ]
+  },
+  "room-mktrp8kt-70vj": {
+    "entries": [
+      {
+        "id": "log-mktrpphk-r6gd",
+        "ts": 1769347325000,
+        "userId": "s-mktrcx4t-g4e5",
+        "action": "called"
+      }
+    ]
+  },
+  "room-mktrx50f-nvyr": {
+    "entries": []
   }
 }

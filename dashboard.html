@@ -87,6 +87,23 @@
     .questions { max-height: 240px; overflow: auto; }
     .q-item { padding: 8px 10px; border-bottom: 1px solid #1b2340; }
     .q-time { color: var(--muted); font-size: 12px; }
+    .checklist {
+      min-width: 160px;
+      max-width: 240px;
+      max-height: 140px;
+      overflow: auto;
+      border: 1px solid #24304c;
+      border-radius: 10px;
+      background: #0c1424;
+      padding: 6px 8px;
+    }
+    .checklist .item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      padding: 4px 2px;
+    }
   </style>
 </head>
 <body>
@@ -149,9 +166,7 @@
       <h2>Räume</h2>
       <div class="row">
         <input id="roomName" placeholder="Neuer Raumname" style="flex:1">
-        <select id="roomClass" style="width:160px">
-          <option value="">Klasse wählen</option>
-        </select>
+        <div id="roomClassList" class="checklist"></div>
         <select id="roomSubject" style="width:160px">
           <option value="">Fach wählen</option>
         </select>
@@ -176,9 +191,7 @@
     <div class="panel" id="teachingsPanel" style="display:none">
       <h2>Meine Klassen/Fächer</h2>
       <div class="row">
-        <select id="teachClass" style="flex:1">
-          <option value="">Klasse wählen</option>
-        </select>
+        <div id="teachClassList" class="checklist" style="flex:1"></div>
         <select id="teachSubject" style="flex:1">
           <option value="">Fach wählen</option>
         </select>
@@ -302,7 +315,7 @@
     const toolsPanel = document.getElementById('toolsPanel');
     const classStatsPanel = document.getElementById('classStatsPanel');
     const roomNameInput = document.getElementById('roomName');
-    const roomClassInput = document.getElementById('roomClass');
+    const roomClassList = document.getElementById('roomClassList');
     const roomSubjectInput = document.getElementById('roomSubject');
     const createRoomBtn = document.getElementById('createRoom');
     const roomListEl = document.getElementById('roomList');
@@ -322,7 +335,7 @@
     const addSubjectBtn = document.getElementById('addSubject');
     const catalogInfo = document.getElementById('catalogInfo');
     const teachingsPanel = document.getElementById('teachingsPanel');
-    const teachClassSelect = document.getElementById('teachClass');
+    const teachClassList = document.getElementById('teachClassList');
     const teachSubjectSelect = document.getElementById('teachSubject');
     const addTeachingBtn = document.getElementById('addTeaching');
     const teachingsList = document.getElementById('teachingsList');
@@ -368,8 +381,8 @@
     let poll = null;
     let thoughts = [];
     let homeworkItems = [];
-    let classStats = { className: '', subject: '', students: [] };
-    let classStudentStats = { className: '', subject: '', student: null, sessions: [] };
+    let classStats = { className: '', classNames: [], subject: '', students: [] };
+    let classStudentStats = { className: '', classNames: [], subject: '', student: null, sessions: [] };
 
     function setConnection(ok) {
       dot.classList.toggle('ok', ok);
@@ -451,7 +464,7 @@
             <h3>${room.name}</h3>
             <div class="pill">${room.active === false ? 'geschlossen' : 'aktiv'}</div>
           </div>
-          <div class="meta">Klasse: ${room.className || '-'}</div>
+          <div class="meta">Klassen: ${Array.isArray(room.classNames) && room.classNames.length ? room.classNames.join(', ') : (room.className || '-')}</div>
           <div class="row">
             <button class="ghost" data-join="${room.id}" ${room.active === false ? 'disabled' : ''}>Öffnen</button>
             <button class="danger" data-close="${room.id}" ${room.active === false ? 'disabled' : ''}>Schließen</button>
@@ -482,25 +495,34 @@
     }
 
     function renderCatalogs() {
-      const cls = classCatalog.length ? classCatalog.join(', ') : 'Keine Klassen';
-      const subs = subjectCatalog.length ? subjectCatalog.join(', ') : 'Keine Fächer';
+      const cls = classCatalog.length ? classCatalog.join(", ") : "Keine Klassen";
+      const subs = subjectCatalog.length ? subjectCatalog.join(", ") : "Keine Fächer";
       catalogInfo.textContent = `Klassen: ${cls} | Fächer: ${subs}`;
 
       const fillSelect = (el, data, label) => {
         const prev = el.value;
         el.innerHTML = `<option value="">${label}</option>`;
         data.forEach((item) => {
-          const opt = document.createElement('option');
+          const opt = document.createElement("option");
           opt.value = item;
           opt.textContent = item;
           el.appendChild(opt);
         });
         if (prev && data.includes(prev)) el.value = prev;
       };
-      fillSelect(roomClassInput, classCatalog, 'Klasse wählen');
-      fillSelect(roomSubjectInput, subjectCatalog, 'Fach wählen');
-      fillSelect(teachClassSelect, classCatalog, 'Klasse wählen');
-      fillSelect(teachSubjectSelect, subjectCatalog, 'Fach wählen');
+
+      const fillChecklist = (el, data) => {
+        const prev = Array.from(el.querySelectorAll("input[type=checkbox]:checked")).map((i) => i.value);
+        el.innerHTML = data.map((item) => {
+          const checked = prev.includes(item) ? "checked" : "";
+          return `<label class="item"><input type="checkbox" value="${item}" ${checked}>${item}</label>`;
+        }).join("");
+      };
+
+      fillSelect(roomSubjectInput, subjectCatalog, "Fach wählen");
+      fillSelect(teachSubjectSelect, subjectCatalog, "Fach wählen");
+      fillChecklist(roomClassList, classCatalog);
+      fillChecklist(teachClassList, classCatalog);
     }
 
     function renderTeachings() {
@@ -509,22 +531,25 @@
         teachingsList.innerHTML = '<div class="small">Keine Einträge</div>';
         return;
       }
+      const classesLabel = (t) => Array.isArray(t.classNames) && t.classNames.length ? t.classNames.join(', ') : (t.className || '');
+      const classesValue = (t) => Array.isArray(t.classNames) && t.classNames.length ? t.classNames.join('|') : (t.className || '');
       teachingsList.innerHTML = list.map(t => `
-        <div class="stat-card clickable" data-class="${t.className}" data-subject="${t.subject}">
-          <h4>${t.className}</h4>
+        <div class="stat-card clickable" data-classnames="${classesValue(t)}" data-subject="${t.subject}">
+          <h4>${classesLabel(t)}</h4>
           <div class="small">${t.subject}</div>
           <div class="row" style="margin-top:8px;">
-            <button class="primary" data-create-room="${t.className}|${t.subject}">Raum starten</button>
+            <button class="primary" data-create-room="${classesValue(t)}|${t.subject}">Raum starten</button>
           </div>
         </div>
       `).join('');
-      teachingsList.querySelectorAll('[data-class]').forEach((card) => {
+      teachingsList.querySelectorAll('[data-classnames]').forEach((card) => {
         card.onclick = () => {
           if (!ws || ws.readyState !== WebSocket.OPEN) return;
-          const className = card.getAttribute('data-class');
+          const classNamesRaw = card.getAttribute('data-classnames') || '';
           const subject = card.getAttribute('data-subject');
-          if (!className) return;
-          ws.send(JSON.stringify({ type: 'classStats', className, subject }));
+          const classNames = classNamesRaw.split('|').map((c) => c.trim()).filter(Boolean);
+          if (!classNames.length) return;
+          ws.send(JSON.stringify({ type: 'classStats', classNames, subject }));
         };
       });
       teachingsList.querySelectorAll('[data-create-room]').forEach((btn) => {
@@ -532,9 +557,12 @@
           event.stopPropagation();
           if (!ws || ws.readyState !== WebSocket.OPEN) return;
           const payload = btn.getAttribute('data-create-room') || '';
-          const [className, subject] = payload.split('|');
-          if (!className || !subject) return;
-          ws.send(JSON.stringify({ type: 'roomCreate', name: `${subject} ${className}`, className, subject }));
+          const parts = payload.split('|');
+          const subject = parts.pop();
+          const classNamesRaw = parts.join('|');
+          const classNames = (classNamesRaw || '').split('|').map((c) => c.trim()).filter(Boolean);
+          if (!classNames.length || !subject) return;
+          ws.send(JSON.stringify({ type: 'roomCreate', name: `${subject} ${classNames.join(', ')}`, classNames, subject }));
         };
       });
     }
@@ -550,7 +578,8 @@
         updateLayout();
         return;
       }
-      currentRoomInfo.textContent = `${room.name} (Klasse ${room.className || '-'})`;
+      const roomClasses = Array.isArray(room.classNames) && room.classNames.length ? room.classNames.join(', ') : (room.className || '-');
+      currentRoomInfo.textContent = `${room.name} (Klassen ${roomClasses})`;
       closeRoomBtn.disabled = room.active === false;
       renderMembers();
       renderLog();
@@ -668,7 +697,8 @@
         return;
       }
       const subjectLabel = classStats.subject ? ` · Fach ${classStats.subject}` : '';
-      classStatsTitle.textContent = `Klasse ${classStats.className}${subjectLabel}`;
+      const classLabel = (classStats.classNames && classStats.classNames.length) ? classStats.classNames.join(', ') : classStats.className;
+      classStatsTitle.textContent = `Klassen ${classLabel}${subjectLabel}`;
       if (!classStats.students.length) {
         classStudentPanel.style.display = 'none';
         classStatsGrid.innerHTML = '<div class="small">Keine Daten</div>';
@@ -690,7 +720,7 @@
           if (!ws || ws.readyState !== WebSocket.OPEN) return;
           const userId = card.getAttribute('data-user');
           if (!userId) return;
-          ws.send(JSON.stringify({ type: 'classStudentStats', className: classStats.className, subject: classStats.subject, userId }));
+          ws.send(JSON.stringify({ type: 'classStudentStats', className: classStats.className, classNames: classStats.classNames, subject: classStats.subject, userId }));
         };
       });
       classStatsPanel.style.display = 'block';
@@ -703,7 +733,8 @@
         return;
       }
       const subjectLabel = classStudentStats.subject ? ` · Fach ${classStudentStats.subject}` : '';
-      classStudentTitle.textContent = `${classStudentStats.student.name} (Klasse ${classStudentStats.className}${subjectLabel})`;
+      const classLabel = (classStudentStats.classNames && classStudentStats.classNames.length) ? classStudentStats.classNames.join(', ') : classStudentStats.className;
+      classStudentTitle.textContent = `${classStudentStats.student.name} (Klassen ${classLabel}${subjectLabel})`;
       const sessions = classStudentStats.sessions || [];
       if (!sessions.length) {
         classStudentTable.innerHTML = '<div class="small">Keine Daten</div>';
@@ -766,7 +797,7 @@
       }
       homeworkList.innerHTML = homeworkItems.map(item => `
         <div class="homework-card">
-          <div class="small">Klasse: ${item.className || '-'} · Fach: ${item.subject || 'default'}</div>
+          <div class="meta">Klassen: ${Array.isArray(room.classNames) && room.classNames.length ? room.classNames.join(', ') : (room.className || '-')}</div>
           ${item.homework.current ? `<div>Aktuell: ${item.homework.current.text || ''}</div>` : '<div>Aktuell: -</div>'}
           ${item.homework.previous ? `<div class="small">Letzte Stunde: ${item.homework.previous.text || ''}</div>` : ''}
         </div>
@@ -904,14 +935,14 @@
         renderStats();
       }
       if (msg.type === 'classStats') {
-        classStats = { className: msg.className || '', subject: msg.subject || '', students: msg.students || [] };
-        classStudentStats = { className: msg.className || '', subject: msg.subject || '', student: null, sessions: [] };
+        classStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', students: msg.students || [] };
+        classStudentStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', student: null, sessions: [] };
         renderClassStats();
         updateLayout();
       }
 
       if (msg.type === 'classStudentStats') {
-        classStudentStats = { className: msg.className || '', subject: msg.subject || '', student: msg.student || null, sessions: msg.sessions || [] };
+        classStudentStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', student: msg.student || null, sessions: msg.sessions || [] };
         renderClassStudentStats();
         updateLayout();
       }
@@ -1098,10 +1129,10 @@
     createRoomBtn.onclick = () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       const name = roomNameInput.value.trim() || 'Raum';
-      const className = roomClassInput.value;
+      const classNames = Array.from(roomClassList.querySelectorAll("input[type=checkbox]:checked")).map((i) => i.value);
       const subject = roomSubjectInput.value || 'default';
-      if (!className) return;
-      ws.send(JSON.stringify({ type: 'roomCreate', name, className, subject }));
+      if (!classNames.length) return;
+      ws.send(JSON.stringify({ type: 'roomCreate', name, classNames, subject }));
       roomNameInput.value = '';
     };
 
@@ -1128,24 +1159,24 @@
 
     addTeachingBtn.onclick = () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const cls = teachClassSelect.value;
+      const classNames = Array.from(teachClassList.querySelectorAll("input[type=checkbox]:checked")).map((i) => i.value);
       const subj = teachSubjectSelect.value;
-      if (!cls || !subj) return;
-      ws.send(JSON.stringify({ type: 'addTeaching', className: cls, subject: subj }));
+      if (!classNames.length || !subj) return;
+      ws.send(JSON.stringify({ type: 'addTeaching', classNames, subject: subj }));
     };
 
     questionClose.onclick = () => {
       questionBanner.style.display = 'none';
     };
     classStatsClose.onclick = () => {
-      classStats = { className: '', subject: '', students: [] };
-      classStudentStats = { className: '', subject: '', student: null, sessions: [] };
+      classStats = { className: '', classNames: [], subject: '', students: [] };
+      classStudentStats = { className: '', classNames: [], subject: '', student: null, sessions: [] };
       renderClassStats();
       updateLayout();
     };
 
     classStudentClose.onclick = () => {
-      classStudentStats = { className: '', subject: '', student: null, sessions: [] };
+      classStudentStats = { className: '', classNames: [], subject: '', student: null, sessions: [] };
       renderClassStudentStats();
     };
 
@@ -1186,7 +1217,8 @@
       if (!text || !currentRoom) return;
       const room = rooms.find(r => r.id === currentRoom);
       if (!room) return;
-      ws.send(JSON.stringify({ type: 'homeworkSet', className: room.className, subject: room.subject || 'default', text }));
+      const classNames = Array.isArray(room.classNames) && room.classNames.length ? room.classNames : (room.className ? [room.className] : []);
+      ws.send(JSON.stringify({ type: 'homeworkSet', classNames, subject: room.subject || 'default', text }));
       homeworkText.value = '';
     };
 

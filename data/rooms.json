@@ -224,5 +224,140 @@
     "active": false,
     "createdAt": 1769346436708,
     "closedAt": 1769346437404
+  },
+  "room-mktrd519-w8ze": {
+    "id": "room-mktrd519-w8ze",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769346738621,
+    "closedAt": 1769347668043
+  },
+  "room-mktros6s-7j2l": {
+    "id": "room-mktros6s-7j2l",
+    "name": "Raum",
+    "subject": "Deutsch",
+    "className": "5D",
+    "classNames": [
+      "5D",
+      "5E",
+      "6A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769347281844,
+    "closedAt": 1769347287444
+  },
+  "room-mktrp8kt-70vj": {
+    "id": "room-mktrp8kt-70vj",
+    "name": "Raum",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769347303085,
+    "closedAt": 1769347667347
+  },
+  "room-mktrx50f-nvyr": {
+    "id": "room-mktrx50f-nvyr",
+    "name": "Raum",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769347671711,
+    "closedAt": 1769347781775
+  },
+  "room-mktrzdvi-r42s": {
+    "id": "room-mktrzdvi-r42s",
+    "name": "Raum",
+    "subject": "Mathematik",
+    "className": "5A",
+    "classNames": [
+      "5A",
+      "5B",
+      "10A",
+      "10B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769347776510,
+    "closedAt": 1769347783751
+  },
+  "room-mktscayu-2krx": {
+    "id": "room-mktscayu-2krx",
+    "name": "Physik 10A, 10B",
+    "subject": "Physik",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769348379270,
+    "closedAt": 1769348445656
+  },
+  "room-mktsds4g-svgw": {
+    "id": "room-mktsds4g-svgw",
+    "name": "Raum",
+    "subject": "default",
+    "className": "5B",
+    "classNames": [
+      "5B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769348448160,
+    "closedAt": 1769348455464
+  },
+  "room-mktsdtxs-tjci": {
+    "id": "room-mktsdtxs-tjci",
+    "name": "Physik 10A, 10B",
+    "subject": "Physik",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": true,
+    "createdAt": 1769348450512
+  },
+  "room-mktsdvzc-n2s3": {
+    "id": "room-mktsdvzc-n2s3",
+    "name": "Raum",
+    "subject": "default",
+    "className": "5B",
+    "classNames": [
+      "5B",
+      "5C"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769348453160,
+    "closedAt": 1769348454728
+  },
+  "room-mktse488-rl7n": {
+    "id": "room-mktse488-rl7n",
+    "name": "Raum",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": true,
+    "createdAt": 1769348463848
   }
 }

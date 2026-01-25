@@ -58,6 +58,32 @@
           }
         },
         "toiletSeconds": 140
+      },
+      "Deutsch": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
+      },
+      "Physik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
       }
     }
   },
@@ -112,6 +138,32 @@
             "toiletSeconds": 0
           }
         }
+      },
+      "Deutsch": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
+      },
+      "Physik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
       }
     }
   },
@@ -190,6 +242,32 @@
             "toiletSeconds": 0
           }
         }
+      },
+      "Deutsch": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
+      },
+      "Physik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
       }
     },
     "teachings": []
@@ -243,6 +321,25 @@
             "toiletSeconds": 0
           }
         }
+      },
+      "Physik": {
+        "signals": 2,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {
+          "2026-01-25": {
+            "signals": 2,
+            "calls": 0,
+            "toiletSeconds": 0
+          }
+        }
       }
     },
     "teachings": []
@@ -267,7 +364,61 @@
       {
         "className": "10A",
         "subject": "Deutsch"
+      },
+      {
+        "classNames": [
+          "10A",
+          "10B"
+        ],
+        "subject": "Physik"
       }
     ]
+  },
+  "s-mktrcx4t-g4e5": {
+    "id": "s-mktrcx4t-g4e5",
+    "role": "student",
+    "email": "test@test.de",
+    "emailVerified": true,
+    "firstName": "10b",
+    "lastName": "10b",
+    "salutation": "",
+    "className": "10B",
+    "name": "10b 10b",
+    "passwordHash": "43798f6cc48aa2c9ff463d67f391edf0:452705fb73c553bc4b71019458da0aff14f28aa54d8bcb391d97d3adb1563301f508774fb2f401c09a8c89e736dd1880419b700524d304e11792b24501e56469",
+    "stats": {
+      "Mathematik": {
+        "signals": 0,
+        "calls": 1,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {
+          "2026-01-25": {
+            "signals": 0,
+            "calls": 1,
+            "toiletSeconds": 0
+          }
+        }
+      },
+      "Physik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
+      }
+    },
+    "teachings": []
   }
 }

@@ -285,11 +285,15 @@ function getSubjectTotals(user, subject) {
 
 function ensureRoomStatsEntry(roomId, room) {
   let entry = roomStats.get(roomId);
+  const classNames = Array.isArray(room?.classNames) ? room.classNames.filter(Boolean) : [];
+  const legacyClass = room?.className ? [room.className] : [];
+  const mergedClasses = classNames.length ? classNames : legacyClass;
   if (!entry) {
     entry = {
       roomId,
       name: room?.name || '',
       className: room?.className || '',
+      classNames: mergedClasses,
       subject: room?.subject || 'default',
       createdAt: room?.createdAt || Date.now(),
       closedAt: room?.closedAt || null,
@@ -298,6 +302,9 @@ function ensureRoomStatsEntry(roomId, room) {
   } else {
     entry.name = entry.name || room?.name || '';
     entry.className = entry.className || room?.className || '';
+    if (!Array.isArray(entry.classNames) || !entry.classNames.length) {
+      entry.classNames = entry.className ? [entry.className] : mergedClasses;
+    }
     entry.subject = entry.subject || room?.subject || 'default';
     entry.createdAt = entry.createdAt || room?.createdAt || Date.now();
     if (room?.closedAt) entry.closedAt = room.closedAt;
@@ -305,6 +312,14 @@ function ensureRoomStatsEntry(roomId, room) {
   }
   roomStats.set(roomId, entry);
   return entry;
+}
+
+function getRoomClassNames(room) {
+  if (Array.isArray(room?.classNames) && room.classNames.length) {
+    return room.classNames.filter(Boolean);
+  }
+  if (room?.className) return [room.className];
+  return [];
 }
 
 function ensureRoomStudentStats(entry, userId) {
@@ -896,14 +911,17 @@ wss.on('connection', (ws) => {
     if (type === 'roomCreate' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const name = String(msg.name || '').trim() || 'Raum';
       const subject = String(msg.subject || '').trim() || 'default';
+      const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
-      if (!className) return;
+      const classes = classNames.length ? classNames : (className ? [className] : []);
+      if (!classes.length) return;
       const id = genId('room');
       const room = {
         id,
         name,
         subject,
-        className,
+        className: classes[0] || '',
+        classNames: classes,
         teacherId: ws.userId,
         active: true,
         createdAt: Date.now(),
@@ -913,15 +931,17 @@ wss.on('connection', (ws) => {
       ensureRoomStatsEntry(id, room);
       saveRoomStats();
       // Hausaufgabe der vorherigen Stunde sichern als previous, current leeren
-      const hwKey = `${className}|${subject}`;
-      const hwEntry = normalizeHomework(homeworkMap.get(hwKey));
-      if (hwEntry.current) {
-        hwEntry.previous = hwEntry.current;
-        hwEntry.current = null;
-        homeworkMap.set(hwKey, hwEntry);
-        saveHomework();
-        broadcastHomework(className, subject, hwEntry);
-      }
+      classes.forEach((cls) => {
+        const hwKey = `${cls}|${subject}`;
+        const hwEntry = normalizeHomework(homeworkMap.get(hwKey));
+        if (hwEntry.current) {
+          hwEntry.previous = hwEntry.current;
+          hwEntry.current = null;
+          homeworkMap.set(hwKey, hwEntry);
+          saveHomework();
+          broadcastHomework(cls, subject, hwEntry);
+        }
+      });
       // ensure empty containers
       roomMembers.set(id, new Set());
       readyMap.set(id, new Set());
@@ -966,14 +986,29 @@ wss.on('connection', (ws) => {
     }
 
     if (type === 'addTeaching' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
       const subject = String(msg.subject || '').trim();
-      if (!className || !subject) return;
+      const classesToAdd = classNames.length ? classNames : (className ? [className] : []);
+      if (!classesToAdd.length || !subject) return;
       const user = users.get(ws.userId);
       if (!user) return;
       if (!Array.isArray(user.teachings)) user.teachings = [];
-      const exists = user.teachings.some((t) => t.className === className && t.subject === subject);
-      if (!exists) user.teachings.push({ className, subject });
+      const normalized = classesToAdd.filter(Boolean);
+      if (!normalized.length) return;
+      const exists = user.teachings.some((t) => {
+        if (t.subject !== subject) return false;
+        if (Array.isArray(t.classNames)) {
+          const a = [...t.classNames].sort().join('|');
+          const b = [...normalized].sort().join('|');
+          return a === b;
+        }
+        return normalized.length === 1 && t.className === normalized[0];
+      });
+      if (!exists) {
+        const entry = normalized.length === 1 ? { className: normalized[0], subject } : { classNames: normalized, subject };
+        user.teachings.push(entry);
+      }
       users.set(ws.userId, user);
       saveUsers();
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
@@ -981,47 +1016,55 @@ wss.on('connection', (ws) => {
     }
 
     if (type === 'classStats' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
       const subject = String(msg.subject || '').trim();
-      if (!className) return;
+      const classes = classNames.length ? classNames : (className ? [className] : []);
+      if (!classes.length) return;
       if (ws.role === 'teacher') {
         const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
-        if (subject) {
-          if (!teaches.some((t) => t.className === className && t.subject === subject)) return;
-        } else {
-          if (!teaches.some((t) => t.className === className)) return;
-        }
+        const allowed = (cls) => teaches.some((t) => {
+          if (subject && t.subject !== subject) return false;
+          if (Array.isArray(t.classNames)) return t.classNames.includes(cls);
+          return t.className === cls;
+        });
+        if (!classes.every((cls) => allowed(cls))) return;
       }
       const students = Array.from(users.values())
-        .filter((u) => u && u.role === 'student' && (u.className || '') === className)
+        .filter((u) => u && u.role === 'student' && classes.includes(u.className || ''))
         .map((u) => ({
           userId: u.id,
           name: u.name || 'Unbekannt',
           total: subject ? getSubjectTotals(u, subject) : aggregateTotalStats(u),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-      ws.send(JSON.stringify({ type: 'classStats', className, subject, students }));
+      ws.send(JSON.stringify({ type: 'classStats', className: classes.join(', '), classNames: classes, subject, students }));
       return;
     }
 
     if (type === 'classStudentStats' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
       const subject = String(msg.subject || '').trim();
       const userId = String(msg.userId || '').trim();
-      if (!className || !userId) return;
+      const classes = classNames.length ? classNames : (className ? [className] : []);
+      if (!classes.length || !userId) return;
       if (ws.role === 'teacher') {
         const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
-        if (subject) {
-          if (!teaches.some((t) => t.className === className && t.subject === subject)) return;
-        } else {
-          if (!teaches.some((t) => t.className === className)) return;
-        }
+        const allowed = (cls) => teaches.some((t) => {
+          if (subject && t.subject !== subject) return false;
+          if (Array.isArray(t.classNames)) return t.classNames.includes(cls);
+          return t.className === cls;
+        });
+        if (!classes.every((cls) => allowed(cls))) return;
       }
       const target = users.get(userId);
-      if (!target || target.role !== 'student' || (target.className || '') !== className) return;
+      if (!target || target.role !== 'student' || !classes.includes(target.className || '')) return;
       const sessions = Array.from(roomStats.values())
         .filter((entry) => {
-          if (!entry || entry.className !== className) return false;
+          if (!entry) return false;
+          const entryClasses = Array.isArray(entry.classNames) && entry.classNames.length ? entry.classNames : (entry.className ? [entry.className] : []);
+          if (!entryClasses.some((cls) => classes.includes(cls))) return false;
           if (subject && entry.subject !== subject) return false;
           return Boolean(entry.students && entry.students[userId]);
         })
@@ -1036,7 +1079,8 @@ wss.on('connection', (ws) => {
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       ws.send(JSON.stringify({
         type: 'classStudentStats',
-        className,
+        className: classes.join(', '),
+        classNames: classes,
         subject,
         student: { userId: target.id, name: target.name || 'Unbekannt' },
         sessions,
@@ -1082,7 +1126,8 @@ wss.on('connection', (ws) => {
 
        // Schüler dürfen nur eigene Klasse betreten
       const user = users.get(ws.userId);
-      if (user?.role === 'student' && room.className && user.className && user.className !== room.className) {
+      const roomClasses = getRoomClassNames(room);
+      if (user?.role === 'student' && roomClasses.length && user.className && !roomClasses.includes(user.className)) {
         return;
       }
 
@@ -1184,7 +1229,8 @@ wss.on('connection', (ws) => {
       if (!room) return;
       const actor = users.get(ws.userId);
       if (actor?.role === 'teacher') return; // Lehrer melden sich nicht
-      if (actor?.role === 'student' && room.className && actor.className && actor.className !== room.className) return;
+      const roomClasses = getRoomClassNames(room);
+      if (actor?.role === 'student' && roomClasses.length && actor.className && !roomClasses.includes(actor.className)) return;
       ws.roomId = roomId;
       if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
       roomMembers.get(roomId).add(ws.userId);
@@ -1326,17 +1372,21 @@ wss.on('connection', (ws) => {
     }
 
     if (type === 'homeworkSet' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
       const subject = String(msg.subject || '').trim() || 'default';
       const text = String(msg.text || '').trim();
-      if (!className || !text) return;
-      const key = `${className}|${subject}`;
-      const entry = normalizeHomework(homeworkMap.get(key));
-      if (entry.current) entry.previous = entry.current;
-      entry.current = { text, ts: Date.now() };
-      homeworkMap.set(key, entry);
-      saveHomework();
-      broadcastHomework(className, subject, entry);
+      const classesToSet = classNames.length ? classNames : (className ? [className] : []);
+      if (!classesToSet.length || !text) return;
+      classesToSet.forEach((cls) => {
+        const key = `${cls}|${subject}`;
+        const entry = normalizeHomework(homeworkMap.get(key));
+        if (entry.current) entry.previous = entry.current;
+        entry.current = { text, ts: Date.now() };
+        homeworkMap.set(key, entry);
+        saveHomework();
+        broadcastHomework(cls, subject, entry);
+      });
       return;
     }
 
@@ -1400,7 +1450,8 @@ wss.on('connection', (ws) => {
       if (!room) return;
       const actor = users.get(ws.userId);
       if (actor?.role === 'teacher') return;
-      if (actor?.role === 'student' && room.className && actor.className && actor.className !== room.className) return;
+      const roomClasses = getRoomClassNames(room);
+      if (actor?.role === 'student' && roomClasses.length && actor.className && !roomClasses.includes(actor.className)) return;
       ws.roomId = roomId;
       if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
       roomMembers.get(roomId).add(ws.userId);

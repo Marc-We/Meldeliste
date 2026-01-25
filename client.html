@@ -343,7 +343,12 @@
       roomSelect.innerHTML = '';
       const activeRooms = rooms
         .filter(r => r.active !== false)
-        .filter(r => !profile.className || !r.className || r.className === profile.className);
+        .filter(r => {
+          if (!profile.className) return true;
+          const classes = Array.isArray(r.classNames) && r.classNames.length ? r.classNames : (r.className ? [r.className] : []);
+          if (!classes.length) return true;
+          return classes.includes(profile.className);
+        });
       if (activeRooms.length === 0) {
         roomSelect.innerHTML = '<option value="">Keine aktiven Räume</option>';
         readyBtn.disabled = true;
