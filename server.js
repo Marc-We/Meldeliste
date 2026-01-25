@@ -286,20 +286,32 @@ function isImportant(roomId, userId) {
 function broadcastPoll(roomId) {
   const poll = pollsMap.get(roomId);
   if (!poll) return;
-  const payload = JSON.stringify({
-    type: 'poll',
-    roomId,
-    poll: {
-      id: poll.id,
-      question: poll.question,
-      options: poll.options,
-      multiple: poll.multiple,
-    },
-  });
   wss.clients.forEach((client) => {
     if (client.readyState !== client.OPEN) return;
     if (client.roomId !== roomId) return;
-    client.send(payload);
+    const isTeacher = client.role === 'teacher' || client.role === 'admin';
+    const voted = poll.votes.has(client.userId);
+    const payload = {
+      type: 'poll',
+      roomId,
+      poll: {
+        id: poll.id,
+        question: poll.question,
+        options: poll.options,
+        multiple: poll.multiple,
+        open: poll.open !== false,
+        anonymous: poll.anonymous !== false ? true : false,
+        voted,
+      },
+    };
+    if (isTeacher && poll.anonymous === false) {
+      payload.poll.votesList = Array.from(poll.votes.entries()).map(([userId, options]) => ({
+        userId,
+        name: users.get(userId)?.name || 'Unbekannt',
+        options,
+      }));
+    }
+    client.send(JSON.stringify(payload));
   });
 }
 
@@ -831,12 +843,15 @@ wss.on('connection', (ws) => {
       const question = String(msg.question || '').trim();
       const options = Array.isArray(msg.options) ? msg.options.map((t) => String(t || '').trim()).filter(Boolean) : [];
       const multiple = Boolean(msg.multiple);
+      const anonymous = msg.anonymous !== false;
       if (!question || options.length < 2) return;
       const poll = {
         id: genId('poll'),
         question,
         options: options.map((t, idx) => ({ id: `opt-${idx}`, text: t, count: 0 })),
         multiple,
+        anonymous,
+        open: true,
         votes: new Map(),
       };
       pollsMap.set(roomId, poll);
@@ -848,6 +863,8 @@ wss.on('connection', (ws) => {
       const roomId = msg.roomId || ws.roomId;
       const poll = pollsMap.get(roomId);
       if (!poll) return;
+      if (poll.open === false) return;
+      if (poll.votes.has(ws.userId)) return;
       const selected = Array.isArray(msg.options) ? msg.options.map(String) : [];
       if (selected.length === 0) return;
       const allowed = poll.multiple ? selected : [selected[0]];
@@ -860,6 +877,16 @@ wss.on('connection', (ws) => {
           if (opt) opt.count += 1;
         });
       });
+      pollsMap.set(roomId, poll);
+      broadcastPoll(roomId);
+      return;
+    }
+
+    if (type === 'pollEnd' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const poll = pollsMap.get(roomId);
+      if (!poll) return;
+      poll.open = false;
       pollsMap.set(roomId, poll);
       broadcastPoll(roomId);
       return;

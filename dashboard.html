@@ -194,8 +194,10 @@
               <input id="pollOptions" type="text" placeholder="Optionen, getrennt durch ;">
             </div>
             <label><input id="pollMultiple" type="checkbox"> Mehrfachauswahl erlauben</label>
+            <label><input id="pollAnonymous" type="checkbox" checked> Anonym abstimmen</label>
             <div class="row">
               <button id="createPoll" class="primary">Umfrage senden</button>
+              <button id="endPoll" class="ghost">Umfrage beenden</button>
             </div>
           </div>
           <div class="questions" id="pollResults"><div class="small">Keine aktive Umfrage</div></div>
@@ -298,7 +300,9 @@
     const pollQuestionInput = document.getElementById('pollQuestion');
     const pollOptionsInput = document.getElementById('pollOptions');
     const pollMultipleInput = document.getElementById('pollMultiple');
+    const pollAnonymousInput = document.getElementById('pollAnonymous');
     const createPollBtn = document.getElementById('createPoll');
+    const endPollBtn = document.getElementById('endPoll');
     const pollResultsBox = document.getElementById('pollResults');
     const startThoughtsBtn = document.getElementById('startThoughts');
     const endThoughtsBtn = document.getElementById('endThoughts');
@@ -598,14 +602,26 @@
     function renderPoll() {
       if (!poll) {
         pollResultsBox.innerHTML = '<div class="small">Keine aktive Umfrage</div>';
+        endPollBtn.disabled = true;
         return;
       }
+      endPollBtn.disabled = poll.open === false;
+      const status = poll.open === false ? 'Beendet' : 'Aktiv';
       pollResultsBox.innerHTML = `
         <div class="q-item">
           <div>${poll.question}</div>
-          <div class="q-time">${poll.multiple ? 'Mehrfachauswahl' : 'Einzelauswahl'}</div>
+          <div class="q-time">${poll.multiple ? 'Mehrfachauswahl' : 'Einzelauswahl'} · ${poll.anonymous ? 'Anonym' : 'Namen sichtbar'} · ${status}</div>
         </div>
         ${poll.options.map(o => `<div class="q-item"><div>${o.text}</div><div class="q-time">${o.count || 0} Stimmen</div></div>`).join('')}
+        ${poll.anonymous ? '' : `
+          <div class="q-item">
+            <div class="small">Stimmen</div>
+            ${(poll.votesList || []).map((v) => {
+              const labels = (v.options || []).map((id) => poll.options.find((o) => o.id === id)?.text || id);
+              return `<div class="small">${v.name}: ${labels.join(', ') || '-'}</div>`;
+            }).join('')}
+          </div>
+        `}
       `;
     }
 
@@ -912,11 +928,18 @@
       const question = pollQuestionInput.value.trim();
       const opts = pollOptionsInput.value.split(';').map(s => s.trim()).filter(Boolean);
       const multiple = pollMultipleInput.checked;
+      const anonymous = pollAnonymousInput.checked;
       if (!question || opts.length < 2) return;
-      ws.send(JSON.stringify({ type: 'pollCreate', roomId: currentRoom, question, options: opts, multiple }));
+      ws.send(JSON.stringify({ type: 'pollCreate', roomId: currentRoom, question, options: opts, multiple, anonymous }));
       pollQuestionInput.value = '';
       pollOptionsInput.value = '';
       pollMultipleInput.checked = false;
+      pollAnonymousInput.checked = true;
+    };
+
+    endPollBtn.onclick = () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN || !currentRoom) return;
+      ws.send(JSON.stringify({ type: 'pollEnd', roomId: currentRoom }));
     };
 
     startThoughtsBtn.onclick = () => {

@@ -333,6 +333,18 @@
         pollBox.style.display = 'none';
         return;
       }
+      if (poll.voted) {
+        pollContainer.innerHTML = '<div class="empty">Abgegeben</div>';
+        pollVoteBtn.disabled = true;
+        pollBox.style.display = 'none';
+        return;
+      }
+      if (poll.open === false) {
+        pollContainer.innerHTML = '<div class="empty">Umfrage beendet</div>';
+        pollVoteBtn.disabled = true;
+        pollBox.style.display = 'block';
+        return;
+      }
       pollBox.style.display = 'block';
       pollCollapsed = false;
       pollContainer.innerHTML = `
@@ -529,6 +541,7 @@
 
     pollVoteBtn.onclick = () => {
       if (!currentRoom || !ws || ws.readyState !== WebSocket.OPEN) return;
+      if (!poll || poll.open === false || poll.voted) return;
       const inputs = pollContainer.querySelectorAll('input[name="pollopt"]');
       const selected = [];
       inputs.forEach((inp) => {
@@ -540,6 +553,7 @@
       pollCollapsed = true;
       pollContainer.innerHTML = '<div class="empty">Abgegeben</div>';
       pollVoteBtn.disabled = true;
+      pollBox.style.display = 'none';
     };
 
     // Gedankenrunde: Schüler sendet Text über Fragefeld (questionText) – optional separater Button?
