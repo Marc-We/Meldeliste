@@ -194,5 +194,35 @@
     "active": false,
     "createdAt": 1769345936953,
     "closedAt": 1769345949478
+  },
+  "room-mktqz80o-kwpm": {
+    "id": "room-mktqz80o-kwpm",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769346089304,
+    "closedAt": 1769346099349
+  },
+  "room-mktr6mmc-878t": {
+    "id": "room-mktr6mmc-878t",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769346434820,
+    "closedAt": 1769346435956
+  },
+  "room-mktr6o2s-qq9p": {
+    "id": "room-mktr6o2s-qq9p",
+    "name": "Deutsch 10A",
+    "subject": "Deutsch",
+    "className": "10A",
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769346436708,
+    "closedAt": 1769346437404
   }
 }

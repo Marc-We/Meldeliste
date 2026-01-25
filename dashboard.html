@@ -368,8 +368,8 @@
     let poll = null;
     let thoughts = [];
     let homeworkItems = [];
-    let classStats = { className: '', students: [] };
-    let classStudentStats = { className: "", student: null, sessions: [] };
+    let classStats = { className: '', subject: '', students: [] };
+    let classStudentStats = { className: '', subject: '', student: null, sessions: [] };
 
     function setConnection(ok) {
       dot.classList.toggle('ok', ok);
@@ -510,17 +510,31 @@
         return;
       }
       teachingsList.innerHTML = list.map(t => `
-        <div class="stat-card clickable" data-class="${t.className}">
+        <div class="stat-card clickable" data-class="${t.className}" data-subject="${t.subject}">
           <h4>${t.className}</h4>
           <div class="small">${t.subject}</div>
+          <div class="row" style="margin-top:8px;">
+            <button class="primary" data-create-room="${t.className}|${t.subject}">Raum starten</button>
+          </div>
         </div>
       `).join('');
       teachingsList.querySelectorAll('[data-class]').forEach((card) => {
         card.onclick = () => {
           if (!ws || ws.readyState !== WebSocket.OPEN) return;
           const className = card.getAttribute('data-class');
+          const subject = card.getAttribute('data-subject');
           if (!className) return;
-          ws.send(JSON.stringify({ type: 'classStats', className }));
+          ws.send(JSON.stringify({ type: 'classStats', className, subject }));
+        };
+      });
+      teachingsList.querySelectorAll('[data-create-room]').forEach((btn) => {
+        btn.onclick = (event) => {
+          event.stopPropagation();
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          const payload = btn.getAttribute('data-create-room') || '';
+          const [className, subject] = payload.split('|');
+          if (!className || !subject) return;
+          ws.send(JSON.stringify({ type: 'roomCreate', name: `${subject} ${className}`, className, subject }));
         };
       });
     }
@@ -653,7 +667,8 @@
         classStatsPanel.style.display = 'none';
         return;
       }
-      classStatsTitle.textContent = `Klasse ${classStats.className}`;
+      const subjectLabel = classStats.subject ? ` · Fach ${classStats.subject}` : '';
+      classStatsTitle.textContent = `Klasse ${classStats.className}${subjectLabel}`;
       if (!classStats.students.length) {
         classStudentPanel.style.display = 'none';
         classStatsGrid.innerHTML = '<div class="small">Keine Daten</div>';
@@ -675,7 +690,7 @@
           if (!ws || ws.readyState !== WebSocket.OPEN) return;
           const userId = card.getAttribute('data-user');
           if (!userId) return;
-          ws.send(JSON.stringify({ type: 'classStudentStats', className: classStats.className, userId }));
+          ws.send(JSON.stringify({ type: 'classStudentStats', className: classStats.className, subject: classStats.subject, userId }));
         };
       });
       classStatsPanel.style.display = 'block';
@@ -687,7 +702,8 @@
         classStudentPanel.style.display = 'none';
         return;
       }
-      classStudentTitle.textContent = `${classStudentStats.student.name} (Klasse ${classStudentStats.className})`;
+      const subjectLabel = classStudentStats.subject ? ` · Fach ${classStudentStats.subject}` : '';
+      classStudentTitle.textContent = `${classStudentStats.student.name} (Klasse ${classStudentStats.className}${subjectLabel})`;
       const sessions = classStudentStats.sessions || [];
       if (!sessions.length) {
         classStudentTable.innerHTML = '<div class="small">Keine Daten</div>';
@@ -888,14 +904,14 @@
         renderStats();
       }
       if (msg.type === 'classStats') {
-        classStats = { className: msg.className || '', students: msg.students || [] };
-        classStudentStats = { className: msg.className || '', student: null, sessions: [] };
+        classStats = { className: msg.className || '', subject: msg.subject || '', students: msg.students || [] };
+        classStudentStats = { className: msg.className || '', subject: msg.subject || '', student: null, sessions: [] };
         renderClassStats();
         updateLayout();
       }
 
       if (msg.type === 'classStudentStats') {
-        classStudentStats = { className: msg.className || '', student: msg.student || null, sessions: msg.sessions || [] };
+        classStudentStats = { className: msg.className || '', subject: msg.subject || '', student: msg.student || null, sessions: msg.sessions || [] };
         renderClassStudentStats();
         updateLayout();
       }
@@ -1122,13 +1138,14 @@
       questionBanner.style.display = 'none';
     };
     classStatsClose.onclick = () => {
-      classStats = { className: '', students: [] };
+      classStats = { className: '', subject: '', students: [] };
+      classStudentStats = { className: '', subject: '', student: null, sessions: [] };
       renderClassStats();
       updateLayout();
     };
 
     classStudentClose.onclick = () => {
-      classStudentStats = { className: '', student: null, sessions: [] };
+      classStudentStats = { className: '', subject: '', student: null, sessions: [] };
       renderClassStudentStats();
     };
 

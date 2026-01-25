@@ -273,6 +273,16 @@ function ensureStats(user, subject) {
   return user.stats[subject];
 }
 
+function getSubjectTotals(user, subject) {
+  const s = ensureStats(user, subject);
+  return {
+    signals: s.signals || 0,
+    calls: s.calls || 0,
+    toiletSeconds: s.toiletSeconds || 0,
+    ratings: s.ratings || { '--': 0, '-': 0, '0': 0, '+': 0, '++': 0 },
+  };
+}
+
 function ensureRoomStatsEntry(roomId, room) {
   let entry = roomStats.get(roomId);
   if (!entry) {
@@ -972,35 +982,49 @@ wss.on('connection', (ws) => {
 
     if (type === 'classStats' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || '').trim();
       if (!className) return;
       if (ws.role === 'teacher') {
         const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
-        if (!teaches.some((t) => t.className === className)) return;
+        if (subject) {
+          if (!teaches.some((t) => t.className === className && t.subject === subject)) return;
+        } else {
+          if (!teaches.some((t) => t.className === className)) return;
+        }
       }
       const students = Array.from(users.values())
         .filter((u) => u && u.role === 'student' && (u.className || '') === className)
         .map((u) => ({
           userId: u.id,
           name: u.name || 'Unbekannt',
-          total: aggregateTotalStats(u),
+          total: subject ? getSubjectTotals(u, subject) : aggregateTotalStats(u),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-      ws.send(JSON.stringify({ type: 'classStats', className, students }));
+      ws.send(JSON.stringify({ type: 'classStats', className, subject, students }));
       return;
     }
 
     if (type === 'classStudentStats' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || '').trim();
       const userId = String(msg.userId || '').trim();
       if (!className || !userId) return;
       if (ws.role === 'teacher') {
         const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
-        if (!teaches.some((t) => t.className === className)) return;
+        if (subject) {
+          if (!teaches.some((t) => t.className === className && t.subject === subject)) return;
+        } else {
+          if (!teaches.some((t) => t.className === className)) return;
+        }
       }
       const target = users.get(userId);
       if (!target || target.role !== 'student' || (target.className || '') !== className) return;
       const sessions = Array.from(roomStats.values())
-        .filter((entry) => entry && entry.className === className && entry.students && entry.students[userId])
+        .filter((entry) => {
+          if (!entry || entry.className !== className) return false;
+          if (subject && entry.subject !== subject) return false;
+          return Boolean(entry.students && entry.students[userId]);
+        })
         .map((entry) => ({
           roomId: entry.roomId,
           name: entry.name || 'Raum',
@@ -1013,6 +1037,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({
         type: 'classStudentStats',
         className,
+        subject,
         student: { userId: target.id, name: target.name || 'Unbekannt' },
         sessions,
       }));

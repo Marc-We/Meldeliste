@@ -208,7 +208,7 @@
     "stats": {
       "Mathematik": {
         "signals": 1,
-        "calls": 1,
+        "calls": 2,
         "ratings": {
           "0": 0,
           "--": 0,
@@ -220,7 +220,7 @@
         "daily": {
           "2026-01-25": {
             "signals": 1,
-            "calls": 1,
+            "calls": 2,
             "toiletSeconds": 0
           }
         }
@@ -263,6 +263,10 @@
       {
         "className": "10A",
         "subject": "Mathematik"
+      },
+      {
+        "className": "10A",
+        "subject": "Deutsch"
       }
     ]
   }

@@ -347,5 +347,15 @@
         "action": "called"
       }
     ]
+  },
+  "room-mktqz80o-kwpm": {
+    "entries": [
+      {
+        "id": "log-mktqzdgu-0ozn",
+        "ts": 1769346096366,
+        "userId": "s-mktnutua-pddp",
+        "action": "called"
+      }
+    ]
   }
 }

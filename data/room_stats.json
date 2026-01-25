@@ -42,5 +42,45 @@
         }
       }
     }
+  },
+  "room-mktqz80o-kwpm": {
+    "roomId": "room-mktqz80o-kwpm",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "subject": "Mathematik",
+    "createdAt": 1769346089304,
+    "closedAt": 1769346099349,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 0,
+        "calls": 1,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  },
+  "room-mktr6mmc-878t": {
+    "roomId": "room-mktr6mmc-878t",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "subject": "Mathematik",
+    "createdAt": 1769346434820,
+    "closedAt": 1769346435956,
+    "students": {}
+  },
+  "room-mktr6o2s-qq9p": {
+    "roomId": "room-mktr6o2s-qq9p",
+    "name": "Deutsch 10A",
+    "className": "10A",
+    "subject": "Deutsch",
+    "createdAt": 1769346436708,
+    "closedAt": 1769346437404,
+    "students": {}
   }
 }
