@@ -67,6 +67,10 @@
     .log table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--text); }
     .log th, .log td { padding: 8px 6px; border-bottom: 1px solid #1c2440; text-align: left; }
     .log .trash { padding: 4px 6px; font-size: 12px; border-radius: 6px; }
+    details.panel > summary { cursor: pointer; font-weight: 700; list-style: none; }
+    details.panel > summary::-webkit-details-marker { display: none; }
+    .tools-grid { display: grid; gap: 12px; margin-top: 12px; }
+    .tool-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
     .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
     .stat-card.clickable { cursor: pointer; }
@@ -95,7 +99,7 @@
       <div class="status"><div class="dot" id="dot"></div><span id="connText">Verbinde...</span></div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="profilePanel">
       <h2>Profil</h2>
       <div class="row">
         <label style="width:140px">
@@ -126,7 +130,7 @@
       <div class="pill" id="authStatus"></div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="roomsPanel">
       <h2>Räume</h2>
       <div class="row">
         <input id="roomName" placeholder="Neuer Raumname" style="flex:1">
@@ -179,31 +183,35 @@
       <div class="stats-grid" id="classStatsGrid"></div>
     </div>
 
-    <div class="panel">
-      <h2>Umfragen</h2>
-      <div class="poll">
-        <input id="pollQuestion" type="text" placeholder="Frage">
-        <div class="options">
-          <input id="pollOptions" type="text" placeholder="Optionen, getrennt durch ;">
+    <details class="panel" id="toolsPanel">
+      <summary>Tools</summary>
+      <div class="tools-grid">
+        <div class="tool-card" id="pollPanel">
+          <h2>Umfragen</h2>
+          <div class="poll">
+            <input id="pollQuestion" type="text" placeholder="Frage">
+            <div class="options">
+              <input id="pollOptions" type="text" placeholder="Optionen, getrennt durch ;">
+            </div>
+            <label><input id="pollMultiple" type="checkbox"> Mehrfachauswahl erlauben</label>
+            <div class="row">
+              <button id="createPoll" class="primary">Umfrage senden</button>
+            </div>
+          </div>
+          <div class="questions" id="pollResults"><div class="small">Keine aktive Umfrage</div></div>
         </div>
-        <label><input id="pollMultiple" type="checkbox"> Mehrfachauswahl erlauben</label>
-        <div class="row">
-          <button id="createPoll" class="primary">Umfrage senden</button>
+        <div class="tool-card" id="thoughtsPanel">
+          <h2>Gedankenrunde</h2>
+          <div class="row" style="margin-bottom:8px">
+            <button id="startThoughts" class="primary">Freischalten</button>
+            <button id="endThoughts" class="danger">Beenden</button>
+          </div>
+          <div class="cloud" id="thoughtsCloud"><div class="small">Keine Daten</div></div>
         </div>
       </div>
-      <div class="questions" id="pollResults"><div class="small">Keine aktive Umfrage</div></div>
-    </div>
+    </details>
 
-    <div class="panel">
-      <h2>Gedankenrunde</h2>
-      <div class="row" style="margin-bottom:8px">
-        <button id="startThoughts" class="primary">Freischalten</button>
-        <button id="endThoughts" class="danger">Beenden</button>
-      </div>
-      <div class="cloud" id="thoughtsCloud"><div class="small">Keine Daten</div></div>
-    </div>
-
-    <div class="panel">
+    <div class="panel" id="currentRoomPanel">
       <div class="row" style="justify-content: space-between; align-items: center;">
         <h2>Aktueller Raum</h2>
         <div class="row">
@@ -220,17 +228,17 @@
       <button id="questionClose" class="ghost" style="margin-top:8px">Schließen</button>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="logPanel">
       <h2>Protokoll</h2>
       <div class="log" id="logBox"><div class="small">Noch keine Einträge</div></div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="questionsPanel">
       <h2>Fragen (anonym)</h2>
       <div class="questions" id="questionsBox"><div class="small">Keine Fragen</div></div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="statsPanel">
       <h2>Statistiken (Raum)</h2>
       <div class="stats-grid" id="statsGrid"></div>
     </div>
@@ -251,6 +259,13 @@
     const modeRegisterBtn = document.getElementById('modeRegister');
     const modeLoginBtn = document.getElementById('modeLogin');
     const authStatus = document.getElementById('authStatus');
+    const profilePanel = document.getElementById('profilePanel');
+    const roomsPanel = document.getElementById('roomsPanel');
+    const currentRoomPanel = document.getElementById('currentRoomPanel');
+    const logPanel = document.getElementById('logPanel');
+    const questionsPanel = document.getElementById('questionsPanel');
+    const statsPanel = document.getElementById('statsPanel');
+    const toolsPanel = document.getElementById('toolsPanel');
     const roomNameInput = document.getElementById('roomName');
     const roomClassInput = document.getElementById('roomClass');
     const roomSubjectInput = document.getElementById('roomSubject');
@@ -290,6 +305,7 @@
     const thoughtsCloud = document.getElementById('thoughtsCloud');
     const homeworkPanel = document.createElement('div');
     homeworkPanel.className = 'panel';
+    homeworkPanel.id = 'homeworkPanel';
     homeworkPanel.innerHTML = '<h2>Hausaufgaben</h2><div id="homeworkList"><div class="small">Keine Hausaufgaben</div></div><div class="row" style="margin-top:8px;"><input id="homeworkText" style="flex:1" placeholder="Hausaufgabe für diesen Raum"><button id="sendHomework" class="primary">Senden</button></div>';
     document.querySelector('.layout').appendChild(homeworkPanel);
     const homeworkList = homeworkPanel.querySelector('#homeworkList');
@@ -441,6 +457,7 @@
         membersBoard.innerHTML = '';
         logBox.innerHTML = '<div class="small">Noch keine Einträge</div>';
         statsGrid.innerHTML = '';
+        updateLayout();
         return;
       }
       currentRoomInfo.textContent = `${room.name} (Klasse ${room.className || '-'})`;
@@ -448,6 +465,7 @@
       renderMembers();
       renderLog();
       renderStats();
+      updateLayout();
     }
 
     function renderMembers() {
@@ -633,6 +651,36 @@
       questionBanner.style.display = 'block';
     }
 
+    function setPanelVisible(panel, show) {
+      if (!panel) return;
+      panel.style.display = show ? '' : 'none';
+    }
+
+    function updateLayout() {
+      const layout = document.querySelector('.layout');
+      const hasRoom = Boolean(currentRoom);
+      setPanelVisible(profilePanel, !hasRoom);
+      setPanelVisible(catalogPanel, !hasRoom && (profile.role === 'admin'));
+      setPanelVisible(roomsPanel, true);
+      setPanelVisible(teachingsPanel, true);
+      setPanelVisible(currentRoomPanel, hasRoom);
+      setPanelVisible(questionBanner, hasRoom);
+      setPanelVisible(questionsPanel, hasRoom);
+      setPanelVisible(logPanel, hasRoom);
+      setPanelVisible(homeworkPanel, hasRoom);
+      setPanelVisible(statsPanel, hasRoom);
+      setPanelVisible(toolsPanel, hasRoom);
+
+      const order = hasRoom
+        ? [currentRoomPanel, questionBanner, questionsPanel, logPanel, homeworkPanel, statsPanel, toolsPanel, teachingsPanel, roomsPanel]
+        : [profilePanel, catalogPanel, roomsPanel, teachingsPanel];
+      order.forEach((panel) => {
+        if (panel && panel.parentElement === layout) {
+          layout.appendChild(panel);
+        }
+      });
+    }
+
     function connect() {
       ws = new WebSocket(WS_URL);
       setConnection(false);
@@ -671,16 +719,17 @@
     }
 
     function handleMessage(msg) {
-      if (msg.type === 'profile' && msg.user) {
-        profile.userId = msg.user.id;
-        profile.salutation = msg.user.salutation || profile.salutation;
-        profile.lastName = msg.user.lastName || profile.lastName;
-        profile.role = msg.user.role || profile.role;
-        profile.teachings = msg.user.teachings || profile.teachings;
-        renderProfileInfo();
-        renderTeachings();
-        localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(profile));
-      }
+    if (msg.type === 'profile' && msg.user) {
+      profile.userId = msg.user.id;
+      profile.salutation = msg.user.salutation || profile.salutation;
+      profile.lastName = msg.user.lastName || profile.lastName;
+      profile.role = msg.user.role || profile.role;
+      profile.teachings = msg.user.teachings || profile.teachings;
+      renderProfileInfo();
+      renderTeachings();
+      updateLayout();
+      localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(profile));
+    }
       if (msg.type === 'roomList') {
         rooms = msg.rooms || [];
         renderRooms();
@@ -909,6 +958,7 @@
     setInterval(() => {
       if (currentRoom) renderMembers();
     }, 10000);
+    updateLayout();
     connect();
   </script>
 </body>

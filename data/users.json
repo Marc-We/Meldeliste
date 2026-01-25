@@ -95,7 +95,7 @@
         "daily": {}
       },
       "Mathematik": {
-        "signals": 5,
+        "signals": 6,
         "calls": 0,
         "ratings": {
           "0": 0,
@@ -107,7 +107,7 @@
         "toiletSeconds": 0,
         "daily": {
           "2026-01-25": {
-            "signals": 5,
+            "signals": 6,
             "calls": 0,
             "toiletSeconds": 0
           }
@@ -174,19 +174,19 @@
     "stats": {
       "Mathematik": {
         "signals": 1,
-        "calls": 1,
+        "calls": 0,
         "ratings": {
           "0": 0,
           "--": 0,
           "-": 0,
-          "+": 1,
+          "+": 0,
           "++": 0
         },
         "toiletSeconds": 0,
         "daily": {
           "2026-01-25": {
             "signals": 1,
-            "calls": 1,
+            "calls": 0,
             "toiletSeconds": 0
           }
         }

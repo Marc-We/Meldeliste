@@ -297,20 +297,6 @@
     ]
   },
   "room-mktket0e-79bj": {
-    "entries": [
-      {
-        "id": "log-mktl7phy-19np",
-        "ts": 1769336407510,
-        "userId": "s-mktl7jvs-mlyv",
-        "action": "called"
-      },
-      {
-        "id": "log-mktl9d9s-piei",
-        "ts": 1769336484976,
-        "userId": "s-mktl7jvs-mlyv",
-        "action": "rating",
-        "rating": "+"
-      }
-    ]
+    "entries": []
   }
 }
