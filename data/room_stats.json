@@ -223,11 +223,11 @@
     ],
     "subject": "Physik",
     "createdAt": 1769348450512,
-    "closedAt": null,
+    "closedAt": 1769352959070,
     "students": {
       "s-mktnutua-pddp": {
         "signals": 2,
-        "calls": 0,
+        "calls": 1,
         "toiletSeconds": 0,
         "ratings": {
           "0": 0,
@@ -262,6 +262,32 @@
     "subject": "Mathematik",
     "createdAt": 1769348463848,
     "closedAt": null,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 1,
+        "calls": 1,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  },
+  "room-mktv28uj-km51": {
+    "roomId": "room-mktv28uj-km51",
+    "name": "Raum",
+    "className": "5A",
+    "classNames": [
+      "5A",
+      "5B"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769352948811,
+    "closedAt": 1769352955227,
     "students": {}
   }
 }

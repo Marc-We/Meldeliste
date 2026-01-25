@@ -1,0 +1,203 @@
+import { state } from './state.js';
+import { els } from './dom.js';
+import { WS_URL } from './config.js';
+import { sendJson } from './api.js';
+import { renderAuthFields, renderProfileInfo, setAuthStatus, setConnection, updateLayout } from './ui.js';
+import {
+  renderCatalogs,
+  renderClassStats,
+  renderClassStudentStats,
+  renderCurrentRoom,
+  renderHomework,
+  renderLog,
+  renderMembers,
+  renderPoll,
+  renderQuestions,
+  renderRooms,
+  renderStats,
+  renderTeachings,
+  renderThoughts,
+} from './render.js';
+
+function handleMessage(msg) {
+  if (msg.type === 'profile' && msg.user) {
+    state.profile.userId = msg.user.id;
+    state.profile.email = msg.user.email || state.profile.email;
+    state.profile.salutation = msg.user.salutation || state.profile.salutation;
+    state.profile.lastName = msg.user.lastName || state.profile.lastName;
+    state.profile.role = msg.user.role || state.profile.role;
+    state.profile.teachings = msg.user.teachings || state.profile.teachings;
+    state.authMode = 'login';
+    setAuthStatus('');
+    renderProfileInfo();
+    renderTeachings();
+    updateLayout();
+    localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(state.profile));
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+      sendJson({ type: 'homeworkListRequest' });
+    }
+  }
+  if (msg.type === 'roomList') {
+    state.rooms = msg.rooms || [];
+    renderRooms();
+    renderCurrentRoom();
+  }
+  if (msg.type === 'presence' && msg.roomId === state.currentRoom) {
+    state.presence = new Map();
+    (msg.members || []).forEach((m) => state.presence.set(m.userId, m));
+    renderMembers();
+  }
+  if (msg.type === 'ready' && msg.roomId === state.currentRoom) {
+    if (!state.presence.has(msg.userId)) state.presence.set(msg.userId, { userId: msg.userId, name: msg.name || 'Unbekannt', ready: true, online: true });
+    const p = state.presence.get(msg.userId);
+    p.ready = true;
+    p.online = true;
+    renderMembers();
+  }
+  if (msg.type === 'reset' && msg.roomId === state.currentRoom) {
+    if (state.presence.has(msg.userId)) {
+      state.presence.get(msg.userId).ready = false;
+      renderMembers();
+    }
+  }
+  if (msg.type === 'resetAll' && msg.roomId === state.currentRoom) {
+    state.presence.forEach((value) => { value.ready = false; });
+    renderMembers();
+  }
+  if (msg.type === 'roomClosed' && msg.roomId === state.currentRoom) {
+    state.currentRoom = null;
+    renderCurrentRoom();
+  }
+  if (msg.type === 'log' && msg.roomId === state.currentRoom) {
+    state.logEntries = msg.entries || [];
+    renderLog();
+  }
+  if (msg.type === 'stats' && msg.roomId === state.currentRoom) {
+    state.stats = msg.stats || [];
+    renderStats();
+  }
+  if (msg.type === 'classStats') {
+    state.classStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', students: msg.students || [] };
+    state.classStudentStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', student: null, sessions: [] };
+    renderClassStats();
+    updateLayout();
+  }
+  if (msg.type === 'classStudentStats') {
+    state.classStudentStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', student: msg.student || null, sessions: msg.sessions || [] };
+    renderClassStudentStats();
+    updateLayout();
+  }
+  if (msg.type === 'authStatus') {
+    if (msg.status === 'verify_required') {
+      state.pendingEmail = msg.email || els.emailInput.value.trim();
+      state.authMode = 'verify';
+      setAuthStatus('Code gesendet. Bitte pruefen.');
+      renderAuthFields();
+    } else if (msg.status === 'reset_sent') {
+      state.pendingEmail = msg.email || els.emailInput.value.trim();
+      state.authMode = 'reset-confirm';
+      setAuthStatus('Reset-Code gesendet.');
+      renderAuthFields();
+    } else if (msg.status === 'reset_done') {
+      state.authMode = 'login';
+      setAuthStatus('Passwort aktualisiert. Bitte anmelden.');
+      renderAuthFields();
+    } else if (msg.status === 'verified') {
+      setAuthStatus('E-Mail bereits bestaetigt.');
+    }
+  }
+  if (msg.type === 'authError') {
+    const reason = msg.reason || 'Anmeldung fehlgeschlagen';
+    const messages = {
+      missing_fields: 'Bitte alle Felder ausfuellen.',
+      email_exists: 'E-Mail existiert bereits.',
+      not_found: 'Account nicht gefunden.',
+      wrong_password: 'Passwort falsch.',
+      email_unverified: 'E-Mail noch nicht bestaetigt.',
+      code_invalid: 'Code ungueltig.',
+      code_expired: 'Code abgelaufen.',
+      class_invalid: 'Klasse ungueltig.',
+      wrong_role: 'Falsche Rolle fuer diesen Account.',
+    };
+    setAuthStatus(messages[reason] || `Fehler: ${reason}`);
+    if (reason === 'email_unverified') {
+      state.authMode = 'verify';
+      renderAuthFields();
+    }
+  }
+  if (msg.type === 'catalogs') {
+    state.classCatalog = msg.classes || [];
+    state.subjectCatalog = msg.subjects || [];
+    renderCatalogs();
+  }
+  if (msg.type === 'questionList' && msg.roomId === state.currentRoom) {
+    state.questions = msg.questions || [];
+    renderQuestions();
+  }
+  if (msg.type === 'question' && msg.roomId === state.currentRoom) {
+    state.questions.push(msg.question);
+    renderQuestions();
+  }
+  if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
+    state.poll = msg.poll;
+    renderPoll();
+  }
+  if (msg.type === 'thoughtState' && msg.roomId === state.currentRoom) {
+    if (msg.active) {
+      state.thoughts = [];
+      renderThoughts();
+    }
+  }
+  if (msg.type === 'thoughtResults' && msg.roomId === state.currentRoom) {
+    state.thoughts = msg.results || [];
+    renderThoughts();
+  }
+  if (msg.type === 'homework') {
+    state.homeworkItems = state.homeworkItems.filter((h) => h.className !== msg.className || h.subject !== msg.subject);
+    if (msg.homework && msg.homework.text) {
+      state.homeworkItems.push({ className: msg.className, subject: msg.subject, homework: msg.homework });
+    }
+    renderHomework();
+  }
+  if (msg.type === 'homeworkList') {
+    state.homeworkItems = msg.items || [];
+    renderHomework();
+  }
+  if (msg.type === 'toilet' && msg.roomId === state.currentRoom) {
+    if (msg.status === 'back') {
+      state.toiletStates.delete(msg.userId);
+    } else {
+      state.toiletStates.set(msg.userId, { status: msg.status, start: msg.start || state.toiletStates.get(msg.userId)?.start || null });
+    }
+    renderMembers();
+  }
+  if (msg.type === 'important' && msg.roomId === state.currentRoom) {
+    if (msg.status === 'cleared') {
+      const m = state.presence.get(msg.userId);
+      if (m) m.important = false;
+    } else if (msg.status === 'pending') {
+      const m = state.presence.get(msg.userId) || {};
+      m.important = true;
+      state.presence.set(msg.userId, m);
+    }
+    renderMembers();
+  }
+}
+
+export function connect() {
+  state.ws = new WebSocket(WS_URL);
+  setConnection(false);
+  state.ws.onopen = () => {
+    setConnection(true);
+    sendJson({ type: 'catalogsRequest' });
+  };
+  state.ws.onclose = () => {
+    setConnection(false);
+    setTimeout(connect, 1200);
+  };
+  state.ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    handleMessage(msg);
+  };
+}

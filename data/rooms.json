@@ -331,8 +331,9 @@
       "10B"
     ],
     "teacherId": "t-mktnvwjm-rsat",
-    "active": true,
-    "createdAt": 1769348450512
+    "active": false,
+    "createdAt": 1769348450512,
+    "closedAt": 1769352959070
   },
   "room-mktsdvzc-n2s3": {
     "id": "room-mktsdvzc-n2s3",
@@ -359,5 +360,19 @@
     "teacherId": "t-mktnvwjm-rsat",
     "active": true,
     "createdAt": 1769348463848
+  },
+  "room-mktv28uj-km51": {
+    "id": "room-mktv28uj-km51",
+    "name": "Raum",
+    "subject": "Mathematik",
+    "className": "5A",
+    "classNames": [
+      "5A",
+      "5B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769352948811,
+    "closedAt": 1769352955227
   }
 }

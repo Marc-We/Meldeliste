@@ -1,0 +1,20 @@
+export const state = {
+  ws: null,
+  profile: { role: 'teacher', userId: null, email: '', salutation: 'Herr', lastName: '' },
+  authMode: 'login', // login | register | verify | reset-request | reset-confirm
+  pendingEmail: '',
+  rooms: [],
+  currentRoom: null,
+  presence: new Map(), // userId -> {ready, name, online}
+  logEntries: [],
+  stats: [],
+  classCatalog: [],
+  subjectCatalog: [],
+  toiletStates: new Map(), // userId -> {status,start}
+  questions: [],
+  poll: null,
+  thoughts: [],
+  homeworkItems: [],
+  classStats: { className: '', classNames: [], subject: '', students: [] },
+  classStudentStats: { className: '', classNames: [], subject: '', student: null, sessions: [] },
+};

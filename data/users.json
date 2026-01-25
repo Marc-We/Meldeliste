@@ -285,8 +285,8 @@
     "passwordHash": "771b1748d0ca3d5f2ae6931c6561d105:39e63176fd163b9a7a872a7e7ab3826e86973bb2ca9505bca0bb9c93ab0dfe5e4c9d0a0b505627c6caa4e19e33e60959f7c407c3b226192c2979488f5ff8be40",
     "stats": {
       "Mathematik": {
-        "signals": 1,
-        "calls": 2,
+        "signals": 2,
+        "calls": 3,
         "ratings": {
           "0": 0,
           "--": 0,
@@ -297,8 +297,8 @@
         "toiletSeconds": 0,
         "daily": {
           "2026-01-25": {
-            "signals": 1,
-            "calls": 2,
+            "signals": 2,
+            "calls": 3,
             "toiletSeconds": 0
           }
         }
@@ -324,7 +324,7 @@
       },
       "Physik": {
         "signals": 2,
-        "calls": 0,
+        "calls": 1,
         "ratings": {
           "0": 0,
           "--": 0,
@@ -336,7 +336,7 @@
         "daily": {
           "2026-01-25": {
             "signals": 2,
-            "calls": 0,
+            "calls": 1,
             "toiletSeconds": 0
           }
         }
