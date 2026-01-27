@@ -216,7 +216,7 @@ export function renderTeacherInbox() {
     const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
     return `
       <div class="inbox-item">
-        <div><strong>${from}</strong> â€“ ${subject}</div>
+        <div><strong>${from}</strong> ${subject}</div>
         <div class="small">${time}</div>
         <div class="small">${answers}</div>
         ${text}
@@ -249,16 +249,24 @@ export function renderFeedbackForm() {
     els.feedbackQuestions.innerHTML = '<div class="small">Kein Feedback-Fragebogen vorhanden.</div>';
     return;
   }
-  const scaleHint = state.questionnaireTeacher?.scaleHint || '1 = trifft nicht zu, 5 = trifft voll zu';
+  const scaleType = state.questionnaireTeacher?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const scaleMin = Number.isFinite(Number(state.questionnaireTeacher?.scaleMin)) ? Number(state.questionnaireTeacher.scaleMin) : 1;
+  const scaleMax = Number.isFinite(Number(state.questionnaireTeacher?.scaleMax)) ? Number(state.questionnaireTeacher.scaleMax) : 5;
+  const scaleHint = state.questionnaireTeacher?.scaleHint || (scaleType === 'yesno' ? 'Ja / Nein' : `${scaleMin} = trifft nicht zu, ${scaleMax} = trifft voll zu`);
   els.feedbackQuestions.innerHTML = questions.map((q) => {
     const current = state.feedbackAnswers[q.id];
+    const hint = q.hint || scaleHint;
+    const options = scaleType === 'yesno' ? [{ label: 'Ja', value: 1 }, { label: 'Nein', value: 0 }] : Array.from({ length: Math.max(1, scaleMax - scaleMin + 1) }).map((_, idx) => {
+      const v = scaleMin + idx;
+      return { label: String(v), value: v };
+    });
     return `
       <div class="q-item">
         <div>${q.text}</div>
         <div class="rating" data-q="${q.id}">
-          ${[1,2,3,4,5].map((v) => `<button class="${current === v ? 'active' : ''}" data-val="${v}">${v}</button>`).join('')}
+          ${options.map((opt) => `<button class="${current === opt.value ? 'active' : ''}" data-val="${opt.value}">${opt.label}</button>`).join('')}
         </div>
-        <div class="small">${scaleHint}</div>
+        <div class="small">${hint}</div>
       </div>
     `;
   }).join('');
@@ -273,6 +281,24 @@ export function renderQuestionnaireEditor() {
     if (els.questionnaireQuestionsInput) {
       const text = Array.isArray(data.questions) ? data.questions.map((q) => q.text).join('\n') : '';
       els.questionnaireQuestionsInput.value = text;
+    }
+    if (els.questionnaireHintsInput) {
+      const hints = Array.isArray(data.questions) ? data.questions.map((q) => q.hint || '').join('\n') : '';
+      els.questionnaireHintsInput.value = hints;
+    }
+    if (els.questionnaireScaleType) {
+      els.questionnaireScaleType.value = data.scaleType === 'yesno' ? 'yesno' : 'scale';
+    }
+    if (els.questionnaireScaleMin) {
+      els.questionnaireScaleMin.value = Number.isFinite(Number(data.scaleMin)) ? String(data.scaleMin) : '1';
+    }
+    if (els.questionnaireScaleMax) {
+      els.questionnaireScaleMax.value = Number.isFinite(Number(data.scaleMax)) ? String(data.scaleMax) : '5';
+    }
+    if (els.questionnaireScaleMin && els.questionnaireScaleMax && els.questionnaireScaleType) {
+      const isYesNo = els.questionnaireScaleType.value === 'yesno';
+      els.questionnaireScaleMin.disabled = isYesNo;
+      els.questionnaireScaleMax.disabled = isYesNo;
     }
   }
 }

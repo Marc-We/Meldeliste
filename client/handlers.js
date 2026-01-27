@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson, sendJoin } from './api.js';
-import { renderAuthFields, renderProfileInfo, setAuthStatus } from './ui.js';
+import { renderAuthFields, renderProfileInfo, setAuthStatus, flashSend } from './ui.js';
 import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode } from './render.js';
 
 export function bindHandlers() {
@@ -147,6 +147,7 @@ export function bindHandlers() {
       sendJson({ type: 'questionSubmit', roomId: state.currentRoom, text, anonymous: els.questionAnonymous.checked });
     }
     els.questionText.value = '';
+    flashSend(els.sendQuestionBtn);
   };
 
   els.pollVoteBtn.onclick = () => {
@@ -164,6 +165,7 @@ export function bindHandlers() {
     els.pollContainer.innerHTML = '<div class="empty">Abgegeben</div>';
     els.pollVoteBtn.disabled = true;
     els.pollBox.style.display = 'none';
+    flashSend(els.pollVoteBtn);
   };
 
   els.leaveBtn.onclick = () => {
@@ -220,7 +222,15 @@ export function bindHandlers() {
       const questions = Array.isArray(state.questionnaire.data.questions) ? state.questionnaire.data.questions : [];
       if (!questions.length) return;
       const answers = questions.map((q) => ({ id: q.id, value: state.questionnaire.answers[q.id] }));
-      const missing = answers.some((a) => !a.value || a.value < 1 || a.value > 5);
+      const scaleType = state.questionnaire.data.scaleType === 'yesno' ? 'yesno' : 'scale';
+      const scaleMin = Number.isFinite(Number(state.questionnaire.data.scaleMin)) ? Number(state.questionnaire.data.scaleMin) : 1;
+      const scaleMax = Number.isFinite(Number(state.questionnaire.data.scaleMax)) ? Number(state.questionnaire.data.scaleMax) : 5;
+      const missing = answers.some((a) => {
+        const val = Number(a.value);
+        if (!Number.isFinite(val)) return true;
+        if (scaleType === 'yesno') return !(val === 0 || val === 1);
+        return val < scaleMin || val > scaleMax;
+      });
       if (missing) return;
       const text = els.questionnaireText.value.trim();
       sendJson({
@@ -230,6 +240,7 @@ export function bindHandlers() {
         answers,
         text,
       });
+      flashSend(els.questionnaireSend);
       els.questionnaireText.value = '';
       state.questionnaire.open = false;
       state.questionnaire.data = null;

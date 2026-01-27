@@ -232,7 +232,10 @@ export function renderQuestionnaire() {
     return;
   }
   els.questionnaireTitle.textContent = state.questionnaire.data.title || 'Fragebogen';
-  const scaleHint = state.questionnaire.data.scaleHint || '1 = trifft nicht zu, 5 = trifft voll zu';
+  const scaleType = state.questionnaire.data.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const scaleMin = Number.isFinite(Number(state.questionnaire.data.scaleMin)) ? Number(state.questionnaire.data.scaleMin) : 1;
+  const scaleMax = Number.isFinite(Number(state.questionnaire.data.scaleMax)) ? Number(state.questionnaire.data.scaleMax) : 5;
+  const scaleHint = state.questionnaire.data.scaleHint || (scaleType === 'yesno' ? 'Ja / Nein' : `${scaleMin} = trifft nicht zu, ${scaleMax} = trifft voll zu`);
   const questions = Array.isArray(state.questionnaire.data.questions) ? state.questionnaire.data.questions : [];
   if (!questions.length) {
     els.questionnaireQuestions.innerHTML = '<div class="empty">Keine Fragen vorhanden.</div>';
@@ -240,13 +243,18 @@ export function renderQuestionnaire() {
   }
   els.questionnaireQuestions.innerHTML = questions.map((q) => {
     const current = state.questionnaire.answers[q.id];
+    const hint = q.hint || scaleHint;
+    const options = scaleType === 'yesno' ? [{ label: 'Ja', value: 1 }, { label: 'Nein', value: 0 }] : Array.from({ length: Math.max(1, scaleMax - scaleMin + 1) }).map((_, idx) => {
+      const v = scaleMin + idx;
+      return { label: String(v), value: v };
+    });
     return `
       <div class="q-item">
         <div>${q.text}</div>
         <div class="rating" data-q="${q.id}">
-          ${[1,2,3,4,5].map((v) => `<button class="${current === v ? 'active' : ''}" data-val="${v}">${v}</button>`).join('')}
+          ${options.map((opt) => `<button class="${current === opt.value ? 'active' : ''}" data-val="${opt.value}">${opt.label}</button>`).join('')}
         </div>
-        <div class="scale">${scaleHint}</div>
+        <div class="scale">${hint}</div>
       </div>
     `;
   }).join('');
@@ -268,7 +276,7 @@ export function renderFeedbackInbox() {
     const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
     return `
       <div class="inbox-item">
-        <div><strong>${from}</strong> â€“ ${subject}</div>
+        <div><strong>${from}</strong> ${subject}</div>
         <div class="small">${time}</div>
         <div class="small">${answers}</div>
         ${text}
@@ -313,7 +321,7 @@ export function renderPoll() {
 
 export function renderThoughtState() {
   if (state.thoughtActive) {
-    els.thoughtState.textContent = 'Gedankenrunde aktiv â€“ schreibe deine Gedanken und sende sie.';
+    els.thoughtState.textContent = 'Gedankenrunde aktiv schreibe deine Gedanken und sende sie.';
     els.thoughtPanel.style.display = 'block';
   } else {
     els.thoughtState.textContent = 'Nicht aktiv';

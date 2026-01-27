@@ -510,22 +510,41 @@ function loadQuestionnaire(role, teacherId) {
   if (teacherPath && fs.existsSync(teacherPath)) {
     return loadJson(teacherPath, null);
   }
-  const fallback = loadJson(questionnairePath(role, ''), { title: 'Fragebogen', scaleHint: '1 = trifft nicht zu, 5 = trifft voll zu', questions: [] });
+  const fallback = loadJson(questionnairePath(role, ''), {
+    title: 'Fragebogen',
+    scaleHint: '1 = trifft nicht zu, 5 = trifft voll zu',
+    scaleType: 'scale',
+    scaleMin: 1,
+    scaleMax: 5,
+    questions: [],
+  });
   return fallback;
 }
 
 function saveQuestionnaire(role, teacherId, data) {
   const safeRole = role === 'teacher' ? 'teacher' : 'student';
   const title = String(data?.title || '').trim() || (safeRole === 'teacher' ? 'Feedback' : 'Fragebogen');
-  const scaleHint = String(data?.scaleHint || '').trim() || '1 = trifft nicht zu, 5 = trifft voll zu';
+  const scaleType = data?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const scaleMin = Number.isFinite(Number(data?.scaleMin)) ? Number(data.scaleMin) : 1;
+  const scaleMax = Number.isFinite(Number(data?.scaleMax)) ? Number(data.scaleMax) : 5;
+  const scaleHint = String(data?.scaleHint || '').trim()
+    || (scaleType === 'yesno' ? 'Ja / Nein' : `${scaleMin} = trifft nicht zu, ${scaleMax} = trifft voll zu`);
   const rawQuestions = Array.isArray(data?.questions) ? data.questions : [];
   const questions = rawQuestions
     .map((q, idx) => ({
       id: String(q?.id || `q${idx + 1}`).trim(),
       text: String(q?.text || '').trim(),
+      hint: String(q?.hint || '').trim(),
     }))
     .filter((q) => q.id && q.text);
-  const payload = { title, scaleHint, questions };
+  const payload = {
+    title,
+    scaleHint,
+    scaleType,
+    scaleMin: scaleType === 'scale' ? Math.min(scaleMin, scaleMax) : 1,
+    scaleMax: scaleType === 'scale' ? Math.max(scaleMin, scaleMax) : 5,
+    questions,
+  };
   const filePath = questionnairePath(safeRole, teacherId);
   saveJson(filePath, payload);
   return payload;
@@ -1599,9 +1618,14 @@ wss.on('connection', (ws, req) => {
       const questionnaire = loadQuestionnaire('student', teacherId);
       const qList = Array.isArray(questionnaire?.questions) ? questionnaire.questions : [];
       if (!qList.length) return;
+      const scaleType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
+      const min = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
+      const max = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
       const valid = answers.every((a) => {
         const val = Number(a.value);
-        return Number.isFinite(val) && val >= 1 && val <= 5;
+        if (!Number.isFinite(val)) return false;
+        if (scaleType === 'yesno') return val === 1 || val === 0;
+        return val >= min && val <= max;
       });
       if (!valid || answers.length < qList.length) return;
       const teacher = users.get(teacherId);
@@ -1630,9 +1654,14 @@ wss.on('connection', (ws, req) => {
       const questionnaire = loadQuestionnaire('teacher', ws.userId);
       const qList = Array.isArray(questionnaire?.questions) ? questionnaire.questions : [];
       if (!qList.length) return;
+      const scaleType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
+      const min = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
+      const max = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
       const valid = answers.every((a) => {
         const val = Number(a.value);
-        return Number.isFinite(val) && val >= 1 && val <= 5;
+        if (!Number.isFinite(val)) return false;
+        if (scaleType === 'yesno') return val === 1 || val === 0;
+        return val >= min && val <= max;
       });
       if (!valid || answers.length < qList.length) return;
       const target = users.get(studentId);

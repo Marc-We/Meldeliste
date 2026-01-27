@@ -1,0 +1,24 @@
+{
+  "title": "Feedback Briel",
+  "scaleHint": "1 = trifft nicht zu, 3 = trifft voll zu",
+  "scaleType": "scale",
+  "scaleMin": 1,
+  "scaleMax": 3,
+  "questions": [
+    {
+      "id": "q1",
+      "text": "Deine Qualität",
+      "hint": "1 = nicht so gut; 2 = ok; 3 = gut"
+    },
+    {
+      "id": "q2",
+      "text": "Deine Quantität",
+      "hint": "1 = nicht so gut; 2 = ok; 3 = gut"
+    },
+    {
+      "id": "q3",
+      "text": "Du hast heute Gestört",
+      "hint": "1 = viel gestört; 2 = wenig gestört; 3 = nicht gestört"
+    }
+  ]
+}

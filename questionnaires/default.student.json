@@ -1,10 +1,13 @@
 {
   "title": "Fragebogen",
   "scaleHint": "1 = trifft nicht zu, 5 = trifft voll zu",
+  "scaleType": "scale",
+  "scaleMin": 1,
+  "scaleMax": 5,
   "questions": [
-    { "id": "q1", "text": "Ich konnte dem Unterricht gut folgen." },
-    { "id": "q2", "text": "Das Tempo war angemessen." },
-    { "id": "q3", "text": "Die Erklärungen waren verständlich." },
-    { "id": "q4", "text": "Ich habe heute etwas gelernt." }
+    { "id": "q1", "text": "Ich konnte dem Unterricht gut folgen.", "hint": "" },
+    { "id": "q2", "text": "Das Tempo war angemessen.", "hint": "" },
+    { "id": "q3", "text": "Die Erklärungen waren verständlich.", "hint": "" },
+    { "id": "q4", "text": "Ich habe heute etwas gelernt.", "hint": "" }
   ]
 }

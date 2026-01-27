@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson } from './api.js';
-import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout } from './ui.js';
+import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout, flashSend } from './ui.js';
 import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts } from './render.js';
 
 export function bindHandlers() {
@@ -96,6 +96,7 @@ export function bindHandlers() {
     const subject = els.roomSubjectInput.value || 'default';
     if (!classNames.length) return;
     sendJson({ type: 'roomCreate', name, classNames, subject });
+    flashSend(els.createRoomBtn);
     els.roomNameInput.value = '';
   };
 
@@ -109,6 +110,7 @@ export function bindHandlers() {
     const cls = els.newClassInput.value.trim();
     if (!cls) return;
     sendJson({ type: 'createClass', className: cls });
+    flashSend(els.addClassBtn);
     els.newClassInput.value = '';
   };
 
@@ -117,6 +119,7 @@ export function bindHandlers() {
     const subj = els.newSubjectInput.value.trim();
     if (!subj) return;
     sendJson({ type: 'createSubject', subject: subj });
+    flashSend(els.addSubjectBtn);
     els.newSubjectInput.value = '';
   };
 
@@ -127,6 +130,7 @@ export function bindHandlers() {
       const className = els.moveClassSelect.value;
       if (!userId || !className) return;
       sendJson({ type: 'adminMoveStudent', userId, className });
+      flashSend(els.moveStudentBtn);
       if (els.moveStudentInfo) els.moveStudentInfo.textContent = 'Verschieben angefragt.';
     };
   }
@@ -137,6 +141,7 @@ export function bindHandlers() {
       const value = els.banEmailInput.value.trim();
       if (!value) return;
       sendJson({ type: 'banAdd', kind: 'email', value });
+      flashSend(els.banAddEmailBtn);
       els.banEmailInput.value = '';
     };
   }
@@ -146,6 +151,7 @@ export function bindHandlers() {
       const value = els.banIpInput.value.trim();
       if (!value) return;
       sendJson({ type: 'banAdd', kind: 'ip', value });
+      flashSend(els.banAddIpBtn);
       els.banIpInput.value = '';
     };
   }
@@ -156,6 +162,7 @@ export function bindHandlers() {
       const className = els.codeClassSelect.value;
       if (!className) return;
       sendJson({ type: 'classCodeRequest', className });
+      flashSend(els.fetchClassCodeBtn);
     };
   }
   if (els.rotateClassCodeBtn) {
@@ -164,18 +171,21 @@ export function bindHandlers() {
       const className = els.codeClassSelect.value;
       if (!className) return;
       sendJson({ type: 'classCodeRotate', className });
+      flashSend(els.rotateClassCodeBtn);
     };
   }
   if (els.fetchTeacherCodeBtn) {
     els.fetchTeacherCodeBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
       sendJson({ type: 'teacherCodeRequest' });
+      flashSend(els.fetchTeacherCodeBtn);
     };
   }
   if (els.rotateTeacherCodeBtn) {
     els.rotateTeacherCodeBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
       sendJson({ type: 'teacherCodeRotate' });
+      flashSend(els.rotateTeacherCodeBtn);
     };
   }
 
@@ -201,10 +211,19 @@ export function bindHandlers() {
       const questions = Array.isArray(state.questionnaireTeacher?.questions) ? state.questionnaireTeacher.questions : [];
       if (!studentId || !questions.length) return;
       const answers = questions.map((q) => ({ id: q.id, value: state.feedbackAnswers[q.id] }));
-      const missing = answers.some((a) => !a.value || a.value < 1 || a.value > 5);
+      const scaleType = state.questionnaireTeacher?.scaleType === 'yesno' ? 'yesno' : 'scale';
+      const scaleMin = Number.isFinite(Number(state.questionnaireTeacher?.scaleMin)) ? Number(state.questionnaireTeacher.scaleMin) : 1;
+      const scaleMax = Number.isFinite(Number(state.questionnaireTeacher?.scaleMax)) ? Number(state.questionnaireTeacher.scaleMax) : 5;
+      const missing = answers.some((a) => {
+        const val = Number(a.value);
+        if (!Number.isFinite(val)) return true;
+        if (scaleType === 'yesno') return !(val === 0 || val === 1);
+        return val < scaleMin || val > scaleMax;
+      });
       if (missing) return;
       const text = els.feedbackText.value.trim();
       sendJson({ type: 'feedbackSubmit', studentId, subject, answers, text });
+      flashSend(els.feedbackSendBtn);
       els.feedbackText.value = '';
       state.feedbackAnswers = {};
     };
@@ -215,14 +234,34 @@ export function bindHandlers() {
       sendJson({ type: 'questionnaireRequest', role });
     };
   }
+  if (els.questionnaireScaleType) {
+    els.questionnaireScaleType.onchange = () => {
+      const isYesNo = els.questionnaireScaleType.value === 'yesno';
+      if (els.questionnaireScaleMin) els.questionnaireScaleMin.disabled = isYesNo;
+      if (els.questionnaireScaleMax) els.questionnaireScaleMax.disabled = isYesNo;
+    };
+  }
+  if (els.questionnaireLoadBtn) {
+    els.questionnaireLoadBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
+      sendJson({ type: 'questionnaireRequest', role });
+      flashSend(els.questionnaireLoadBtn);
+    };
+  }
   if (els.questionnaireSaveBtn) {
     els.questionnaireSaveBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
       const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
       const title = (els.questionnaireTitleInput.value || '').trim();
       const lines = (els.questionnaireQuestionsInput.value || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-      const questions = lines.map((text, idx) => ({ id: `q${idx + 1}`, text }));
-      sendJson({ type: 'questionnaireSave', role, data: { title, questions } });
+      const hints = (els.questionnaireHintsInput?.value || '').split(/\r?\n/).map((l) => l.trim());
+      const questions = lines.map((text, idx) => ({ id: `q${idx + 1}`, text, hint: hints[idx] || '' }));
+      const scaleType = els.questionnaireScaleType?.value === 'yesno' ? 'yesno' : 'scale';
+      const scaleMin = Number(els.questionnaireScaleMin?.value || 1);
+      const scaleMax = Number(els.questionnaireScaleMax?.value || 5);
+      sendJson({ type: 'questionnaireSave', role, data: { title, questions, scaleType, scaleMin, scaleMax } });
+      flashSend(els.questionnaireSaveBtn);
     };
   }
 
@@ -232,6 +271,7 @@ export function bindHandlers() {
     const subj = els.teachSubjectSelect.value;
     if (!classNames.length || !subj) return;
     sendJson({ type: 'addTeaching', classNames, subject: subj });
+    flashSend(els.addTeachingBtn);
   };
 
   els.questionClose.onclick = () => {
@@ -258,6 +298,7 @@ export function bindHandlers() {
     const anonymous = els.pollAnonymousInput.checked;
     if (!question || opts.length < 2) return;
     sendJson({ type: 'pollCreate', roomId: state.currentRoom, question, options: opts, multiple, anonymous });
+    flashSend(els.createPollBtn);
     els.pollQuestionInput.value = '';
     els.pollOptionsInput.value = '';
     els.pollMultipleInput.checked = false;
@@ -267,6 +308,7 @@ export function bindHandlers() {
   els.endPollBtn.onclick = () => {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
     sendJson({ type: 'pollEnd', roomId: state.currentRoom });
+    flashSend(els.endPollBtn);
   };
 
   els.startThoughtsBtn.onclick = () => {
@@ -274,11 +316,13 @@ export function bindHandlers() {
     sendJson({ type: 'thoughtStart', roomId: state.currentRoom });
     state.thoughts = [];
     renderThoughts();
+    flashSend(els.startThoughtsBtn);
   };
 
   els.endThoughtsBtn.onclick = () => {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
     sendJson({ type: 'thoughtEnd', roomId: state.currentRoom });
+    flashSend(els.endThoughtsBtn);
   };
 
   els.sendHomeworkBtn.onclick = () => {
@@ -289,6 +333,9 @@ export function bindHandlers() {
     if (!room) return;
     const classNames = Array.isArray(room.classNames) && room.classNames.length ? room.classNames : (room.className ? [room.className] : []);
     sendJson({ type: 'homeworkSet', classNames, subject: room.subject || 'default', text });
+    flashSend(els.sendHomeworkBtn);
     els.homeworkText.value = '';
   };
 }
+
+

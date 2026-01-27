@@ -15,6 +15,14 @@ export function setAuthStatus(text) {
   els.authStatus.textContent = text || '';
 }
 
+export function flashSend(el) {
+  if (!el) return;
+  el.classList.remove('sent');
+  void el.offsetWidth;
+  el.classList.add('sent');
+  setTimeout(() => el.classList.remove('sent'), 400);
+}
+
 export function renderAuthFields() {
   const isRegister = state.authMode === 'register';
   const isLogin = state.authMode === 'login';

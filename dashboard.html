@@ -108,6 +108,12 @@
     .rating button { padding: 6px 8px; border-radius: 8px; border: 1px solid #2b3652; background: #0c1424; color: var(--text); }
     .rating button.active { background: var(--accent); color: #06110b; }
     .inbox-item { border: 1px solid #24304c; border-radius: 10px; padding: 10px; margin-top: 8px; background: #0c1424; }
+    .sent { animation: sentPop 0.35s ease-out; }
+    @keyframes sentPop {
+      0% { transform: scale(1); box-shadow: 0 0 0 rgba(54,195,140,0.0); }
+      50% { transform: scale(1.04); box-shadow: 0 0 18px rgba(54,195,140,0.35); }
+      100% { transform: scale(1); box-shadow: 0 0 0 rgba(54,195,140,0.0); }
+    }
   </style>
 </head>
 <body>
@@ -328,11 +334,22 @@
               <option value="student">SchÃ¼ler -> Lehrer</option>
               <option value="teacher">Lehrer -> SchÃ¼ler</option>
             </select>
+            <select id="questionnaireScaleType">
+              <option value="scale">Skala</option>
+              <option value="yesno">Ja/Nein</option>
+            </select>
+            <input id="questionnaireScaleMin" placeholder="Min" style="width:80px">
+            <input id="questionnaireScaleMax" placeholder="Max" style="width:80px">
             <input id="questionnaireTitleInput" placeholder="Titel" style="flex:1">
           </div>
           <div class="small" style="margin-top:6px;">Eine Frage pro Zeile</div>
           <textarea id="questionnaireQuestionsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
-          <button id="questionnaireSave" class="primary" style="margin-top:8px;">Speichern</button>
+          <div class="small" style="margin-top:6px;">Optional: Hinweis pro Zeile (gleiche Reihenfolge)</div>
+          <textarea id="questionnaireHintsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          <div class="row" style="margin-top:8px;">
+            <button id="questionnaireLoad" class="ghost">Aktuell laden</button>
+            <button id="questionnaireSave" class="primary">Speichern</button>
+          </div>
         </div>
       </div>
     </details>
