@@ -57,5 +57,31 @@
       }
     ]
   },
-  "student": {}
+  "student": {
+    "s-mktnutua-pddp": [
+      {
+        "id": "fb-mkwvq7n8-bd5f",
+        "ts": 1769535465524,
+        "fromTeacherId": "t-mktnvwjm-rsat",
+        "fromName": "Herr Briel",
+        "subject": "Deutsch",
+        "answers": [
+          {
+            "id": "q1",
+            "value": 5
+          },
+          {
+            "id": "q2",
+            "value": 5
+          },
+          {
+            "id": "q3",
+            "value": 5
+          }
+        ],
+        "text": "Du hast heute echt gut Mitgemacht",
+        "questionnaireTitle": "Feedback"
+      }
+    ]
+  }
 }

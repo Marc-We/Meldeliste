@@ -385,7 +385,31 @@
     ],
     "subject": "Mathematik",
     "createdAt": 1769534801150,
-    "closedAt": null,
+    "closedAt": 1769535123277,
+    "students": {}
+  },
+  "room-mkwvj8md-wpr0": {
+    "roomId": "room-mkwvj8md-wpr0",
+    "name": "Deutsch 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Deutsch",
+    "createdAt": 1769535140197,
+    "closedAt": 1769535155173,
+    "students": {}
+  },
+  "room-mkwvnw1w-89rh": {
+    "roomId": "room-mkwvnw1w-89rh",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769535357188,
+    "closedAt": 1769535375221,
     "students": {}
   }
 }

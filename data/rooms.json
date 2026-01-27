@@ -464,7 +464,34 @@
       "10A"
     ],
     "teacherId": "t-mktnvwjm-rsat",
-    "active": true,
-    "createdAt": 1769534801150
+    "active": false,
+    "createdAt": 1769534801150,
+    "closedAt": 1769535123277
+  },
+  "room-mkwvj8md-wpr0": {
+    "id": "room-mkwvj8md-wpr0",
+    "name": "Deutsch 10A",
+    "subject": "Deutsch",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769535140197,
+    "closedAt": 1769535155173
+  },
+  "room-mkwvnw1w-89rh": {
+    "id": "room-mkwvnw1w-89rh",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769535357188,
+    "closedAt": 1769535375221
   }
 }
