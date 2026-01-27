@@ -84,8 +84,55 @@ export function renderCatalogs() {
 
   fillSelect(els.roomSubjectInput, state.subjectCatalog, 'Fach wÃ¤hlen');
   fillSelect(els.teachSubjectSelect, state.subjectCatalog, 'Fach wÃ¤hlen');
+  if (els.codeClassSelect) fillSelect(els.codeClassSelect, state.classCatalog, 'Klasse waehlen');
   fillChecklist(els.roomClassList, state.classCatalog);
   fillChecklist(els.teachClassList, state.classCatalog);
+}
+
+function formatExpiry(ts) {
+  if (!ts) return '-';
+  return new Date(ts).toLocaleDateString();
+}
+
+export function renderCodes() {
+  if (!els.classCodeInfo) return;
+  if (!state.classCode) {
+    els.classCodeInfo.textContent = 'Kein Code geladen';
+    return;
+  }
+  const entry = state.classCode;
+  const label = entry.className ? `${entry.className}: ${entry.code}` : entry.code;
+  els.classCodeInfo.textContent = `${label} (gueltig bis ${formatExpiry(entry.expiresAt)})`;
+}
+
+export function renderAdminPanel() {
+  if (els.teacherCodeInfo) {
+    if (!state.teacherCode) {
+      els.teacherCodeInfo.textContent = 'Kein Code geladen';
+    } else {
+      els.teacherCodeInfo.textContent = `${state.teacherCode.code} (gueltig bis ${formatExpiry(state.teacherCode.expiresAt)})`;
+    }
+  }
+  if (els.pendingTeachers) {
+    if (!state.pendingTeachers || !state.pendingTeachers.length) {
+      els.pendingTeachers.innerHTML = '<div class="small">Keine Anfragen</div>';
+    } else {
+      els.pendingTeachers.innerHTML = state.pendingTeachers.map((t) => `
+        <div class="row" style="justify-content: space-between; align-items: center; margin-top:6px;">
+          <div>${t.name || t.email}</div>
+          <button class="primary" data-approve="${t.id}">Freigeben</button>
+        </div>
+      `).join('');
+    }
+    els.pendingTeachers.querySelectorAll('[data-approve]').forEach((btn) => {
+      btn.onclick = () => {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        const userId = btn.getAttribute('data-approve');
+        if (!userId) return;
+        sendJson({ type: 'teacherApprove', userId });
+      };
+    });
+  }
 }
 
 export function renderTeachings() {
@@ -279,6 +326,7 @@ export function renderClassStats() {
         <div class="row" style="margin-top:8px;">
           <button class="ghost" data-report="${s.userId}">Melden</button>
           <button class="danger" data-kick="${s.userId}">Kurs entfernen</button>
+          <button class="danger" data-ban="${s.userId}">Bannen</button>
         </div>
       </div>`;
   }).join('');
@@ -306,6 +354,15 @@ export function renderClassStats() {
       const userId = btn.getAttribute('data-kick');
       if (!userId) return;
       sendJson({ type: 'courseKick', userId, subject: state.classStats.subject || 'default' });
+    };
+  });
+  els.classStatsGrid.querySelectorAll('[data-ban]').forEach((btn) => {
+    btn.onclick = (event) => {
+      event.stopPropagation();
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const userId = btn.getAttribute('data-ban');
+      if (!userId) return;
+      sendJson({ type: 'banStudent', userId, subject: state.classStats.subject || 'default' });
     };
   });
   els.classStatsPanel.style.display = 'block';
@@ -407,3 +464,5 @@ export function renderQuestions() {
   els.questionBannerText.innerHTML = `<div>${latest.text}</div><div class="q-time">${new Date(latest.ts).toLocaleTimeString()} | ${latestAuthor}</div>`;
   els.questionBanner.style.display = 'block';
 }
+
+

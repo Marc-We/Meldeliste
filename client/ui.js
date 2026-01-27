@@ -36,10 +36,10 @@ export function renderAuthFields() {
   setVisible(els.emailRow, true);
   setVisible(els.firstNameRow, isRegister);
   setVisible(els.lastNameRow, isRegister);
-  setVisible(els.classRow, isRegister);
+  setVisible(els.classRow, false);
   setVisible(els.passwordRow, isRegister || isLogin || isResetConfirm);
   setVisible(els.confirmRow, isRegister || isResetConfirm);
-  setVisible(els.codeRow, isVerify || isResetConfirm);
+  setVisible(els.codeRow, isRegister || isVerify || isResetConfirm);
   setVisible(els.forgotBtn, isLogin);
 
   if (isRegister) els.saveProfileBtn.textContent = 'Registrieren';
@@ -47,6 +47,9 @@ export function renderAuthFields() {
   if (isVerify) els.saveProfileBtn.textContent = 'Code bestaetigen';
   if (isResetRequest) els.saveProfileBtn.textContent = 'Code senden';
   if (isResetConfirm) els.saveProfileBtn.textContent = 'Passwort speichern';
+  if (els.codeLabel) {
+    els.codeLabel.textContent = isRegister ? 'Klassen-Code' : 'Code';
+  }
 
   updateAuthModeButtons();
 }

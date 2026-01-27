@@ -13,10 +13,9 @@ export function bindHandlers() {
     const code = els.verifyCodeInput.value.trim();
     const firstName = els.firstNameInput.value.trim();
     const lastName = els.lastNameInput.value.trim();
-    const className = els.classInput.value;
 
     if (state.authMode === 'register') {
-      if (!email || !firstName || !lastName || !className || !password || !passwordConfirm) {
+      if (!email || !firstName || !lastName || !code || !password || !passwordConfirm) {
         setAuthStatus('Bitte alle Felder ausfuellen.');
         return;
       }
@@ -26,7 +25,7 @@ export function bindHandlers() {
       }
       state.pendingEmail = email;
       state.lastAuth = { email, password };
-      sendJson({ type: 'authRegister', role: 'student', email, firstName, lastName, className, password });
+      sendJson({ type: 'authRegister', role: 'student', email, firstName, lastName, code, password });
       return;
     }
     if (state.authMode === 'login') {

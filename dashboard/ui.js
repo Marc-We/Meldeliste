@@ -27,7 +27,7 @@ export function renderAuthFields() {
   setVisible(els.lastNameRow, isRegister);
   setVisible(els.passwordRow, isRegister || isLogin || isResetConfirm);
   setVisible(els.confirmRow, isRegister || isResetConfirm);
-  setVisible(els.codeRow, isVerify || isResetConfirm);
+  setVisible(els.codeRow, isRegister || isVerify || isResetConfirm);
   setVisible(els.forgotBtn, isLogin);
 
   if (isRegister) els.saveProfileBtn.textContent = 'Registrieren';
@@ -35,6 +35,9 @@ export function renderAuthFields() {
   if (isVerify) els.saveProfileBtn.textContent = 'Code bestaetigen';
   if (isResetRequest) els.saveProfileBtn.textContent = 'Code senden';
   if (isResetConfirm) els.saveProfileBtn.textContent = 'Passwort speichern';
+  if (els.codeLabel) {
+    els.codeLabel.textContent = isRegister ? 'Lehrer-Code' : 'Code';
+  }
 
   els.modeRegisterBtn.classList.toggle('primary', isRegister);
   els.modeLoginBtn.classList.toggle('primary', isLogin);
@@ -64,6 +67,8 @@ export function updateLayout() {
   setPanelVisible(els.catalogPanel, !hasRoom && (state.profile.role === 'admin'));
   setPanelVisible(els.roomsPanel, true);
   setPanelVisible(els.teachingsPanel, true);
+  setPanelVisible(els.codesPanel, !hasRoom && (state.profile.role === 'teacher' || state.profile.role === 'admin'));
+  setPanelVisible(els.adminPanel, !hasRoom && (state.profile.role === 'admin'));
   setPanelVisible(els.currentRoomPanel, hasRoom);
   setPanelVisible(els.questionBanner, hasRoom);
   setPanelVisible(els.questionsPanel, hasRoom);
@@ -75,7 +80,7 @@ export function updateLayout() {
 
   const order = hasRoom
     ? [els.currentRoomPanel, els.questionBanner, els.questionsPanel, els.logPanel, els.homeworkPanel, els.statsPanel, els.toolsPanel, els.teachingsPanel, els.classStatsPanel, els.roomsPanel]
-    : [els.profilePanel, els.catalogPanel, els.roomsPanel, els.teachingsPanel, els.classStatsPanel];
+    : [els.profilePanel, els.catalogPanel, els.codesPanel, els.adminPanel, els.roomsPanel, els.teachingsPanel, els.classStatsPanel];
   order.forEach((panel) => {
     if (panel && panel.parentElement === els.layout) {
       els.layout.appendChild(panel);

@@ -10,6 +10,9 @@ export const state = {
   stats: [],
   classCatalog: [],
   subjectCatalog: [],
+  teacherCode: null,
+  classCode: null,
+  pendingTeachers: [],
   toiletStates: new Map(), // userId -> {status,start}
   questions: [],
   poll: null,

@@ -145,7 +145,7 @@
           <input id="passwordConfirm" type="password" placeholder="Passwort wiederholen">
         </label>
         <label style="width:160px" id="codeRow">
-          Code
+          <span id="codeLabel">Code</span>
           <input id="verifyCode" placeholder="123456">
         </label>
       </div>
@@ -198,6 +198,34 @@
         <button id="addTeaching" class="primary">Hinzufügen</button>
       </div>
       <div class="stats-grid" id="teachingsList"></div>
+    </div>
+
+    <div class="panel" id="codesPanel" style="display:none">
+      <h2>Freischaltcodes</h2>
+      <div class="row">
+        <select id="codeClassSelect" style="flex:1">
+          <option value="">Klasse waehlen</option>
+        </select>
+        <button id="fetchClassCode" class="ghost">Code anzeigen</button>
+        <button id="rotateClassCode" class="danger">Neuer Code</button>
+      </div>
+      <div class="pill" id="classCodeInfo">Kein Code geladen</div>
+    </div>
+
+    <div class="panel" id="adminPanel" style="display:none">
+      <h2>Admin</h2>
+      <div class="card">
+        <strong>Lehrer-Code</strong>
+        <div class="row" style="margin-top:8px;">
+          <button id="fetchTeacherCode" class="ghost">Code anzeigen</button>
+          <button id="rotateTeacherCode" class="danger">Neuer Code</button>
+        </div>
+        <div class="pill" id="teacherCodeInfo">Kein Code geladen</div>
+      </div>
+      <div class="card" style="margin-top:10px;">
+        <strong>Lehrer-Freigaben</strong>
+        <div id="pendingTeachers" class="small">Keine Anfragen</div>
+      </div>
     </div>
 
     <div class="panel" id="classStatsPanel" style="display:none">

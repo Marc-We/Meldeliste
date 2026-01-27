@@ -114,6 +114,7 @@ function handleMessage(msg) {
       code_expired: 'Code abgelaufen.',
       class_invalid: 'Klasse ungueltig.',
       wrong_role: 'Falsche Rolle fuer diesen Account.',
+      banned: 'Account gesperrt.',
     };
     setAuthStatus(messages[reason] || `Fehler: ${reason}`);
     if (reason === 'email_unverified') {
@@ -143,6 +144,12 @@ function handleMessage(msg) {
     const teacher = msg.teacherName || 'Lehrer';
     const subject = msg.subject || 'Fach';
     setAuthStatus(`Aus Kurs ${subject} (${teacher}) entfernt.`);
+  }
+  if (msg.type === 'banned') {
+    localStorage.removeItem('meldelisteProfile');
+    localStorage.removeItem('meldelisteRemember');
+    setAuthStatus('Account gesperrt.');
+    if (state.ws) state.ws.close();
   }
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;

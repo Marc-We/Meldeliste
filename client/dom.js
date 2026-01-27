@@ -8,6 +8,7 @@ export const els = {
   passwordInput: document.getElementById('password'),
   passwordConfirmInput: document.getElementById('passwordConfirm'),
   verifyCodeInput: document.getElementById('verifyCode'),
+  codeLabel: document.getElementById('codeLabel'),
   saveProfileBtn: document.getElementById('saveProfile'),
   logoutBtn: document.getElementById('logoutBtn'),
   forgotBtn: document.getElementById('forgotBtn'),

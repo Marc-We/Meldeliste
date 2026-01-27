@@ -19,6 +19,8 @@ const CLASSES_FILE = path.join(DATA_DIR, 'classes.json');
 const SUBJECTS_FILE = path.join(DATA_DIR, 'subjects.json');
 const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
 const ROOM_STATS_FILE = path.join(DATA_DIR, 'room_stats.json');
+const CODES_FILE = path.join(DATA_DIR, 'codes.json');
+const BANS_FILE = path.join(DATA_DIR, 'bans.json');
 
 // --- Helpers for persistence -------------------------------------------------
 function ensureDir(dir) {
@@ -53,6 +55,8 @@ let classes = new Set(loadJson(CLASSES_FILE, []));
 let subjects = new Set(loadJson(SUBJECTS_FILE, []));
 let homework = new Map(Object.entries(loadJson(HOMEWORK_FILE, {}))); // key `${class}|${subject}` -> {text, ts}
 let roomStats = new Map(Object.entries(loadJson(ROOM_STATS_FILE, {})));
+let codes = new Map(Object.entries(loadJson(CODES_FILE, {}))); // key role:class -> {code, role, className, createdAt, expiresAt}
+let bans = loadJson(BANS_FILE, { emails: [], ips: [] });
 
 // Seeds for demo if empty
 if (users.size === 0) {
@@ -95,6 +99,12 @@ function saveHomework() {
 function saveRoomStats() {
   const plain = Object.fromEntries(roomStats);
   saveJson(ROOM_STATS_FILE, plain);
+}
+function saveCodes() {
+  saveJson(CODES_FILE, Object.fromEntries(codes));
+}
+function saveBans() {
+  saveJson(BANS_FILE, bans);
 }
 
 // socket tracking
@@ -159,6 +169,7 @@ const wss = new WebSocketServer({ server });
 // --- Utility functions -------------------------------------------------------
 const ratingKeys = ['--', '-', '0', '+', '++'];
 const CODE_TTL_MS = 15 * 60 * 1000;
+const CLASS_CODE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 function genId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -388,6 +399,64 @@ function broadcastCourseCatalogs() {
   });
 }
 
+function codeKey(role, className) {
+  return `${role}:${className || ''}`;
+}
+
+function isCodeExpired(entry) {
+  return !entry || !entry.expiresAt || entry.expiresAt < Date.now();
+}
+
+function generateUniqueCode() {
+  let code = generateCode();
+  const existing = new Set(Array.from(codes.values()).map((c) => c.code));
+  let guard = 0;
+  while (existing.has(code) && guard < 20) {
+    code = generateCode();
+    guard += 1;
+  }
+  return code;
+}
+
+function getOrRotateCode(role, className, force = false) {
+  const key = codeKey(role, className);
+  const existing = codes.get(key);
+  if (existing && !force && !isCodeExpired(existing)) return existing;
+  const now = Date.now();
+  const entry = {
+    role,
+    className: className || '',
+    code: generateUniqueCode(),
+    createdAt: now,
+    expiresAt: now + CLASS_CODE_TTL_MS,
+  };
+  codes.set(key, entry);
+  saveCodes();
+  return entry;
+}
+
+function findCodeByValue(role, codeValue) {
+  if (!codeValue) return null;
+  const code = String(codeValue || '').trim();
+  let found = null;
+  codes.forEach((entry) => {
+    if (!entry || entry.role !== role) return;
+    if (entry.code === code && !isCodeExpired(entry)) {
+      found = entry;
+    }
+  });
+  return found;
+}
+
+function isBanned(email, ip) {
+  const e = normalizeEmail(email || '');
+  const emails = Array.isArray(bans.emails) ? bans.emails : [];
+  const ips = Array.isArray(bans.ips) ? bans.ips : [];
+  if (e && emails.includes(e)) return true;
+  if (ip && ips.includes(ip)) return true;
+  return false;
+}
+
 function isStudentAllowedInRoom(user, room) {
   if (!user || user.role !== 'student') return true;
   const roomClasses = getRoomClassNames(room);
@@ -407,6 +476,13 @@ function teachingMatchesClass(teaching, className) {
     : (teaching.className ? [teaching.className] : []);
   if (!classes.length) return false;
   return classes.includes(className);
+}
+
+function teacherCanAccessClass(user, className) {
+  if (!user || (user.role !== 'teacher' && user.role !== 'admin')) return false;
+  if (user.role === 'admin') return true;
+  const teachings = Array.isArray(user.teachings) ? user.teachings : [];
+  return teachings.some((t) => teachingMatchesClass(t, className));
 }
 
 function forceLeaveRoom(userId, roomId) {
@@ -729,10 +805,11 @@ function resetReady(roomId, userId) {
 }
 
 // --- Message handling --------------------------------------------------------
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   ws.userId = null;
   ws.role = null;
   ws.roomId = null;
+  ws.ip = req?.socket?.remoteAddress || '';
 
   ws.on('message', (raw) => {
     let msg;
@@ -854,12 +931,17 @@ wss.on('connection', (ws) => {
       const className = role === 'student' ? String(msg.className || '').trim() : '';
       const salutation = role === 'teacher' ? (msg.salutation === 'Frau' ? 'Frau' : 'Herr') : '';
       const password = String(msg.password || '');
+      const code = String(msg.code || '').trim();
 
       if (!email || !isEmailValid(email) || !password) {
         ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
         return;
       }
-      if (role === 'student' && (!firstName || !lastName || !className)) {
+      if (isBanned(email, ws.ip)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'banned' }));
+        return;
+      }
+      if (role === 'student' && (!firstName || !lastName)) {
         ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
         return;
       }
@@ -867,49 +949,70 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
         return;
       }
-      if (role === 'student' && classes.size > 0 && !classes.has(className)) {
-        ws.send(JSON.stringify({ type: 'authError', reason: 'class_invalid' }));
-        return;
+      if (role === 'student') {
+        const entry = findCodeByValue('student', code);
+        if (!entry || !entry.className) {
+          ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
+          return;
+        }
+        if (classes.size > 0 && !classes.has(entry.className)) {
+          ws.send(JSON.stringify({ type: 'authError', reason: 'class_invalid' }));
+          return;
+        }
+      }
+      if (role === 'teacher') {
+        const entry = findCodeByValue('teacher', code);
+        if (!entry) {
+          ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
+          return;
+        }
       }
 
       const existing = findUserByEmail(email);
       if (existing) {
-        if (!existing.emailVerified) {
-          const code = generateCode();
-          existing.verification = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
-          users.set(existing.id, existing);
-          saveUsers();
-          sendEmail(email, 'Meldeliste: Code bestaetigen', `Dein Code: ${code}`);
-          ws.send(JSON.stringify({ type: 'authStatus', status: 'verify_required', email }));
-          return;
-        }
         ws.send(JSON.stringify({ type: 'authError', reason: 'email_exists' }));
         return;
       }
 
       const id = genId(role === 'teacher' ? 't' : 's');
+      const finalClassName = role === 'student' ? (findCodeByValue('student', code)?.className || className) : className;
       const name = role === 'teacher' ? `${salutation} ${lastName}`.trim() : `${firstName} ${lastName}`.trim();
       const user = {
         id,
         role,
         email,
-        emailVerified: false,
+        emailVerified: true,
         firstName,
         lastName,
         salutation,
-        className,
+        className: finalClassName,
         name,
         passwordHash: hashSecret(password),
         stats: {},
         teachings: [],
         courses: role === 'student' ? [] : undefined,
+        teacherApproved: role === 'teacher' ? false : undefined,
       };
-      const code = generateCode();
-      user.verification = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
+      if (role === 'teacher') {
+        user.lastIp = ws.ip || user.lastIp;
+        users.set(id, user);
+        saveUsers();
+        ws.send(JSON.stringify({ type: 'authStatus', status: 'teacher_pending' }));
+        return;
+      }
+      user.emailVerified = true;
       users.set(id, user);
       saveUsers();
-      sendEmail(email, 'Meldeliste: Code bestaetigen', `Willkommen!\n\nDein Code: ${code}`);
-      ws.send(JSON.stringify({ type: 'authStatus', status: 'verify_required', email }));
+      user.lastIp = ws.ip || user.lastIp;
+      users.set(id, user);
+      saveUsers();
+      ws.userId = user.id;
+      ws.role = user.role;
+      attachSocket(user.id, ws);
+      ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      sendRoomList(ws);
+      sendCatalogs(ws);
+      if (user.role === 'student') sendCourseCatalog(ws, user);
       return;
     }
 
@@ -936,6 +1039,7 @@ wss.on('connection', (ws) => {
       }
       user.emailVerified = true;
       delete user.verification;
+      user.lastIp = ws.ip || user.lastIp;
       users.set(user.id, user);
       saveUsers();
 
@@ -953,6 +1057,14 @@ wss.on('connection', (ws) => {
       const email = normalizeEmail(msg.email);
       const password = String(msg.password || '');
       const requestedRole = msg.role === 'teacher' || msg.role === 'student' || msg.role === 'admin' ? msg.role : null;
+      if (!email || !password) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
+        return;
+      }
+      if (isBanned(email, ws.ip)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'banned' }));
+        return;
+      }
       const user = findUserByEmail(email);
       if (!user) {
         ws.send(JSON.stringify({ type: 'authError', reason: 'not_found' }));
@@ -962,19 +1074,23 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_role' }));
         return;
       }
+      if (user.role === 'teacher' && user.teacherApproved === false) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'teacher_unapproved' }));
+        return;
+      }
       if (!user.emailVerified) {
-        const code = generateCode();
-        user.verification = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
+        user.emailVerified = true;
+        delete user.verification;
         users.set(user.id, user);
         saveUsers();
-        sendEmail(user.email, 'Meldeliste: Code bestaetigen', `Dein Code: ${code}`);
-        ws.send(JSON.stringify({ type: 'authStatus', status: 'verify_required', email: user.email }));
-        return;
       }
       if (!verifySecret(password, user.passwordHash)) {
         ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_password' }));
         return;
       }
+      user.lastIp = ws.ip || user.lastIp;
+      users.set(user.id, user);
+      saveUsers();
       ws.userId = user.id;
       ws.role = user.role;
       attachSocket(user.id, ws);
@@ -987,6 +1103,10 @@ wss.on('connection', (ws) => {
 
     if (type === 'authResetRequest') {
       const email = normalizeEmail(msg.email);
+      if (isBanned(email, ws.ip)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'banned' }));
+        return;
+      }
       const user = findUserByEmail(email);
       if (!user) {
         ws.send(JSON.stringify({ type: 'authError', reason: 'not_found' }));
@@ -1005,6 +1125,10 @@ wss.on('connection', (ws) => {
       const email = normalizeEmail(msg.email);
       const code = String(msg.code || '').trim();
       const password = String(msg.password || '');
+      if (isBanned(email, ws.ip)) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'banned' }));
+        return;
+      }
       const user = findUserByEmail(email);
       if (!user || !code || !password) {
         ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
@@ -1124,6 +1248,60 @@ wss.on('connection', (ws) => {
       subjects.add(subj);
       saveSubjects();
       broadcastCatalogs();
+      return;
+    }
+
+    if (type === 'classCodeRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      if (!className) return;
+      if (classes.size > 0 && !classes.has(className)) return;
+      if (!teacherCanAccessClass(user, className)) return;
+      const entry = getOrRotateCode('student', className, false);
+      ws.send(JSON.stringify({ type: 'classCode', entry }));
+      return;
+    }
+
+    if (type === 'classCodeRotate' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      if (!className) return;
+      if (classes.size > 0 && !classes.has(className)) return;
+      if (!teacherCanAccessClass(user, className)) return;
+      const entry = getOrRotateCode('student', className, true);
+      ws.send(JSON.stringify({ type: 'classCode', entry }));
+      return;
+    }
+
+    if (type === 'teacherCodeRequest' && ws.role === 'admin') {
+      const entry = getOrRotateCode('teacher', '', false);
+      ws.send(JSON.stringify({ type: 'teacherCode', entry }));
+      return;
+    }
+
+    if (type === 'teacherCodeRotate' && ws.role === 'admin') {
+      const entry = getOrRotateCode('teacher', '', true);
+      ws.send(JSON.stringify({ type: 'teacherCode', entry }));
+      return;
+    }
+
+    if (type === 'pendingTeachersRequest' && ws.role === 'admin') {
+      const pending = Array.from(users.values())
+        .filter((u) => u && u.role === 'teacher' && u.teacherApproved === false)
+        .map((u) => ({ id: u.id, email: u.email, name: u.name || u.lastName || 'Lehrer' }));
+      ws.send(JSON.stringify({ type: 'pendingTeachers', teachers: pending }));
+      return;
+    }
+
+    if (type === 'teacherApprove' && ws.role === 'admin') {
+      const userId = String(msg.userId || '').trim();
+      const target = users.get(userId);
+      if (!target || target.role !== 'teacher') return;
+      target.teacherApproved = true;
+      users.set(target.id, target);
+      saveUsers();
+      const pending = Array.from(users.values())
+        .filter((u) => u && u.role === 'teacher' && u.teacherApproved === false)
+        .map((u) => ({ id: u.id, email: u.email, name: u.name || u.lastName || 'Lehrer' }));
+      ws.send(JSON.stringify({ type: 'pendingTeachers', teachers: pending }));
       return;
     }
 
@@ -1273,6 +1451,42 @@ wss.on('connection', (ws) => {
         if (!allowed) return;
       }
       sendToUser(target.id, { type: 'courseReport', subject, teacherName: user.name || user.email || 'Lehrer' });
+      return;
+    }
+
+    if (type === 'banStudent' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const targetUserId = String(msg.userId || '').trim();
+      const subject = String(msg.subject || '').trim() || 'default';
+      if (!targetUserId) return;
+      const target = users.get(targetUserId);
+      if (!target || target.role !== 'student') return;
+      if (ws.role === 'teacher') {
+        const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
+        const allowed = teaches.some((t) => t.subject === subject && teachingMatchesClass(t, target.className));
+        if (!allowed) return;
+      }
+      const email = normalizeEmail(target.email || '');
+      if (email) {
+        if (!Array.isArray(bans.emails)) bans.emails = [];
+        if (!bans.emails.includes(email)) bans.emails.push(email);
+      }
+      const ip = target.lastIp || '';
+      if (ip) {
+        if (!Array.isArray(bans.ips)) bans.ips = [];
+        if (!bans.ips.includes(ip)) bans.ips.push(ip);
+      }
+      target.bannedAt = Date.now();
+      users.set(target.id, target);
+      saveUsers();
+      saveBans();
+      rooms.forEach((_, roomId) => forceLeaveRoom(target.id, roomId));
+      const sockets = userSockets.get(target.id);
+      if (sockets) {
+        sockets.forEach((client) => {
+          client.send(JSON.stringify({ type: 'banned' }));
+          client.close();
+        });
+      }
       return;
     }
 

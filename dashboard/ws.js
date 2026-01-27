@@ -5,6 +5,7 @@ import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, setConnection, updateLayout } from './ui.js';
 import {
   renderCatalogs,
+  renderCodes,
   renderClassStats,
   renderClassStudentStats,
   renderCurrentRoom,
@@ -17,6 +18,7 @@ import {
   renderStats,
   renderTeachings,
   renderThoughts,
+  renderAdminPanel,
 } from './render.js';
 
 function handleMessage(msg) {
@@ -31,10 +33,16 @@ function handleMessage(msg) {
     setAuthStatus('');
     renderProfileInfo();
     renderTeachings();
+    renderCodes();
+    renderAdminPanel();
     updateLayout();
     localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(state.profile));
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       sendJson({ type: 'homeworkListRequest' });
+      if (state.profile.role === 'admin') {
+        sendJson({ type: 'pendingTeachersRequest' });
+        sendJson({ type: 'teacherCodeRequest' });
+      }
     }
   }
   if (msg.type === 'roomList') {
@@ -88,7 +96,11 @@ function handleMessage(msg) {
     updateLayout();
   }
   if (msg.type === 'authStatus') {
-    if (msg.status === 'verify_required') {
+    if (msg.status === 'teacher_pending') {
+      state.authMode = 'login';
+      setAuthStatus('Registrierung gespeichert. Admin muss freigeben.');
+      renderAuthFields();
+    } else if (msg.status === 'verify_required') {
       state.pendingEmail = msg.email || els.emailInput.value.trim();
       state.authMode = 'verify';
       setAuthStatus('Code gesendet. Bitte pruefen.');
@@ -118,6 +130,8 @@ function handleMessage(msg) {
       code_expired: 'Code abgelaufen.',
       class_invalid: 'Klasse ungueltig.',
       wrong_role: 'Falsche Rolle fuer diesen Account.',
+      teacher_unapproved: 'Admin muss den Account freigeben.',
+      banned: 'Account gesperrt.',
     };
     setAuthStatus(messages[reason] || `Fehler: ${reason}`);
     if (reason === 'email_unverified') {
@@ -129,6 +143,18 @@ function handleMessage(msg) {
     state.classCatalog = msg.classes || [];
     state.subjectCatalog = msg.subjects || [];
     renderCatalogs();
+  }
+  if (msg.type === 'classCode') {
+    state.classCode = msg.entry || null;
+    renderCodes();
+  }
+  if (msg.type === 'teacherCode') {
+    state.teacherCode = msg.entry || null;
+    renderAdminPanel();
+  }
+  if (msg.type === 'pendingTeachers') {
+    state.pendingTeachers = msg.teachers || [];
+    renderAdminPanel();
   }
   if (msg.type === 'questionList' && msg.roomId === state.currentRoom) {
     state.questions = msg.questions || [];

@@ -390,7 +390,8 @@
         ],
         "subject": "Physik"
       }
-    ]
+    ],
+    "lastIp": "192.168.178.164"
   },
   "s-mktrcx4t-g4e5": {
     "id": "s-mktrcx4t-g4e5",
@@ -437,6 +438,20 @@
         "daily": {}
       }
     },
+    "teachings": []
+  },
+  "t-mkwpezo9-kqa1": {
+    "id": "t-mkwpezo9-kqa1",
+    "role": "admin",
+    "email": "marcwermke@gmail.com",
+    "emailVerified": true,
+    "firstName": "",
+    "lastName": "Wermke",
+    "salutation": "Herr",
+    "className": "",
+    "name": "Herr Wermke",
+    "passwordHash": "e83bc0331b5b981994bcd45603eed376:9c2ce6e6a5560d180558c80b8ee97fa346d7804ecafba4c2662aa2fada3b52cbd63e2118bbc13c675aa0b09e09b8205ac4869cf11a98b3c373d22a08422a8549",
+    "stats": {},
     "teachings": []
   }
 }

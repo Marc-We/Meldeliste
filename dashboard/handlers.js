@@ -15,7 +15,7 @@ export function bindHandlers() {
     const lastName = els.lastNameInput.value.trim();
 
     if (state.authMode === 'register') {
-      if (!email || !lastName || !password || !passwordConfirm) {
+      if (!email || !lastName || !code || !password || !passwordConfirm) {
         setAuthStatus('Bitte alle Felder ausfuellen.');
         return;
       }
@@ -24,7 +24,7 @@ export function bindHandlers() {
         return;
       }
       state.pendingEmail = email;
-      sendJson({ type: 'authRegister', role: 'teacher', email, salutation, lastName, password });
+      sendJson({ type: 'authRegister', role: 'teacher', email, salutation, lastName, password, code });
       return;
     }
     if (state.authMode === 'login') {
@@ -119,6 +119,35 @@ export function bindHandlers() {
     sendJson({ type: 'createSubject', subject: subj });
     els.newSubjectInput.value = '';
   };
+
+  if (els.fetchClassCodeBtn) {
+    els.fetchClassCodeBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const className = els.codeClassSelect.value;
+      if (!className) return;
+      sendJson({ type: 'classCodeRequest', className });
+    };
+  }
+  if (els.rotateClassCodeBtn) {
+    els.rotateClassCodeBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const className = els.codeClassSelect.value;
+      if (!className) return;
+      sendJson({ type: 'classCodeRotate', className });
+    };
+  }
+  if (els.fetchTeacherCodeBtn) {
+    els.fetchTeacherCodeBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      sendJson({ type: 'teacherCodeRequest' });
+    };
+  }
+  if (els.rotateTeacherCodeBtn) {
+    els.rotateTeacherCodeBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      sendJson({ type: 'teacherCodeRotate' });
+    };
+  }
 
   els.addTeachingBtn.onclick = () => {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
