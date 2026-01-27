@@ -12,5 +12,12 @@
     "code": "279898",
     "createdAt": 1769526461488,
     "expiresAt": 1770736061488
+  },
+  "teacher:": {
+    "role": "teacher",
+    "className": "",
+    "code": "456575",
+    "createdAt": 1769526922799,
+    "expiresAt": 1770736522799
   }
 }

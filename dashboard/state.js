@@ -13,6 +13,8 @@ export const state = {
   teacherCode: null,
   classCode: null,
   pendingTeachers: [],
+  adminStudents: [],
+  bans: { emails: [], ips: [] },
   toiletStates: new Map(), // userId -> {status,start}
   questions: [],
   poll: null,

@@ -450,8 +450,9 @@
     "salutation": "Herr",
     "className": "",
     "name": "Herr Wermke",
-    "passwordHash": "e83bc0331b5b981994bcd45603eed376:9c2ce6e6a5560d180558c80b8ee97fa346d7804ecafba4c2662aa2fada3b52cbd63e2118bbc13c675aa0b09e09b8205ac4869cf11a98b3c373d22a08422a8549",
+    "passwordHash": "4b7d387fd3086d0cf5825029f78901af:d6991c223cd08148e27affed131d0db4a9f7c026b978504b1cbe557a41bd43f7ad5bb5c262dce2622ad9608dd1798d96f0e45ae0cf6d7a433ae1d2f6fc7d644b",
     "stats": {},
-    "teachings": []
+    "teachings": [],
+    "lastIp": "192.168.178.164"
   }
 }

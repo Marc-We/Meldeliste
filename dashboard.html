@@ -226,6 +226,31 @@
         <strong>Lehrer-Freigaben</strong>
         <div id="pendingTeachers" class="small">Keine Anfragen</div>
       </div>
+      <div class="card" style="margin-top:10px;">
+        <strong>SchÃ¼ler verschieben</strong>
+        <div class="row" style="margin-top:8px;">
+          <select id="moveStudentSelect" style="flex:1">
+            <option value="">SchÃ¼ler wÃ¤hlen</option>
+          </select>
+          <select id="moveClassSelect" style="width:160px">
+            <option value="">Klasse wÃ¤hlen</option>
+          </select>
+          <button id="moveStudentBtn" class="primary">Verschieben</button>
+        </div>
+        <div class="small" id="moveStudentInfo"></div>
+      </div>
+      <div class="card" style="margin-top:10px;">
+        <strong>Bannliste</strong>
+        <div class="row" style="margin-top:8px;">
+          <input id="banEmailInput" placeholder="E-Mail">
+          <button id="banAddEmail" class="danger">E-Mail bannen</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <input id="banIpInput" placeholder="IP-Adresse">
+          <button id="banAddIp" class="danger">IP bannen</button>
+        </div>
+        <div id="banList" class="small" style="margin-top:8px;">Keine EintrÃ¤ge</div>
+      </div>
     </div>
 
     <div class="panel" id="classStatsPanel" style="display:none">

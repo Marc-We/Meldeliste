@@ -399,6 +399,39 @@ function broadcastCourseCatalogs() {
   });
 }
 
+function sendRoomListToUser(userId) {
+  const sockets = userSockets.get(userId);
+  if (!sockets) return;
+  sockets.forEach((client) => sendRoomList(client));
+}
+
+function sendAdminStudents(ws) {
+  if (!ws || ws.role !== 'admin') return;
+  const students = Array.from(users.values())
+    .filter((u) => u && u.role === 'student')
+    .map((u) => ({ id: u.id, name: u.name || 'Unbekannt', email: u.email, className: u.className || '' }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  ws.send(JSON.stringify({ type: 'adminStudents', students }));
+}
+
+function sendBans(ws) {
+  if (!ws || ws.role !== 'admin') return;
+  const emails = Array.isArray(bans.emails) ? bans.emails : [];
+  const ips = Array.isArray(bans.ips) ? bans.ips : [];
+  ws.send(JSON.stringify({ type: 'bans', emails, ips }));
+}
+
+function broadcastPendingTeachers() {
+  const pending = Array.from(users.values())
+    .filter((u) => u && u.role === 'teacher' && u.teacherApproved === false)
+    .map((u) => ({ id: u.id, email: u.email, name: u.name || u.lastName || 'Lehrer' }));
+  wss.clients.forEach((client) => {
+    if (client.role === 'admin' && client.readyState === client.OPEN) {
+      client.send(JSON.stringify({ type: 'pendingTeachers', teachers: pending }));
+    }
+  });
+}
+
 function codeKey(role, className) {
   return `${role}:${className || ''}`;
 }
@@ -998,6 +1031,7 @@ wss.on('connection', (ws, req) => {
         users.set(id, user);
         saveUsers();
         ws.send(JSON.stringify({ type: 'authStatus', status: 'teacher_pending' }));
+        broadcastPendingTeachers();
         return;
       }
       user.emailVerified = true;
@@ -1298,10 +1332,151 @@ wss.on('connection', (ws, req) => {
       target.teacherApproved = true;
       users.set(target.id, target);
       saveUsers();
-      const pending = Array.from(users.values())
-        .filter((u) => u && u.role === 'teacher' && u.teacherApproved === false)
-        .map((u) => ({ id: u.id, email: u.email, name: u.name || u.lastName || 'Lehrer' }));
-      ws.send(JSON.stringify({ type: 'pendingTeachers', teachers: pending }));
+      broadcastPendingTeachers();
+      sendToUser(target.id, { type: 'teacherApproved' });
+      return;
+    }
+
+    if (type === 'teacherDeny' && ws.role === 'admin') {
+      const userId = String(msg.userId || '').trim();
+      const target = users.get(userId);
+      if (!target || target.role !== 'teacher') return;
+      users.delete(target.id);
+      saveUsers();
+      const sockets = userSockets.get(target.id);
+      if (sockets) {
+        sockets.forEach((client) => {
+          client.send(JSON.stringify({ type: 'teacherDenied' }));
+          client.close();
+        });
+      }
+      broadcastPendingTeachers();
+      return;
+    }
+
+    if (type === 'adminStudentsRequest' && ws.role === 'admin') {
+      sendAdminStudents(ws);
+      return;
+    }
+
+    if (type === 'adminMoveStudent' && ws.role === 'admin') {
+      const userId = String(msg.userId || '').trim();
+      const className = String(msg.className || '').trim();
+      if (!userId || !className) return;
+      if (classes.size > 0 && !classes.has(className)) return;
+      const target = users.get(userId);
+      if (!target || target.role !== 'student') return;
+      target.className = className;
+      const available = listAvailableCoursesForClass(className);
+      target.courses = normalizeCourseList(target.courses || [], available);
+      users.set(target.id, target);
+      saveUsers();
+      rooms.forEach((room, roomId) => {
+        const members = roomMembers.get(roomId);
+        if (!members || !members.has(target.id)) return;
+        if (!isStudentAllowedInRoom(target, room)) {
+          forceLeaveRoom(target.id, roomId);
+        }
+      });
+      sendProfileToUser(target.id);
+      sendCourseCatalogToUser(target.id);
+      sendRoomListToUser(target.id);
+      sendAdminStudents(ws);
+      return;
+    }
+
+    if (type === 'bansRequest' && ws.role === 'admin') {
+      sendBans(ws);
+      return;
+    }
+
+    if (type === 'banAdd' && ws.role === 'admin') {
+      const kind = String(msg.kind || '').trim();
+      const value = String(msg.value || '').trim();
+      if (!value) return;
+      if (kind === 'email') {
+        const email = normalizeEmail(value);
+        if (!email) return;
+        if (!Array.isArray(bans.emails)) bans.emails = [];
+        if (!bans.emails.includes(email)) bans.emails.push(email);
+        const target = findUserByEmail(email);
+        if (target) {
+          target.bannedAt = Date.now();
+          if (target.lastIp) {
+            if (!Array.isArray(bans.ips)) bans.ips = [];
+            if (!bans.ips.includes(target.lastIp)) bans.ips.push(target.lastIp);
+          }
+          users.set(target.id, target);
+          saveUsers();
+          rooms.forEach((_, roomId) => forceLeaveRoom(target.id, roomId));
+          const sockets = userSockets.get(target.id);
+          if (sockets) {
+            sockets.forEach((client) => {
+              client.send(JSON.stringify({ type: 'banned' }));
+              client.close();
+            });
+          }
+        }
+      } else if (kind === 'ip') {
+        const ip = value;
+        if (!Array.isArray(bans.ips)) bans.ips = [];
+        if (!bans.ips.includes(ip)) bans.ips.push(ip);
+        users.forEach((u) => {
+          if (u && u.lastIp === ip) {
+            u.bannedAt = Date.now();
+            const email = normalizeEmail(u.email || '');
+            if (email) {
+              if (!Array.isArray(bans.emails)) bans.emails = [];
+              if (!bans.emails.includes(email)) bans.emails.push(email);
+            }
+            users.set(u.id, u);
+            rooms.forEach((_, roomId) => forceLeaveRoom(u.id, roomId));
+            const sockets = userSockets.get(u.id);
+            if (sockets) {
+              sockets.forEach((client) => {
+                client.send(JSON.stringify({ type: 'banned' }));
+                client.close();
+              });
+            }
+          }
+        });
+        saveUsers();
+      } else {
+        return;
+      }
+      saveBans();
+      sendBans(ws);
+      return;
+    }
+
+    if (type === 'banRemove' && ws.role === 'admin') {
+      const kind = String(msg.kind || '').trim();
+      const value = String(msg.value || '').trim();
+      if (!value) return;
+      if (kind === 'email') {
+        const email = normalizeEmail(value);
+        bans.emails = (Array.isArray(bans.emails) ? bans.emails : []).filter((e) => e !== email);
+        const target = findUserByEmail(email);
+        if (target) {
+          delete target.bannedAt;
+          users.set(target.id, target);
+          saveUsers();
+        }
+      } else if (kind === 'ip') {
+        const ip = value;
+        bans.ips = (Array.isArray(bans.ips) ? bans.ips : []).filter((i) => i !== ip);
+        users.forEach((u) => {
+          if (u && u.lastIp === ip) {
+            delete u.bannedAt;
+            users.set(u.id, u);
+          }
+        });
+        saveUsers();
+      } else {
+        return;
+      }
+      saveBans();
+      sendBans(ws);
       return;
     }
 

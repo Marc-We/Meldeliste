@@ -120,6 +120,36 @@ export function bindHandlers() {
     els.newSubjectInput.value = '';
   };
 
+  if (els.moveStudentBtn) {
+    els.moveStudentBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const userId = els.moveStudentSelect.value;
+      const className = els.moveClassSelect.value;
+      if (!userId || !className) return;
+      sendJson({ type: 'adminMoveStudent', userId, className });
+      if (els.moveStudentInfo) els.moveStudentInfo.textContent = 'Verschieben angefragt.';
+    };
+  }
+
+  if (els.banAddEmailBtn) {
+    els.banAddEmailBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const value = els.banEmailInput.value.trim();
+      if (!value) return;
+      sendJson({ type: 'banAdd', kind: 'email', value });
+      els.banEmailInput.value = '';
+    };
+  }
+  if (els.banAddIpBtn) {
+    els.banAddIpBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const value = els.banIpInput.value.trim();
+      if (!value) return;
+      sendJson({ type: 'banAdd', kind: 'ip', value });
+      els.banIpInput.value = '';
+    };
+  }
+
   if (els.fetchClassCodeBtn) {
     els.fetchClassCodeBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;

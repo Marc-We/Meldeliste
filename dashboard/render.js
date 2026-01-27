@@ -119,8 +119,11 @@ export function renderAdminPanel() {
     } else {
       els.pendingTeachers.innerHTML = state.pendingTeachers.map((t) => `
         <div class="row" style="justify-content: space-between; align-items: center; margin-top:6px;">
-          <div>${t.name || t.email}</div>
-          <button class="primary" data-approve="${t.id}">Freigeben</button>
+          <div>${t.name || 'Lehrer'} (${t.email || '-'})</div>
+          <div class="row">
+            <button class="primary" data-approve="${t.id}">Freigeben</button>
+            <button class="danger" data-deny="${t.id}">Ablehnen</button>
+          </div>
         </div>
       `).join('');
     }
@@ -130,6 +133,70 @@ export function renderAdminPanel() {
         const userId = btn.getAttribute('data-approve');
         if (!userId) return;
         sendJson({ type: 'teacherApprove', userId });
+      };
+    });
+    els.pendingTeachers.querySelectorAll('[data-deny]').forEach((btn) => {
+      btn.onclick = () => {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        const userId = btn.getAttribute('data-deny');
+        if (!userId) return;
+        sendJson({ type: 'teacherDeny', userId });
+      };
+    });
+  }
+  if (els.moveStudentSelect) {
+    const prev = els.moveStudentSelect.value;
+    els.moveStudentSelect.innerHTML = '<option value="">SchÃ¼ler wÃ¤hlen</option>';
+    (state.adminStudents || []).forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.name} (${s.className || '-'})`;
+      els.moveStudentSelect.appendChild(opt);
+    });
+    if (prev && (state.adminStudents || []).some((s) => s.id === prev)) {
+      els.moveStudentSelect.value = prev;
+    }
+  }
+  if (els.moveClassSelect) {
+    const prevClass = els.moveClassSelect.value;
+    els.moveClassSelect.innerHTML = '<option value="">Klasse wÃ¤hlen</option>';
+    (state.classCatalog || []).forEach((cls) => {
+      const opt = document.createElement('option');
+      opt.value = cls;
+      opt.textContent = cls;
+      els.moveClassSelect.appendChild(opt);
+    });
+    if (prevClass && (state.classCatalog || []).includes(prevClass)) {
+      els.moveClassSelect.value = prevClass;
+    }
+  }
+  if (els.banList) {
+    const emails = (state.bans && Array.isArray(state.bans.emails)) ? state.bans.emails : [];
+    const ips = (state.bans && Array.isArray(state.bans.ips)) ? state.bans.ips : [];
+    if (!emails.length && !ips.length) {
+      els.banList.innerHTML = 'Keine EintrÃ¤ge';
+    } else {
+      const emailRows = emails.map((e) => `<div class="row" style="justify-content: space-between; align-items:center; margin-top:4px;"><div>${e}</div><button class="ghost" data-unban-email="${e}">Entfernen</button></div>`).join('');
+      const ipRows = ips.map((ip) => `<div class="row" style="justify-content: space-between; align-items:center; margin-top:4px;"><div>${ip}</div><button class="ghost" data-unban-ip="${ip}">Entfernen</button></div>`).join('');
+      els.banList.innerHTML = `
+        ${emails.length ? `<div><strong>E-Mails</strong>${emailRows}</div>` : ''}
+        ${ips.length ? `<div style="margin-top:6px;"><strong>IPs</strong>${ipRows}</div>` : ''}
+      `;
+    }
+    els.banList.querySelectorAll('[data-unban-email]').forEach((btn) => {
+      btn.onclick = () => {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        const value = btn.getAttribute('data-unban-email');
+        if (!value) return;
+        sendJson({ type: 'banRemove', kind: 'email', value });
+      };
+    });
+    els.banList.querySelectorAll('[data-unban-ip]').forEach((btn) => {
+      btn.onclick = () => {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        const value = btn.getAttribute('data-unban-ip');
+        if (!value) return;
+        sendJson({ type: 'banRemove', kind: 'ip', value });
       };
     });
   }

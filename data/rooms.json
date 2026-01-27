@@ -385,7 +385,8 @@
       "10A"
     ],
     "teacherId": "t-mktnvwjm-rsat",
-    "active": true,
-    "createdAt": 1769493791193
+    "active": false,
+    "createdAt": 1769493791193,
+    "closedAt": 1769526965683
   }
 }

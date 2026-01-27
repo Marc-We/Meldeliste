@@ -42,6 +42,8 @@ function handleMessage(msg) {
       if (state.profile.role === 'admin') {
         sendJson({ type: 'pendingTeachersRequest' });
         sendJson({ type: 'teacherCodeRequest' });
+        sendJson({ type: 'adminStudentsRequest' });
+        sendJson({ type: 'bansRequest' });
       }
     }
   }
@@ -143,6 +145,7 @@ function handleMessage(msg) {
     state.classCatalog = msg.classes || [];
     state.subjectCatalog = msg.subjects || [];
     renderCatalogs();
+    renderAdminPanel();
   }
   if (msg.type === 'classCode') {
     state.classCode = msg.entry || null;
@@ -155,6 +158,20 @@ function handleMessage(msg) {
   if (msg.type === 'pendingTeachers') {
     state.pendingTeachers = msg.teachers || [];
     renderAdminPanel();
+  }
+  if (msg.type === 'adminStudents') {
+    state.adminStudents = msg.students || [];
+    renderAdminPanel();
+  }
+  if (msg.type === 'bans') {
+    state.bans = { emails: msg.emails || [], ips: msg.ips || [] };
+    renderAdminPanel();
+  }
+  if (msg.type === 'teacherApproved') {
+    setAuthStatus('Admin hat deinen Account freigegeben.');
+  }
+  if (msg.type === 'teacherDenied') {
+    setAuthStatus('Admin hat den Account abgelehnt.');
   }
   if (msg.type === 'questionList' && msg.roomId === state.currentRoom) {
     state.questions = msg.questions || [];
