@@ -1,5 +1,5 @@
 {
-  "title": "test",
+  "title": "Fragebogen",
   "scaleHint": "1 = trifft nicht zu, 5 = trifft voll zu",
   "scaleType": "scale",
   "scaleMin": 1,
@@ -7,16 +7,8 @@
   "questions": [
     {
       "id": "q1",
-      "text": "test",
-      "hint": "test = 0",
-      "scaleType": "scale",
-      "scaleMin": -3,
-      "scaleMax": -1
-    },
-    {
-      "id": "q2",
-      "text": "test2?",
-      "hint": "test = 2",
+      "text": "bist du Schlau",
+      "hint": "1",
       "scaleType": "yesno",
       "scaleMin": 0,
       "scaleMax": 1

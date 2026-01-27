@@ -85,10 +85,13 @@ export function updateLayout() {
   setPanelVisible(els.statsPanel, hasRoom);
   setPanelVisible(els.toolsPanel, true);
   setPanelVisible(els.classStatsPanel, Boolean(state.classStats.className));
+  if (els.questionnaireEditPanel) {
+    els.questionnaireEditPanel.open = !hasRoom;
+  }
 
   const order = hasRoom
     ? [els.currentRoomPanel, els.questionBanner, els.questionsPanel, els.logPanel, els.homeworkPanel, els.statsPanel, els.toolsPanel, els.teachingsPanel, els.classStatsPanel, els.roomsPanel]
-    : [els.profilePanel, els.catalogPanel, els.codesPanel, els.adminPanel, els.roomsPanel, els.teachingsPanel, els.classStatsPanel, els.toolsPanel];
+    : [els.profilePanel, els.teachingsPanel, els.classStatsPanel, els.toolsPanel, els.roomsPanel, els.codesPanel, els.catalogPanel, els.adminPanel];
   order.forEach((panel) => {
     if (panel && panel.parentElement === els.layout) {
       els.layout.appendChild(panel);

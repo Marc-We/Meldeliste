@@ -114,6 +114,14 @@
       50% { transform: scale(1.04); box-shadow: 0 0 18px rgba(54,195,140,0.35); }
       100% { transform: scale(1); box-shadow: 0 0 0 rgba(54,195,140,0.0); }
     }
+    .tap { animation: tapPop 0.18s ease-out; }
+    @keyframes tapPop {
+      0% { transform: scale(1); }
+      50% { transform: scale(0.97); }
+      100% { transform: scale(1); }
+    }
+    details.panel > summary { cursor: pointer; font-weight: 700; list-style: none; }
+    details.panel > summary::-webkit-details-marker { display: none; }
   </style>
 </head>
 <body>
@@ -163,14 +171,6 @@
         <button id="forgotBtn" class="ghost">Passwort vergessen</button>
       </div>
       <div class="pill" id="profileInfo">Noch kein Profil gespeichert</div>
-      <div class="card" id="coursePanel" style="margin-top:12px; display:none;">
-        <div class="row" style="align-items:center; justify-content: space-between;">
-          <strong>Meine Faecher/Kurse</strong>
-          <button id="saveCourses" class="ghost">Speichern</button>
-        </div>
-        <div id="courseList" class="course-list"></div>
-        <div class="small" id="courseHint"></div>
-      </div>
       <div class="row" style="margin-top:6px">
         <button id="modeRegister" class="ghost" style="flex:1">Registrieren</button>
         <button id="modeLogin" class="ghost" style="flex:1">Anmelden</button>
@@ -263,6 +263,15 @@
       <h2>Hausaufgaben</h2>
       <div id="homeworkList"><div class="empty">Keine Hausaufgaben</div></div>
     </div>
+    <details class="panel" id="coursePanel" style="display:none">
+      <summary>Meine Fächer/Kurse</summary>
+      <div class="row" style="align-items:center; justify-content: space-between; margin-top:10px;">
+        <strong>Auswahl</strong>
+        <button id="saveCourses" class="ghost">Speichern</button>
+      </div>
+      <div id="courseList" class="course-list"></div>
+      <div class="small" id="courseHint"></div>
+    </details>
   </div>
 
   <script type="module" src="client/main.js"></script>

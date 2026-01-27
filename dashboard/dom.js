@@ -105,6 +105,7 @@ export const els = {
   feedbackQuestions: document.getElementById('feedbackQuestions'),
   feedbackText: document.getElementById('feedbackText'),
   feedbackSendBtn: document.getElementById('feedbackSend'),
+  questionnaireEditPanel: document.getElementById('questionnaireEditPanel'),
   questionnaireTypeSelect: document.getElementById('questionnaireType'),
   questionnaireSlotSelect: document.getElementById('questionnaireSlot'),
   questionnaireScaleType: document.getElementById('questionnaireScaleType'),

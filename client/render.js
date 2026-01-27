@@ -372,6 +372,7 @@ export function updateStatsMode() {
   els.statsTitle.textContent = hasRoom ? 'Deine Stunde' : 'Deine Statistiken';
   setVisible(els.sessionStats, hasRoom);
   setVisible(els.subjectStatsEl, !hasRoom);
+  setVisible(els.pollBox, hasRoom);
   if (!hasRoom) {
     requestSubjectStats();
   }

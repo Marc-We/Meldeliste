@@ -411,5 +411,54 @@
     "createdAt": 1769535357188,
     "closedAt": 1769535375221,
     "students": {}
+  },
+  "room-mkwyq2p5-oh9r": {
+    "roomId": "room-mkwyq2p5-oh9r",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769540497961,
+    "closedAt": 1769540643849,
+    "students": {}
+  },
+  "room-mkwyt91q-uz05": {
+    "roomId": "room-mkwyt91q-uz05",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769540646158,
+    "closedAt": 1769540651917,
+    "students": {}
+  },
+  "room-mkwz29rw-hxde": {
+    "roomId": "room-mkwz29rw-hxde",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769541067004,
+    "closedAt": null,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 0,
+        "calls": 0,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
   }
 }
