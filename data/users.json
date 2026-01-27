@@ -84,8 +84,22 @@
         },
         "toiletSeconds": 0,
         "daily": {}
+      },
+      "Informatik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
       }
-    }
+    },
+    "bannedAt": 1769534284777
   },
   "t-mi97yzvp-kg36": {
     "id": "t-mi97yzvp-kg36",
@@ -164,8 +178,22 @@
         },
         "toiletSeconds": 0,
         "daily": {}
+      },
+      "Informatik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
       }
-    }
+    },
+    "bannedAt": 1769534285425
   },
   "t-mi98l3de-kuar": {
     "id": "t-mi98l3de-kuar",
@@ -268,6 +296,19 @@
         },
         "toiletSeconds": 0,
         "daily": {}
+      },
+      "Informatik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
       }
     },
     "teachings": []
@@ -299,6 +340,11 @@
           "2026-01-25": {
             "signals": 2,
             "calls": 3,
+            "toiletSeconds": 0
+          },
+          "2026-01-27": {
+            "signals": 0,
+            "calls": 0,
             "toiletSeconds": 0
           }
         }
@@ -340,14 +386,23 @@
             "toiletSeconds": 0
           }
         }
+      },
+      "Informatik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
       }
     },
     "teachings": [],
     "courses": [
-      {
-        "subject": "Mathematik",
-        "teacherId": "t-mi98l3de-kuar"
-      },
       {
         "subject": "Mathematik",
         "teacherId": "t-mktnvwjm-rsat"
@@ -360,7 +415,8 @@
         "subject": "Physik",
         "teacherId": "t-mktnvwjm-rsat"
       }
-    ]
+    ],
+    "lastIp": "192.168.178.164"
   },
   "t-mktnvwjm-rsat": {
     "id": "t-mktnvwjm-rsat",
@@ -389,6 +445,16 @@
           "10B"
         ],
         "subject": "Physik"
+      },
+      {
+        "classNames": [
+          "10A",
+          "10B",
+          "10C",
+          "10D",
+          "10E"
+        ],
+        "subject": "Informatik"
       }
     ],
     "lastIp": "192.168.178.164"
@@ -425,6 +491,19 @@
         }
       },
       "Physik": {
+        "signals": 0,
+        "calls": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {}
+      },
+      "Informatik": {
         "signals": 0,
         "calls": 0,
         "ratings": {

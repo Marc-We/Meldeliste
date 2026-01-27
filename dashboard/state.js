@@ -15,6 +15,10 @@ export const state = {
   pendingTeachers: [],
   adminStudents: [],
   bans: { emails: [], ips: [] },
+  teacherInbox: [],
+  questionnaireStudent: null,
+  questionnaireTeacher: null,
+  feedbackAnswers: {},
   toiletStates: new Map(), // userId -> {status,start}
   questions: [],
   poll: null,

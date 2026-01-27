@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson, sendJoin } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus } from './ui.js';
-import { renderCalled, renderRooms, updateStatsMode } from './render.js';
+import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode } from './render.js';
 
 export function bindHandlers() {
   els.saveProfileBtn.onclick = () => {
@@ -181,4 +181,61 @@ export function bindHandlers() {
   els.calledBox.onclick = () => {
     renderCalled(false);
   };
+
+  if (els.questionnaireClose) {
+    els.questionnaireClose.onclick = () => {
+      state.questionnaire.open = false;
+      state.questionnaire.data = null;
+      state.questionnaire.loading = false;
+      renderQuestionnaire();
+    };
+  }
+  if (els.questionnaireTeacher) {
+    els.questionnaireTeacher.onchange = () => {
+      state.questionnaire.teacherId = els.questionnaireTeacher.value || '';
+      state.questionnaire.data = null;
+      state.questionnaire.loading = false;
+      if (state.questionnaire.teacherId) {
+        sendJson({ type: 'questionnaireRequest', role: 'student', teacherId: state.questionnaire.teacherId });
+      }
+    };
+  }
+  if (els.questionnaireQuestions) {
+    els.questionnaireQuestions.onclick = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.tagName !== 'BUTTON') return;
+      const parent = target.closest('[data-q]');
+      if (!parent) return;
+      const qid = parent.getAttribute('data-q');
+      const val = Number(target.getAttribute('data-val'));
+      if (!qid || !Number.isFinite(val)) return;
+      state.questionnaire.answers[qid] = val;
+      renderQuestionnaire();
+    };
+  }
+  if (els.questionnaireSend) {
+    els.questionnaireSend.onclick = () => {
+      if (!state.questionnaire.data || !state.questionnaire.teacherId) return;
+      const questions = Array.isArray(state.questionnaire.data.questions) ? state.questionnaire.data.questions : [];
+      if (!questions.length) return;
+      const answers = questions.map((q) => ({ id: q.id, value: state.questionnaire.answers[q.id] }));
+      const missing = answers.some((a) => !a.value || a.value < 1 || a.value > 5);
+      if (missing) return;
+      const text = els.questionnaireText.value.trim();
+      sendJson({
+        type: 'questionnaireSubmit',
+        teacherId: state.questionnaire.teacherId,
+        subject: state.questionnaire.subject,
+        answers,
+        text,
+      });
+      els.questionnaireText.value = '';
+      state.questionnaire.open = false;
+      state.questionnaire.data = null;
+      state.questionnaire.answers = {};
+      state.questionnaire.loading = false;
+      renderQuestionnaire();
+    };
+  }
 }

@@ -18,4 +18,6 @@ export const state = {
   thoughtActive: false,
   pollCollapsed: false,
   homeworkItems: [],
+  questionnaire: { open: false, subject: '', teacherId: '', data: null, answers: {}, loading: false },
+  feedbackInbox: [],
 };

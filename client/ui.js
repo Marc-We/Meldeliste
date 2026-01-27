@@ -61,5 +61,6 @@ export function renderProfileInfo() {
     els.profileInfo.textContent = `Eingeloggt als ${state.profile.firstName || ''} ${state.profile.lastName || ''} (${state.profile.email || '-'})`;
   }
   if (els.coursePanel) setVisible(els.coursePanel, Boolean(state.profile.userId));
+  if (els.feedbackPanel) setVisible(els.feedbackPanel, Boolean(state.profile.userId));
   renderAuthFields();
 }

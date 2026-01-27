@@ -104,6 +104,10 @@
       font-size: 14px;
       padding: 4px 2px;
     }
+    .rating { display: flex; gap: 6px; margin-top: 6px; }
+    .rating button { padding: 6px 8px; border-radius: 8px; border: 1px solid #2b3652; background: #0c1424; color: var(--text); }
+    .rating button.active { background: var(--accent); color: #06110b; }
+    .inbox-item { border: 1px solid #24304c; border-radius: 10px; padding: 10px; margin-top: 8px; background: #0c1424; }
   </style>
 </head>
 <body>
@@ -297,6 +301,38 @@
             <button id="endThoughts" class="danger">Beenden</button>
           </div>
           <div class="cloud" id="thoughtsCloud"><div class="small">Keine Daten</div></div>
+        </div>
+        <div class="tool-card" id="feedbackInboxPanel">
+          <h2>Postfach</h2>
+          <div id="teacherInbox"><div class="small">Keine Nachrichten</div></div>
+        </div>
+        <div class="tool-card" id="feedbackSendPanel">
+          <h2>Feedback senden</h2>
+          <div class="row">
+            <select id="feedbackStudentSelect" style="flex:1">
+              <option value="">SchÃ¼ler wÃ¤hlen</option>
+            </select>
+            <input id="feedbackSubject" placeholder="Fach">
+          </div>
+          <div id="feedbackQuestions" style="margin-top:8px;"></div>
+          <label style="margin-top:8px;">
+            Nachricht
+            <textarea id="feedbackText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          </label>
+          <button id="feedbackSend" class="primary" style="margin-top:8px;">Absenden</button>
+        </div>
+        <div class="tool-card" id="questionnaireEditPanel">
+          <h2>Fragebogen bearbeiten</h2>
+          <div class="row">
+            <select id="questionnaireType">
+              <option value="student">SchÃ¼ler -> Lehrer</option>
+              <option value="teacher">Lehrer -> SchÃ¼ler</option>
+            </select>
+            <input id="questionnaireTitleInput" placeholder="Titel" style="flex:1">
+          </div>
+          <div class="small" style="margin-top:6px;">Eine Frage pro Zeile</div>
+          <textarea id="questionnaireQuestionsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          <button id="questionnaireSave" class="primary" style="margin-top:8px;">Speichern</button>
         </div>
       </div>
     </details>

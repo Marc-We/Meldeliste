@@ -21,6 +21,9 @@ const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
 const ROOM_STATS_FILE = path.join(DATA_DIR, 'room_stats.json');
 const CODES_FILE = path.join(DATA_DIR, 'codes.json');
 const BANS_FILE = path.join(DATA_DIR, 'bans.json');
+const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
+const QUESTIONNAIRES_DIR = path.join(__dirname, 'questionnaires');
+const QUESTIONNAIRES_TEACHER_DIR = path.join(QUESTIONNAIRES_DIR, 'teachers');
 
 // --- Helpers for persistence -------------------------------------------------
 function ensureDir(dir) {
@@ -46,6 +49,8 @@ function saveJson(file, data) {
 }
 
 ensureDir(DATA_DIR);
+ensureDir(QUESTIONNAIRES_DIR);
+ensureDir(QUESTIONNAIRES_TEACHER_DIR);
 
 // --- In-memory state ---------------------------------------------------------
 let users = new Map(Object.entries(loadJson(USERS_FILE, {})));
@@ -57,6 +62,7 @@ let homework = new Map(Object.entries(loadJson(HOMEWORK_FILE, {}))); // key `${c
 let roomStats = new Map(Object.entries(loadJson(ROOM_STATS_FILE, {})));
 let codes = new Map(Object.entries(loadJson(CODES_FILE, {}))); // key role:class -> {code, role, className, createdAt, expiresAt}
 let bans = loadJson(BANS_FILE, { emails: [], ips: [] });
+let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
 
 // Seeds for demo if empty
 if (users.size === 0) {
@@ -105,6 +111,9 @@ function saveCodes() {
 }
 function saveBans() {
   saveJson(BANS_FILE, bans);
+}
+function saveFeedback() {
+  saveJson(FEEDBACK_FILE, feedback);
 }
 
 // socket tracking
@@ -488,6 +497,70 @@ function isBanned(email, ip) {
   if (e && emails.includes(e)) return true;
   if (ip && ips.includes(ip)) return true;
   return false;
+}
+
+function questionnairePath(role, teacherId) {
+  const safeRole = role === 'teacher' ? 'teacher' : 'student';
+  if (teacherId) return path.join(QUESTIONNAIRES_TEACHER_DIR, `${teacherId}.${safeRole}.json`);
+  return path.join(QUESTIONNAIRES_DIR, `default.${safeRole}.json`);
+}
+
+function loadQuestionnaire(role, teacherId) {
+  const teacherPath = teacherId ? questionnairePath(role, teacherId) : null;
+  if (teacherPath && fs.existsSync(teacherPath)) {
+    return loadJson(teacherPath, null);
+  }
+  const fallback = loadJson(questionnairePath(role, ''), { title: 'Fragebogen', scaleHint: '1 = trifft nicht zu, 5 = trifft voll zu', questions: [] });
+  return fallback;
+}
+
+function saveQuestionnaire(role, teacherId, data) {
+  const safeRole = role === 'teacher' ? 'teacher' : 'student';
+  const title = String(data?.title || '').trim() || (safeRole === 'teacher' ? 'Feedback' : 'Fragebogen');
+  const scaleHint = String(data?.scaleHint || '').trim() || '1 = trifft nicht zu, 5 = trifft voll zu';
+  const rawQuestions = Array.isArray(data?.questions) ? data.questions : [];
+  const questions = rawQuestions
+    .map((q, idx) => ({
+      id: String(q?.id || `q${idx + 1}`).trim(),
+      text: String(q?.text || '').trim(),
+    }))
+    .filter((q) => q.id && q.text);
+  const payload = { title, scaleHint, questions };
+  const filePath = questionnairePath(safeRole, teacherId);
+  saveJson(filePath, payload);
+  return payload;
+}
+
+function getFeedbackInbox(role, userId) {
+  if (!userId) return [];
+  if (role === 'teacher') {
+    return (feedback.teacher && feedback.teacher[userId]) ? feedback.teacher[userId] : [];
+  }
+  return (feedback.student && feedback.student[userId]) ? feedback.student[userId] : [];
+}
+
+function pushFeedbackInbox(role, userId, entry) {
+  if (!userId) return;
+  if (role === 'teacher') {
+    if (!feedback.teacher) feedback.teacher = {};
+    if (!Array.isArray(feedback.teacher[userId])) feedback.teacher[userId] = [];
+    feedback.teacher[userId].unshift(entry);
+  } else {
+    if (!feedback.student) feedback.student = {};
+    if (!Array.isArray(feedback.student[userId])) feedback.student[userId] = [];
+    feedback.student[userId].unshift(entry);
+  }
+  saveFeedback();
+}
+
+function sendTeacherInbox(userId) {
+  const list = getFeedbackInbox('teacher', userId);
+  sendToUser(userId, { type: 'feedbackInbox', role: 'teacher', items: list });
+}
+
+function sendStudentInbox(userId) {
+  const list = getFeedbackInbox('student', userId);
+  sendToUser(userId, { type: 'feedbackInbox', role: 'student', items: list });
 }
 
 function isStudentAllowedInRoom(user, room) {
@@ -936,6 +1009,8 @@ wss.on('connection', (ws, req) => {
       sendRoomList(ws);
       sendCatalogs(ws);
       if (user.role === 'student') sendCourseCatalog(ws, user);
+      if (user.role === 'teacher') sendTeacherInbox(user.id);
+      if (user.role === 'student') sendStudentInbox(user.id);
       return;
     }
 
@@ -1047,6 +1122,8 @@ wss.on('connection', (ws, req) => {
       sendRoomList(ws);
       sendCatalogs(ws);
       if (user.role === 'student') sendCourseCatalog(ws, user);
+      if (user.role === 'teacher') sendTeacherInbox(user.id);
+      if (user.role === 'student') sendStudentInbox(user.id);
       return;
     }
 
@@ -1084,6 +1161,8 @@ wss.on('connection', (ws, req) => {
       sendRoomList(ws);
       sendCatalogs(ws);
       if (user.role === 'student') sendCourseCatalog(ws, user);
+      if (user.role === 'teacher') sendTeacherInbox(user.id);
+      if (user.role === 'student') sendStudentInbox(user.id);
       return;
     }
 
@@ -1477,6 +1556,99 @@ wss.on('connection', (ws, req) => {
       }
       saveBans();
       sendBans(ws);
+      return;
+    }
+
+    if (type === 'questionnaireRequest') {
+      const role = msg.role === 'teacher' ? 'teacher' : 'student';
+      let teacherId = '';
+      if (role === 'student') {
+        teacherId = String(msg.teacherId || '').trim();
+        if (!teacherId) return;
+      } else {
+        teacherId = ws.userId;
+      }
+      const data = loadQuestionnaire(role, teacherId);
+      ws.send(JSON.stringify({ type: 'questionnaire', role, teacherId, data }));
+      return;
+    }
+
+    if (type === 'feedbackInboxRequest') {
+      if (ws.role === 'teacher' || ws.role === 'admin') {
+        sendTeacherInbox(ws.userId);
+      } else if (ws.role === 'student') {
+        sendStudentInbox(ws.userId);
+      }
+      return;
+    }
+
+    if (type === 'questionnaireSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const role = msg.role === 'teacher' ? 'teacher' : 'student';
+      const teacherId = ws.userId;
+      const data = saveQuestionnaire(role, teacherId, msg.data || {});
+      ws.send(JSON.stringify({ type: 'questionnaireSaved', role, teacherId, data }));
+      return;
+    }
+
+    if (type === 'questionnaireSubmit' && ws.role === 'student') {
+      const teacherId = String(msg.teacherId || '').trim();
+      const subject = String(msg.subject || '').trim() || 'default';
+      const text = String(msg.text || '').trim();
+      const answers = Array.isArray(msg.answers) ? msg.answers : [];
+      if (!teacherId || !answers.length) return;
+      const questionnaire = loadQuestionnaire('student', teacherId);
+      const qList = Array.isArray(questionnaire?.questions) ? questionnaire.questions : [];
+      if (!qList.length) return;
+      const valid = answers.every((a) => {
+        const val = Number(a.value);
+        return Number.isFinite(val) && val >= 1 && val <= 5;
+      });
+      if (!valid || answers.length < qList.length) return;
+      const teacher = users.get(teacherId);
+      if (!teacher || (teacher.role !== 'teacher' && teacher.role !== 'admin')) return;
+      const entry = {
+        id: genId('fb'),
+        ts: Date.now(),
+        fromStudentId: ws.userId,
+        fromName: user?.name || 'Unbekannt',
+        subject,
+        answers,
+        text,
+        questionnaireTitle: questionnaire?.title || 'Fragebogen',
+      };
+      pushFeedbackInbox('teacher', teacherId, entry);
+      sendTeacherInbox(teacherId);
+      return;
+    }
+
+    if (type === 'feedbackSubmit' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const studentId = String(msg.studentId || '').trim();
+      const subject = String(msg.subject || '').trim() || 'default';
+      const text = String(msg.text || '').trim();
+      const answers = Array.isArray(msg.answers) ? msg.answers : [];
+      if (!studentId || !answers.length) return;
+      const questionnaire = loadQuestionnaire('teacher', ws.userId);
+      const qList = Array.isArray(questionnaire?.questions) ? questionnaire.questions : [];
+      if (!qList.length) return;
+      const valid = answers.every((a) => {
+        const val = Number(a.value);
+        return Number.isFinite(val) && val >= 1 && val <= 5;
+      });
+      if (!valid || answers.length < qList.length) return;
+      const target = users.get(studentId);
+      if (!target || target.role !== 'student') return;
+      const entry = {
+        id: genId('fb'),
+        ts: Date.now(),
+        fromTeacherId: ws.userId,
+        fromName: user?.name || 'Lehrer',
+        subject,
+        answers,
+        text,
+        questionnaireTitle: questionnaire?.title || 'Feedback',
+      };
+      pushFeedbackInbox('student', studentId, entry);
+      sendStudentInbox(studentId);
       return;
     }
 

@@ -7,12 +7,14 @@ import {
   renderCalled,
   renderClassOptions,
   renderCourseCatalog,
+  renderFeedbackInbox,
   renderHomework,
   renderLog,
   renderPoll,
   renderRooms,
   renderStats,
   renderSubjectStats,
+  renderQuestionnaire,
   renderThoughtState,
 } from './render.js';
 
@@ -40,12 +42,22 @@ function handleMessage(msg) {
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       sendJson({ type: 'homeworkListRequest' });
       requestSubjectStats();
+      sendJson({ type: 'feedbackInboxRequest' });
     }
     renderRooms();
   }
   if (msg.type === 'catalogs') {
     state.classCatalog = msg.classes || [];
     renderClassOptions();
+  }
+  if (msg.type === 'questionnaire' && msg.role === 'student') {
+    state.questionnaire.data = msg.data || null;
+    state.questionnaire.loading = false;
+    renderQuestionnaire();
+  }
+  if (msg.type === 'feedbackInbox' && msg.role === 'student') {
+    state.feedbackInbox = msg.items || [];
+    renderFeedbackInbox();
   }
   if (msg.type === 'courseCatalog') {
     state.courseCatalog = msg.courses || [];

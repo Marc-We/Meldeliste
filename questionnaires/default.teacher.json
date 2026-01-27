@@ -1,0 +1,9 @@
+{
+  "title": "Feedback",
+  "scaleHint": "1 = trifft nicht zu, 5 = trifft voll zu",
+  "questions": [
+    { "id": "q1", "text": "Der Schüler arbeitet konzentriert." },
+    { "id": "q2", "text": "Der Schüler beteiligt sich aktiv." },
+    { "id": "q3", "text": "Der Schüler kommt vorbereitet." }
+  ]
+}

@@ -388,5 +388,83 @@
     "active": false,
     "createdAt": 1769493791193,
     "closedAt": 1769526965683
+  },
+  "room-mkwuxddn-5lov": {
+    "id": "room-mkwuxddn-5lov",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769534119931,
+    "closedAt": 1769534130314
+  },
+  "room-mkwuxu62-r371": {
+    "id": "room-mkwuxu62-r371",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769534141690,
+    "closedAt": 1769534196689
+  },
+  "room-mkwuxx4a-x4w8": {
+    "id": "room-mkwuxx4a-x4w8",
+    "name": "Deutsch 10A",
+    "subject": "Deutsch",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769534145514,
+    "closedAt": 1769534183233
+  },
+  "room-mkwuxy62-havj": {
+    "id": "room-mkwuxy62-havj",
+    "name": "Physik 10A, 10B",
+    "subject": "Physik",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769534146874,
+    "closedAt": 1769534183657
+  },
+  "room-mkwuz49e-ogfh": {
+    "id": "room-mkwuz49e-ogfh",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769534201426,
+    "closedAt": 1769534206498
+  },
+  "room-mkwvbz0e-dg82": {
+    "id": "room-mkwvbz0e-dg82",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": true,
+    "createdAt": 1769534801150
   }
 }

@@ -1,0 +1,61 @@
+{
+  "teacher": {
+    "t-mktnvwjm-rsat": [
+      {
+        "id": "fb-mkwvbf4e-k6lu",
+        "ts": 1769534775374,
+        "fromStudentId": "s-mktnutua-pddp",
+        "fromName": "Marc Wermke",
+        "subject": "Mathematik",
+        "answers": [
+          {
+            "id": "q1",
+            "value": 4
+          },
+          {
+            "id": "q2",
+            "value": 4
+          },
+          {
+            "id": "q3",
+            "value": 4
+          },
+          {
+            "id": "q4",
+            "value": 4
+          }
+        ],
+        "text": "",
+        "questionnaireTitle": "Fragebogen"
+      },
+      {
+        "id": "fb-mkwv84ig-jume",
+        "ts": 1769534621656,
+        "fromStudentId": "s-mktnutua-pddp",
+        "fromName": "Marc Wermke",
+        "subject": "Deutsch",
+        "answers": [
+          {
+            "id": "q1",
+            "value": 2
+          },
+          {
+            "id": "q2",
+            "value": 3
+          },
+          {
+            "id": "q3",
+            "value": 4
+          },
+          {
+            "id": "q4",
+            "value": 3
+          }
+        ],
+        "text": "Die heutige stunde war ok",
+        "questionnaireTitle": "Fragebogen"
+      }
+    ]
+  },
+  "student": {}
+}

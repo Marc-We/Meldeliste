@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout } from './ui.js';
-import { renderClassStats, renderClassStudentStats, renderThoughts } from './render.js';
+import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts } from './render.js';
 
 export function bindHandlers() {
   els.saveProfileBtn.onclick = () => {
@@ -176,6 +176,53 @@ export function bindHandlers() {
     els.rotateTeacherCodeBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
       sendJson({ type: 'teacherCodeRotate' });
+    };
+  }
+
+  if (els.feedbackQuestions) {
+    els.feedbackQuestions.onclick = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.tagName !== 'BUTTON') return;
+      const parent = target.closest('[data-q]');
+      if (!parent) return;
+      const qid = parent.getAttribute('data-q');
+      const val = Number(target.getAttribute('data-val'));
+      if (!qid || !Number.isFinite(val)) return;
+      state.feedbackAnswers[qid] = val;
+      renderFeedbackForm();
+    };
+  }
+  if (els.feedbackSendBtn) {
+    els.feedbackSendBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const studentId = els.feedbackStudentSelect.value;
+      const subject = (els.feedbackSubjectInput.value || '').trim();
+      const questions = Array.isArray(state.questionnaireTeacher?.questions) ? state.questionnaireTeacher.questions : [];
+      if (!studentId || !questions.length) return;
+      const answers = questions.map((q) => ({ id: q.id, value: state.feedbackAnswers[q.id] }));
+      const missing = answers.some((a) => !a.value || a.value < 1 || a.value > 5);
+      if (missing) return;
+      const text = els.feedbackText.value.trim();
+      sendJson({ type: 'feedbackSubmit', studentId, subject, answers, text });
+      els.feedbackText.value = '';
+      state.feedbackAnswers = {};
+    };
+  }
+  if (els.questionnaireTypeSelect) {
+    els.questionnaireTypeSelect.onchange = () => {
+      const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
+      sendJson({ type: 'questionnaireRequest', role });
+    };
+  }
+  if (els.questionnaireSaveBtn) {
+    els.questionnaireSaveBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
+      const title = (els.questionnaireTitleInput.value || '').trim();
+      const lines = (els.questionnaireQuestionsInput.value || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const questions = lines.map((text, idx) => ({ id: `q${idx + 1}`, text }));
+      sendJson({ type: 'questionnaireSave', role, data: { title, questions } });
     };
   }
 

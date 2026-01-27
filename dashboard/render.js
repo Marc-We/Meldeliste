@@ -202,6 +202,81 @@ export function renderAdminPanel() {
   }
 }
 
+export function renderTeacherInbox() {
+  if (!els.teacherInbox) return;
+  if (!state.teacherInbox || !state.teacherInbox.length) {
+    els.teacherInbox.innerHTML = '<div class="small">Keine Nachrichten</div>';
+    return;
+  }
+  els.teacherInbox.innerHTML = state.teacherInbox.map((item) => {
+    const time = new Date(item.ts || Date.now()).toLocaleString();
+    const from = item.fromName || 'SchÃ¼ler';
+    const subject = item.subject || 'Fach';
+    const answers = (item.answers || []).map((a) => `${a.id}: ${a.value}`).join(' | ');
+    const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
+    return `
+      <div class="inbox-item">
+        <div><strong>${from}</strong> â€“ ${subject}</div>
+        <div class="small">${time}</div>
+        <div class="small">${answers}</div>
+        ${text}
+      </div>
+    `;
+  }).join('');
+}
+
+export function renderFeedbackForm() {
+  if (!els.feedbackQuestions) return;
+  if (els.feedbackSubjectInput && state.classStats.subject) {
+    els.feedbackSubjectInput.value = state.classStats.subject;
+  }
+  if (els.feedbackStudentSelect) {
+    const prev = els.feedbackStudentSelect.value;
+    els.feedbackStudentSelect.innerHTML = '<option value="">SchÃ¼ler wÃ¤hlen</option>';
+    const list = Array.isArray(state.classStats.students) ? state.classStats.students : [];
+    list.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.userId;
+      opt.textContent = s.name || s.userId;
+      els.feedbackStudentSelect.appendChild(opt);
+    });
+    if (prev && list.some((s) => s.userId === prev)) {
+      els.feedbackStudentSelect.value = prev;
+    }
+  }
+  const questions = Array.isArray(state.questionnaireTeacher?.questions) ? state.questionnaireTeacher.questions : [];
+  if (!questions.length) {
+    els.feedbackQuestions.innerHTML = '<div class="small">Kein Feedback-Fragebogen vorhanden.</div>';
+    return;
+  }
+  const scaleHint = state.questionnaireTeacher?.scaleHint || '1 = trifft nicht zu, 5 = trifft voll zu';
+  els.feedbackQuestions.innerHTML = questions.map((q) => {
+    const current = state.feedbackAnswers[q.id];
+    return `
+      <div class="q-item">
+        <div>${q.text}</div>
+        <div class="rating" data-q="${q.id}">
+          ${[1,2,3,4,5].map((v) => `<button class="${current === v ? 'active' : ''}" data-val="${v}">${v}</button>`).join('')}
+        </div>
+        <div class="small">${scaleHint}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+export function renderQuestionnaireEditor() {
+  if (!els.questionnaireTypeSelect) return;
+  const type = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
+  const data = type === 'teacher' ? state.questionnaireTeacher : state.questionnaireStudent;
+  if (data) {
+    if (els.questionnaireTitleInput) els.questionnaireTitleInput.value = data.title || '';
+    if (els.questionnaireQuestionsInput) {
+      const text = Array.isArray(data.questions) ? data.questions.map((q) => q.text).join('\n') : '';
+      els.questionnaireQuestionsInput.value = text;
+    }
+  }
+}
+
 export function renderTeachings() {
   const list = Array.isArray(state.profile.teachings) ? state.profile.teachings : [];
   if (!list.length) {

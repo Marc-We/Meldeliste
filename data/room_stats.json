@@ -301,5 +301,91 @@
     "createdAt": 1769493791193,
     "closedAt": 1769526965683,
     "students": {}
+  },
+  "room-mkwuxddn-5lov": {
+    "roomId": "room-mkwuxddn-5lov",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769534119931,
+    "closedAt": 1769534130314,
+    "students": {}
+  },
+  "room-mkwuxu62-r371": {
+    "roomId": "room-mkwuxu62-r371",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769534141690,
+    "closedAt": 1769534196689,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 0,
+        "calls": 0,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  },
+  "room-mkwuxx4a-x4w8": {
+    "roomId": "room-mkwuxx4a-x4w8",
+    "name": "Deutsch 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Deutsch",
+    "createdAt": 1769534145514,
+    "closedAt": 1769534183233,
+    "students": {}
+  },
+  "room-mkwuxy62-havj": {
+    "roomId": "room-mkwuxy62-havj",
+    "name": "Physik 10A, 10B",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B"
+    ],
+    "subject": "Physik",
+    "createdAt": 1769534146874,
+    "closedAt": 1769534183657,
+    "students": {}
+  },
+  "room-mkwuz49e-ogfh": {
+    "roomId": "room-mkwuz49e-ogfh",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769534201426,
+    "closedAt": 1769534206498,
+    "students": {}
+  },
+  "room-mkwvbz0e-dg82": {
+    "roomId": "room-mkwvbz0e-dg82",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769534801150,
+    "closedAt": null,
+    "students": {}
   }
 }

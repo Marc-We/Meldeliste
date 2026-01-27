@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { els } from './dom.js';
 import { setVisible } from './ui.js';
-import { requestSubjectStats, sendJoin } from './api.js';
+import { requestSubjectStats, sendJoin, sendJson } from './api.js';
 
 export function renderHomework() {
   if (!state.homeworkItems.length) {
@@ -148,6 +148,7 @@ export function renderSubjectStats() {
       <div class="card clickable" data-subject="${s.subject}">
         <h3>${s.subject}</h3>
         <div class="num">M ${total.signals || 0} Â· A ${total.calls || 0}</div>
+        <button class="ghost" data-questionnaire="${s.subject}">Fragebogen</button>
       </div>
     `;
   }).join('');
@@ -155,6 +156,18 @@ export function renderSubjectStats() {
     card.onclick = () => {
       state.selectedSubject = card.getAttribute('data-subject') || '';
       renderSubjectDetail();
+    };
+  });
+  els.subjectGrid.querySelectorAll('[data-questionnaire]').forEach((btn) => {
+    btn.onclick = (event) => {
+      event.stopPropagation();
+      state.questionnaire.subject = btn.getAttribute('data-questionnaire') || '';
+      state.questionnaire.open = true;
+      state.questionnaire.data = null;
+      state.questionnaire.answers = {};
+      state.questionnaire.teacherId = '';
+      state.questionnaire.loading = false;
+      renderQuestionnaire();
     };
   });
   if (!state.selectedSubject) {
@@ -175,6 +188,93 @@ export function renderSubjectDetail() {
     return `<tr><td>${time}</td><td>${s.name || '-'}</td><td>${s.className || '-'}</td><td>${stats.signals || 0}</td><td>${stats.calls || 0}</td></tr>`;
   }).join('');
   els.subjectDetail.innerHTML = `<table><thead><tr><th>Zeit</th><th>Raum</th><th>Klasse</th><th>Meldungen</th><th>Aufrufe</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function getTeacherOptionsForSubject(subject) {
+  const courses = Array.isArray(state.profile.courses) ? state.profile.courses : [];
+  const options = courses.filter((c) => c && c.subject === subject);
+  return options.map((c) => {
+    const match = (state.courseCatalog || []).find((cc) => cc.teacherId === c.teacherId && cc.subject === subject);
+    return { teacherId: c.teacherId, teacherName: match?.teacherName || 'Lehrer' };
+  });
+}
+
+export function renderQuestionnaire() {
+  if (!els.questionnairePanel) return;
+  if (!state.questionnaire.open || !state.questionnaire.subject) {
+    els.questionnairePanel.style.display = 'none';
+    return;
+  }
+  els.questionnairePanel.style.display = 'block';
+  const subject = state.questionnaire.subject;
+  const teachers = getTeacherOptionsForSubject(subject);
+  if (teachers.length > 1) {
+    els.questionnaireTeacherRow.style.display = 'block';
+    els.questionnaireTeacher.innerHTML = teachers.map((t) => `<option value="${t.teacherId}">${t.teacherName}</option>`).join('');
+    if (!state.questionnaire.teacherId) {
+      state.questionnaire.teacherId = teachers[0].teacherId;
+    }
+    els.questionnaireTeacher.value = state.questionnaire.teacherId;
+  } else if (teachers.length === 1) {
+    els.questionnaireTeacherRow.style.display = 'none';
+    state.questionnaire.teacherId = teachers[0].teacherId;
+  } else {
+    els.questionnaireTeacherRow.style.display = 'none';
+    els.questionnaireQuestions.innerHTML = '<div class="empty">Kein Kurs gefunden.</div>';
+    return;
+  }
+  if (!state.questionnaire.data) {
+    els.questionnaireQuestions.innerHTML = '<div class="empty">Lade Fragebogen...</div>';
+    if (!state.questionnaire.loading && state.questionnaire.teacherId) {
+      state.questionnaire.loading = true;
+      sendJson({ type: 'questionnaireRequest', role: 'student', teacherId: state.questionnaire.teacherId });
+    }
+    return;
+  }
+  els.questionnaireTitle.textContent = state.questionnaire.data.title || 'Fragebogen';
+  const scaleHint = state.questionnaire.data.scaleHint || '1 = trifft nicht zu, 5 = trifft voll zu';
+  const questions = Array.isArray(state.questionnaire.data.questions) ? state.questionnaire.data.questions : [];
+  if (!questions.length) {
+    els.questionnaireQuestions.innerHTML = '<div class="empty">Keine Fragen vorhanden.</div>';
+    return;
+  }
+  els.questionnaireQuestions.innerHTML = questions.map((q) => {
+    const current = state.questionnaire.answers[q.id];
+    return `
+      <div class="q-item">
+        <div>${q.text}</div>
+        <div class="rating" data-q="${q.id}">
+          ${[1,2,3,4,5].map((v) => `<button class="${current === v ? 'active' : ''}" data-val="${v}">${v}</button>`).join('')}
+        </div>
+        <div class="scale">${scaleHint}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+export function renderFeedbackInbox() {
+  if (!els.feedbackPanel) return;
+  if (!state.feedbackInbox || !state.feedbackInbox.length) {
+    els.feedbackPanel.style.display = 'block';
+    els.feedbackList.innerHTML = '<div class="empty">Keine Nachrichten</div>';
+    return;
+  }
+  els.feedbackPanel.style.display = 'block';
+  els.feedbackList.innerHTML = state.feedbackInbox.map((item) => {
+    const time = new Date(item.ts || Date.now()).toLocaleString();
+    const from = item.fromName || 'Lehrer';
+    const subject = item.subject || 'Fach';
+    const answers = (item.answers || []).map((a) => `${a.id}: ${a.value}`).join(' | ');
+    const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
+    return `
+      <div class="inbox-item">
+        <div><strong>${from}</strong> â€“ ${subject}</div>
+        <div class="small">${time}</div>
+        <div class="small">${answers}</div>
+        ${text}
+      </div>
+    `;
+  }).join('');
 }
 
 export function renderPoll() {
@@ -230,3 +330,4 @@ export function updateStatsMode() {
     requestSubjectStats();
   }
 }
+

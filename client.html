@@ -100,6 +100,14 @@
       font-size: 14px;
     }
     .course-list input { width: auto; }
+    .questionnaire { border: 1px solid #24304c; border-radius: 12px; padding: 12px; margin-top: 12px; background: rgba(255,255,255,0.03); }
+    .questionnaire h3 { margin: 0 0 8px; }
+    .questionnaire .q-item { margin-top: 10px; }
+    .questionnaire .scale { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .rating { display: flex; gap: 6px; margin-top: 6px; }
+    .rating button { padding: 6px 10px; border-radius: 8px; border: 1px solid #2b3652; background: #0c1424; color: var(--text); }
+    .rating button.active { background: var(--accent); color: #06110b; }
+    .inbox-item { border: 1px solid #24304c; border-radius: 10px; padding: 10px; margin-top: 8px; background: #0c1424; }
   </style>
 </head>
 <body>
@@ -219,7 +227,28 @@
       <div id="subjectStats" style="display:none">
         <div class="statbox" id="subjectGrid"></div>
         <div class="log" id="subjectDetail"><div class="empty">Fach anklicken, um Details zu sehen</div></div>
+        <div class="questionnaire" id="questionnairePanel" style="display:none;">
+          <div class="row" style="justify-content: space-between; align-items: center;">
+            <h3 id="questionnaireTitle">Fragebogen</h3>
+            <button id="questionnaireClose" class="ghost">SchlieÃŸen</button>
+          </div>
+          <label id="questionnaireTeacherRow" style="margin-top:6px;">
+            Lehrer
+            <select id="questionnaireTeacher"></select>
+          </label>
+          <div id="questionnaireQuestions"></div>
+          <label style="margin-top:10px;">
+            Nachricht
+            <textarea id="questionnaireText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          </label>
+          <button id="questionnaireSend" class="primary" style="margin-top:8px;">Absenden</button>
+        </div>
       </div>
+    </div>
+
+    <div class="panel" id="feedbackPanel" style="display:none;">
+      <h2>Postfach</h2>
+      <div id="feedbackList"><div class="empty">Keine Nachrichten</div></div>
     </div>
   </div>
 

@@ -9,6 +9,8 @@ import {
   renderClassStats,
   renderClassStudentStats,
   renderCurrentRoom,
+  renderFeedbackForm,
+  renderTeacherInbox,
   renderHomework,
   renderLog,
   renderMembers,
@@ -19,6 +21,7 @@ import {
   renderTeachings,
   renderThoughts,
   renderAdminPanel,
+  renderQuestionnaireEditor,
 } from './render.js';
 
 function handleMessage(msg) {
@@ -35,10 +38,15 @@ function handleMessage(msg) {
     renderTeachings();
     renderCodes();
     renderAdminPanel();
+    renderFeedbackForm();
+    renderTeacherInbox();
     updateLayout();
     localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(state.profile));
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       sendJson({ type: 'homeworkListRequest' });
+      sendJson({ type: 'feedbackInboxRequest' });
+      sendJson({ type: 'questionnaireRequest', role: 'student' });
+      sendJson({ type: 'questionnaireRequest', role: 'teacher' });
       if (state.profile.role === 'admin') {
         sendJson({ type: 'pendingTeachersRequest' });
         sendJson({ type: 'teacherCodeRequest' });
@@ -90,6 +98,7 @@ function handleMessage(msg) {
     state.classStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', students: msg.students || [] };
     state.classStudentStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', student: null, sessions: [] };
     renderClassStats();
+    renderFeedbackForm();
     updateLayout();
   }
   if (msg.type === 'classStudentStats') {
@@ -167,11 +176,34 @@ function handleMessage(msg) {
     state.bans = { emails: msg.emails || [], ips: msg.ips || [] };
     renderAdminPanel();
   }
+  if (msg.type === 'questionnaire') {
+    if (msg.role === 'student') {
+      state.questionnaireStudent = msg.data || null;
+    } else if (msg.role === 'teacher') {
+      state.questionnaireTeacher = msg.data || null;
+      state.feedbackAnswers = {};
+      renderFeedbackForm();
+    }
+    renderQuestionnaireEditor();
+  }
+  if (msg.type === 'feedbackInbox' && msg.role === 'teacher') {
+    state.teacherInbox = msg.items || [];
+    renderTeacherInbox();
+  }
   if (msg.type === 'teacherApproved') {
     setAuthStatus('Admin hat deinen Account freigegeben.');
   }
   if (msg.type === 'teacherDenied') {
     setAuthStatus('Admin hat den Account abgelehnt.');
+  }
+  if (msg.type === 'questionnaireSaved') {
+    if (msg.role === 'student') {
+      state.questionnaireStudent = msg.data || null;
+    } else if (msg.role === 'teacher') {
+      state.questionnaireTeacher = msg.data || null;
+      renderFeedbackForm();
+    }
+    renderQuestionnaireEditor();
   }
   if (msg.type === 'questionList' && msg.roomId === state.currentRoom) {
     state.questions = msg.questions || [];
