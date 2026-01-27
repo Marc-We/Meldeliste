@@ -128,6 +128,7 @@ const importantMap = new Map(); // roomId -> Set<userId>
 const questionsMap = new Map(); // roomId -> [{id,text,ts}]
 const pollsMap = new Map(); // roomId -> {id, question, options:[{id,text,count}], multiple, votes: Map<userId, string[]>}
 const thoughtsMap = new Map(); // roomId -> {active:boolean, entries:string[]}
+const roomQuestionnaires = new Map(); // roomId -> {teacherId, subject, slot, activeAt}
 const homeworkMap = homework; // alias for clarity
 
 function normalizeHomework(entry) {
@@ -499,18 +500,34 @@ function isBanned(email, ip) {
   return false;
 }
 
-function questionnairePath(role, teacherId) {
+function questionnairePath(role, teacherId, slot) {
   const safeRole = role === 'teacher' ? 'teacher' : 'student';
-  if (teacherId) return path.join(QUESTIONNAIRES_TEACHER_DIR, `${teacherId}.${safeRole}.json`);
+  const safeSlot = (slot === 'extra1' || slot === 'extra2') ? slot : '';
+  if (teacherId) {
+    if (safeRole === 'student' && safeSlot) {
+      return path.join(QUESTIONNAIRES_TEACHER_DIR, `${teacherId}.${safeRole}.${safeSlot}.json`);
+    }
+    return path.join(QUESTIONNAIRES_TEACHER_DIR, `${teacherId}.${safeRole}.json`);
+  }
   return path.join(QUESTIONNAIRES_DIR, `default.${safeRole}.json`);
 }
 
-function loadQuestionnaire(role, teacherId) {
-  const teacherPath = teacherId ? questionnairePath(role, teacherId) : null;
+function loadQuestionnaire(role, teacherId, slot) {
+  const teacherPath = teacherId ? questionnairePath(role, teacherId, slot) : null;
   if (teacherPath && fs.existsSync(teacherPath)) {
     return loadJson(teacherPath, null);
   }
-  const fallback = loadJson(questionnairePath(role, ''), {
+  if (teacherId && slot) {
+    return {
+      title: 'Fragebogen',
+      scaleHint: '1 = trifft nicht zu, 5 = trifft voll zu',
+      scaleType: 'scale',
+      scaleMin: 1,
+      scaleMax: 5,
+      questions: [],
+    };
+  }
+  const fallback = loadJson(questionnairePath(role, '', ''), {
     title: 'Fragebogen',
     scaleHint: '1 = trifft nicht zu, 5 = trifft voll zu',
     scaleType: 'scale',
@@ -521,7 +538,7 @@ function loadQuestionnaire(role, teacherId) {
   return fallback;
 }
 
-function saveQuestionnaire(role, teacherId, data) {
+function saveQuestionnaire(role, teacherId, data, slot) {
   const safeRole = role === 'teacher' ? 'teacher' : 'student';
   const title = String(data?.title || '').trim() || (safeRole === 'teacher' ? 'Feedback' : 'Fragebogen');
   const scaleType = data?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -531,11 +548,23 @@ function saveQuestionnaire(role, teacherId, data) {
     || (scaleType === 'yesno' ? 'Ja / Nein' : `${scaleMin} = trifft nicht zu, ${scaleMax} = trifft voll zu`);
   const rawQuestions = Array.isArray(data?.questions) ? data.questions : [];
   const questions = rawQuestions
-    .map((q, idx) => ({
-      id: String(q?.id || `q${idx + 1}`).trim(),
-      text: String(q?.text || '').trim(),
-      hint: String(q?.hint || '').trim(),
-    }))
+    .map((q, idx) => {
+      const question = {
+        id: String(q?.id || `q${idx + 1}`).trim(),
+        text: String(q?.text || '').trim(),
+        hint: String(q?.hint || '').trim(),
+      };
+      if (q?.scaleType === 'yesno' || q?.scaleType === 'scale') {
+        question.scaleType = q.scaleType;
+      }
+      if (Number.isFinite(Number(q?.scaleMin))) {
+        question.scaleMin = Number(q.scaleMin);
+      }
+      if (Number.isFinite(Number(q?.scaleMax))) {
+        question.scaleMax = Number(q.scaleMax);
+      }
+      return question;
+    })
     .filter((q) => q.id && q.text);
   const payload = {
     title,
@@ -545,9 +574,28 @@ function saveQuestionnaire(role, teacherId, data) {
     scaleMax: scaleType === 'scale' ? Math.max(scaleMin, scaleMax) : 5,
     questions,
   };
-  const filePath = questionnairePath(safeRole, teacherId);
+  const filePath = questionnairePath(safeRole, teacherId, slot);
   saveJson(filePath, payload);
   return payload;
+}
+
+function resolveQuestionScale(questionnaire, question) {
+  const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
+  const qType = question?.scaleType === 'yesno' ? 'yesno' : (question?.scaleType === 'scale' ? 'scale' : '');
+  const qMin = Number.isFinite(Number(question?.scaleMin)) ? Number(question.scaleMin) : null;
+  const qMax = Number.isFinite(Number(question?.scaleMax)) ? Number(question.scaleMax) : null;
+  if (qType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  if (qMin !== null && qMax !== null) {
+    return { type: 'scale', min: Math.min(qMin, qMax), max: Math.max(qMin, qMax) };
+  }
+  if (globalType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  return { type: 'scale', min: Math.min(globalMin, globalMax), max: Math.max(globalMin, globalMax) };
 }
 
 function getFeedbackInbox(role, userId) {
@@ -580,6 +628,20 @@ function sendTeacherInbox(userId) {
 function sendStudentInbox(userId) {
   const list = getFeedbackInbox('student', userId);
   sendToUser(userId, { type: 'feedbackInbox', role: 'student', items: list });
+}
+
+function sendActiveQuestionnaireTo(ws, roomId) {
+  if (!ws || ws.readyState !== ws.OPEN) return;
+  const active = roomQuestionnaires.get(roomId);
+  if (!active) return;
+  ws.send(JSON.stringify({
+    type: 'questionnaireActive',
+    roomId,
+    active: true,
+    teacherId: active.teacherId,
+    subject: active.subject,
+    slot: active.slot,
+  }));
 }
 
 function isStudentAllowedInRoom(user, room) {
@@ -1361,6 +1423,10 @@ wss.on('connection', (ws, req) => {
       roomStats.set(roomId, statsEntry);
       saveRoomStats();
       broadcastRoom(roomId, { type: 'roomClosed', roomId });
+      if (roomQuestionnaires.has(roomId)) {
+        roomQuestionnaires.delete(roomId);
+        broadcastRoom(roomId, { type: 'questionnaireActive', roomId, active: false });
+      }
       wss.clients.forEach((client) => sendRoomList(client));
       return;
     }
@@ -1580,15 +1646,19 @@ wss.on('connection', (ws, req) => {
 
     if (type === 'questionnaireRequest') {
       const role = msg.role === 'teacher' ? 'teacher' : 'student';
+      const slot = (msg.slot === 'extra1' || msg.slot === 'extra2') ? msg.slot : '';
       let teacherId = '';
       if (role === 'student') {
         teacherId = String(msg.teacherId || '').trim();
+        if (!teacherId && (ws.role === 'teacher' || ws.role === 'admin')) {
+          teacherId = ws.userId;
+        }
         if (!teacherId) return;
       } else {
         teacherId = ws.userId;
       }
-      const data = loadQuestionnaire(role, teacherId);
-      ws.send(JSON.stringify({ type: 'questionnaire', role, teacherId, data }));
+      const data = loadQuestionnaire(role, teacherId, slot);
+      ws.send(JSON.stringify({ type: 'questionnaire', role, teacherId, slot, data }));
       return;
     }
 
@@ -1603,9 +1673,10 @@ wss.on('connection', (ws, req) => {
 
     if (type === 'questionnaireSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const role = msg.role === 'teacher' ? 'teacher' : 'student';
+      const slot = (role === 'student' && (msg.slot === 'extra1' || msg.slot === 'extra2')) ? msg.slot : '';
       const teacherId = ws.userId;
-      const data = saveQuestionnaire(role, teacherId, msg.data || {});
-      ws.send(JSON.stringify({ type: 'questionnaireSaved', role, teacherId, data }));
+      const data = saveQuestionnaire(role, teacherId, msg.data || {}, slot);
+      ws.send(JSON.stringify({ type: 'questionnaireSaved', role, teacherId, slot, data }));
       return;
     }
 
@@ -1613,23 +1684,33 @@ wss.on('connection', (ws, req) => {
       const teacherId = String(msg.teacherId || '').trim();
       const subject = String(msg.subject || '').trim() || 'default';
       const text = String(msg.text || '').trim();
+      const slot = (msg.slot === 'extra1' || msg.slot === 'extra2') ? msg.slot : '';
       const answers = Array.isArray(msg.answers) ? msg.answers : [];
       if (!teacherId || !answers.length) return;
-      const questionnaire = loadQuestionnaire('student', teacherId);
+      if (slot) {
+        const active = roomQuestionnaires.get(ws.roomId);
+        if (!active || active.teacherId !== teacherId || active.slot !== slot) return;
+      }
+      const questionnaire = loadQuestionnaire('student', teacherId, slot);
       const qList = Array.isArray(questionnaire?.questions) ? questionnaire.questions : [];
       if (!qList.length) return;
-      const scaleType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
-      const min = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
-      const max = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
+      const qMap = new Map(qList.map((q) => [q.id, q]));
       const valid = answers.every((a) => {
         const val = Number(a.value);
         if (!Number.isFinite(val)) return false;
-        if (scaleType === 'yesno') return val === 1 || val === 0;
-        return val >= min && val <= max;
+        const q = qMap.get(a.id);
+        if (!q) return false;
+        const scale = resolveQuestionScale(questionnaire, q);
+        if (scale.type === 'yesno') return val === 1 || val === 0;
+        return val >= scale.min && val <= scale.max;
       });
       if (!valid || answers.length < qList.length) return;
       const teacher = users.get(teacherId);
       if (!teacher || (teacher.role !== 'teacher' && teacher.role !== 'admin')) return;
+      const answersDetailed = answers.map((a) => {
+        const q = qMap.get(a.id);
+        return { id: a.id, text: q?.text || a.id, value: a.value };
+      });
       const entry = {
         id: genId('fb'),
         ts: Date.now(),
@@ -1637,8 +1718,10 @@ wss.on('connection', (ws, req) => {
         fromName: user?.name || 'Unbekannt',
         subject,
         answers,
+        answersDetailed,
         text,
         questionnaireTitle: questionnaire?.title || 'Fragebogen',
+        questionnaireSlot: slot || 'default',
       };
       pushFeedbackInbox('teacher', teacherId, entry);
       sendTeacherInbox(teacherId);
@@ -1651,21 +1734,26 @@ wss.on('connection', (ws, req) => {
       const text = String(msg.text || '').trim();
       const answers = Array.isArray(msg.answers) ? msg.answers : [];
       if (!studentId || !answers.length) return;
-      const questionnaire = loadQuestionnaire('teacher', ws.userId);
+      const questionnaire = loadQuestionnaire('teacher', ws.userId, '');
       const qList = Array.isArray(questionnaire?.questions) ? questionnaire.questions : [];
       if (!qList.length) return;
-      const scaleType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
-      const min = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
-      const max = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
+      const qMap = new Map(qList.map((q) => [q.id, q]));
       const valid = answers.every((a) => {
         const val = Number(a.value);
         if (!Number.isFinite(val)) return false;
-        if (scaleType === 'yesno') return val === 1 || val === 0;
-        return val >= min && val <= max;
+        const q = qMap.get(a.id);
+        if (!q) return false;
+        const scale = resolveQuestionScale(questionnaire, q);
+        if (scale.type === 'yesno') return val === 1 || val === 0;
+        return val >= scale.min && val <= scale.max;
       });
       if (!valid || answers.length < qList.length) return;
       const target = users.get(studentId);
       if (!target || target.role !== 'student') return;
+      const answersDetailed = answers.map((a) => {
+        const q = qMap.get(a.id);
+        return { id: a.id, text: q?.text || a.id, value: a.value };
+      });
       const entry = {
         id: genId('fb'),
         ts: Date.now(),
@@ -1673,11 +1761,31 @@ wss.on('connection', (ws, req) => {
         fromName: user?.name || 'Lehrer',
         subject,
         answers,
+        answersDetailed,
         text,
         questionnaireTitle: questionnaire?.title || 'Feedback',
       };
       pushFeedbackInbox('student', studentId, entry);
       sendStudentInbox(studentId);
+      return;
+    }
+
+    if (type === 'feedbackDelete') {
+      const id = String(msg.id || '').trim();
+      if (!id) return;
+      if (ws.role === 'teacher' || ws.role === 'admin') {
+        if (!feedback.teacher) feedback.teacher = {};
+        const list = Array.isArray(feedback.teacher[ws.userId]) ? feedback.teacher[ws.userId] : [];
+        feedback.teacher[ws.userId] = list.filter((item) => item.id !== id);
+        saveFeedback();
+        sendTeacherInbox(ws.userId);
+      } else if (ws.role === 'student') {
+        if (!feedback.student) feedback.student = {};
+        const list = Array.isArray(feedback.student[ws.userId]) ? feedback.student[ws.userId] : [];
+        feedback.student[ws.userId] = list.filter((item) => item.id !== id);
+        saveFeedback();
+        sendStudentInbox(ws.userId);
+      }
       return;
     }
 
@@ -1945,6 +2053,7 @@ wss.on('connection', (ws, req) => {
         broadcastQuestions(roomId);
         broadcastPoll(roomId);
       }
+      sendActiveQuestionnaireTo(ws, roomId);
       return;
     }
 
@@ -2147,6 +2256,34 @@ wss.on('connection', (ws, req) => {
       poll.open = false;
       pollsMap.set(roomId, poll);
       broadcastPoll(roomId);
+      return;
+    }
+
+    if (type === 'questionnaireActivate' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const slot = (msg.slot === 'extra1' || msg.slot === 'extra2') ? msg.slot : '';
+      if (!roomId || !slot) return;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      if (room.teacherId && room.teacherId !== ws.userId && ws.role !== 'admin') return;
+      const entry = {
+        teacherId: ws.userId,
+        subject: room.subject || 'default',
+        slot,
+        activeAt: Date.now(),
+      };
+      roomQuestionnaires.set(roomId, entry);
+      broadcastRoom(roomId, { type: 'questionnaireActive', roomId, active: true, teacherId: entry.teacherId, subject: entry.subject, slot: entry.slot });
+      return;
+    }
+
+    if (type === 'questionnaireDeactivate' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      if (!roomId) return;
+      const active = roomQuestionnaires.get(roomId);
+      if (active && active.teacherId !== ws.userId && ws.role !== 'admin') return;
+      roomQuestionnaires.delete(roomId);
+      broadcastRoom(roomId, { type: 'questionnaireActive', roomId, active: false });
       return;
     }
 

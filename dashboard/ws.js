@@ -22,6 +22,7 @@ import {
   renderThoughts,
   renderAdminPanel,
   renderQuestionnaireEditor,
+  renderQuestionnaireBroadcast,
 } from './render.js';
 
 function handleMessage(msg) {
@@ -40,6 +41,7 @@ function handleMessage(msg) {
     renderAdminPanel();
     renderFeedbackForm();
     renderTeacherInbox();
+    renderQuestionnaireBroadcast();
     updateLayout();
     localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(state.profile));
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -178,6 +180,8 @@ function handleMessage(msg) {
   }
   if (msg.type === 'questionnaire') {
     if (msg.role === 'student') {
+      const slot = msg.slot || 'default';
+      if (els.questionnaireSlotSelect && els.questionnaireSlotSelect.value !== slot) return;
       state.questionnaireStudent = msg.data || null;
     } else if (msg.role === 'teacher') {
       state.questionnaireTeacher = msg.data || null;
@@ -185,6 +189,10 @@ function handleMessage(msg) {
       renderFeedbackForm();
     }
     renderQuestionnaireEditor();
+  }
+  if (msg.type === 'questionnaireActive') {
+    state.activeQuestionnaire = msg.active ? msg : null;
+    renderQuestionnaireBroadcast();
   }
   if (msg.type === 'feedbackInbox' && msg.role === 'teacher') {
     state.teacherInbox = msg.items || [];
@@ -198,6 +206,8 @@ function handleMessage(msg) {
   }
   if (msg.type === 'questionnaireSaved') {
     if (msg.role === 'student') {
+      const slot = msg.slot || 'default';
+      if (els.questionnaireSlotSelect && els.questionnaireSlotSelect.value !== slot) return;
       state.questionnaireStudent = msg.data || null;
     } else if (msg.role === 'teacher') {
       state.questionnaireTeacher = msg.data || null;

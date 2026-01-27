@@ -4,6 +4,39 @@ import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout, flashSend } from './ui.js';
 import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts } from './render.js';
 
+function resolveQuestionScale(questionnaire, question) {
+  const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
+  const qType = question?.scaleType === 'yesno' ? 'yesno' : (question?.scaleType === 'scale' ? 'scale' : '');
+  const qMin = Number.isFinite(Number(question?.scaleMin)) ? Number(question.scaleMin) : null;
+  const qMax = Number.isFinite(Number(question?.scaleMax)) ? Number(question.scaleMax) : null;
+  if (qType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  if (qMin !== null && qMax !== null) {
+    return { type: 'scale', min: Math.min(qMin, qMax), max: Math.max(qMin, qMax) };
+  }
+  if (globalType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  return { type: 'scale', min: Math.min(globalMin, globalMax), max: Math.max(globalMin, globalMax) };
+}
+
+function parseScaleLine(line) {
+  const raw = String(line || '').trim().toLowerCase();
+  if (!raw) return null;
+  if (raw.includes('ja') || raw.includes('yes') || raw.includes('nein') || raw.includes('no')) {
+    return { scaleType: 'yesno', scaleMin: 0, scaleMax: 1 };
+  }
+  const nums = raw.match(/-?\d+/g);
+  if (!nums || nums.length < 2) return null;
+  const min = Number(nums[0]);
+  const max = Number(nums[1]);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  return { scaleType: 'scale', scaleMin: Math.min(min, max), scaleMax: Math.max(min, max) };
+}
+
 export function bindHandlers() {
   els.saveProfileBtn.onclick = () => {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
@@ -211,14 +244,14 @@ export function bindHandlers() {
       const questions = Array.isArray(state.questionnaireTeacher?.questions) ? state.questionnaireTeacher.questions : [];
       if (!studentId || !questions.length) return;
       const answers = questions.map((q) => ({ id: q.id, value: state.feedbackAnswers[q.id] }));
-      const scaleType = state.questionnaireTeacher?.scaleType === 'yesno' ? 'yesno' : 'scale';
-      const scaleMin = Number.isFinite(Number(state.questionnaireTeacher?.scaleMin)) ? Number(state.questionnaireTeacher.scaleMin) : 1;
-      const scaleMax = Number.isFinite(Number(state.questionnaireTeacher?.scaleMax)) ? Number(state.questionnaireTeacher.scaleMax) : 5;
       const missing = answers.some((a) => {
         const val = Number(a.value);
         if (!Number.isFinite(val)) return true;
-        if (scaleType === 'yesno') return !(val === 0 || val === 1);
-        return val < scaleMin || val > scaleMax;
+        const q = questions.find((qItem) => qItem.id === a.id);
+        if (!q) return true;
+        const scale = resolveQuestionScale(state.questionnaireTeacher, q);
+        if (scale.type === 'yesno') return !(val === 0 || val === 1);
+        return val < scale.min || val > scale.max;
       });
       if (missing) return;
       const text = els.feedbackText.value.trim();
@@ -231,7 +264,19 @@ export function bindHandlers() {
   if (els.questionnaireTypeSelect) {
     els.questionnaireTypeSelect.onchange = () => {
       const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
-      sendJson({ type: 'questionnaireRequest', role });
+      if (els.questionnaireSlotSelect) {
+        els.questionnaireSlotSelect.style.display = role === 'student' ? '' : 'none';
+      }
+      const slot = role === 'student' ? (els.questionnaireSlotSelect?.value || 'default') : '';
+      sendJson({ type: 'questionnaireRequest', role, slot });
+    };
+  }
+  if (els.questionnaireSlotSelect) {
+    els.questionnaireSlotSelect.onchange = () => {
+      const role = els.questionnaireTypeSelect?.value === 'teacher' ? 'teacher' : 'student';
+      if (role !== 'student') return;
+      const slot = els.questionnaireSlotSelect.value || 'default';
+      sendJson({ type: 'questionnaireRequest', role, slot });
     };
   }
   if (els.questionnaireScaleType) {
@@ -245,7 +290,8 @@ export function bindHandlers() {
     els.questionnaireLoadBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
       const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
-      sendJson({ type: 'questionnaireRequest', role });
+      const slot = role === 'student' ? (els.questionnaireSlotSelect?.value || 'default') : '';
+      sendJson({ type: 'questionnaireRequest', role, slot });
       flashSend(els.questionnaireLoadBtn);
     };
   }
@@ -256,12 +302,40 @@ export function bindHandlers() {
       const title = (els.questionnaireTitleInput.value || '').trim();
       const lines = (els.questionnaireQuestionsInput.value || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
       const hints = (els.questionnaireHintsInput?.value || '').split(/\r?\n/).map((l) => l.trim());
-      const questions = lines.map((text, idx) => ({ id: `q${idx + 1}`, text, hint: hints[idx] || '' }));
+      const scaleLines = (els.questionnaireScaleLines?.value || '').split(/\r?\n/).map((l) => l.trim());
+      const questions = lines.map((text, idx) => {
+        const question = { id: `q${idx + 1}`, text, hint: hints[idx] || '' };
+        const scale = parseScaleLine(scaleLines[idx]);
+        if (scale) {
+          question.scaleType = scale.scaleType;
+          question.scaleMin = scale.scaleMin;
+          question.scaleMax = scale.scaleMax;
+        }
+        return question;
+      });
       const scaleType = els.questionnaireScaleType?.value === 'yesno' ? 'yesno' : 'scale';
       const scaleMin = Number(els.questionnaireScaleMin?.value || 1);
       const scaleMax = Number(els.questionnaireScaleMax?.value || 5);
-      sendJson({ type: 'questionnaireSave', role, data: { title, questions, scaleType, scaleMin, scaleMax } });
+      const slot = role === 'student' ? (els.questionnaireSlotSelect?.value || 'default') : '';
+      sendJson({ type: 'questionnaireSave', role, slot, data: { title, questions, scaleType, scaleMin, scaleMax } });
       flashSend(els.questionnaireSaveBtn);
+    };
+  }
+  if (els.questionnaireBroadcastStart) {
+    els.questionnaireBroadcastStart.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      if (!state.currentRoom) return;
+      const slot = els.questionnaireBroadcastSlot?.value === 'extra2' ? 'extra2' : 'extra1';
+      sendJson({ type: 'questionnaireActivate', roomId: state.currentRoom, slot });
+      flashSend(els.questionnaireBroadcastStart);
+    };
+  }
+  if (els.questionnaireBroadcastEnd) {
+    els.questionnaireBroadcastEnd.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      if (!state.currentRoom) return;
+      sendJson({ type: 'questionnaireDeactivate', roomId: state.currentRoom });
+      flashSend(els.questionnaireBroadcastEnd);
     };
   }
 

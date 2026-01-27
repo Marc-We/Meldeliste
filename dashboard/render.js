@@ -12,10 +12,29 @@ function formatDuration(start) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function resolveQuestionScale(questionnaire, question) {
+  const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
+  const qType = question?.scaleType === 'yesno' ? 'yesno' : (question?.scaleType === 'scale' ? 'scale' : '');
+  const qMin = Number.isFinite(Number(question?.scaleMin)) ? Number(question.scaleMin) : null;
+  const qMax = Number.isFinite(Number(question?.scaleMax)) ? Number(question.scaleMax) : null;
+  if (qType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  if (qMin !== null && qMax !== null) {
+    return { type: 'scale', min: Math.min(qMin, qMax), max: Math.max(qMin, qMax) };
+  }
+  if (globalType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  return { type: 'scale', min: Math.min(globalMin, globalMax), max: Math.max(globalMin, globalMax) };
+}
+
 export function renderRooms() {
   els.roomListEl.innerHTML = '';
   if (!state.rooms.length) {
-    els.roomListEl.innerHTML = '<div class="small">Keine RÃ¤ume vorhanden</div>';
+    els.roomListEl.innerHTML = '<div class="small">Keine Räume vorhanden</div>';
     return;
   }
   state.rooms.forEach((room) => {
@@ -29,8 +48,8 @@ export function renderRooms() {
       </div>
       <div class="meta">Klassen: ${classesLabel}</div>
       <div class="row">
-        <button class="ghost" data-join="${room.id}" ${room.active === false ? 'disabled' : ''}>Ã–ffnen</button>
-        <button class="danger" data-close="${room.id}" ${room.active === false ? 'disabled' : ''}>SchlieÃŸen</button>
+        <button class="ghost" data-join="${room.id}" ${room.active === false ? 'disabled' : ''}>Öffnen</button>
+        <button class="danger" data-close="${room.id}" ${room.active === false ? 'disabled' : ''}>Schließen</button>
       </div>
     `;
     els.roomListEl.appendChild(card);
@@ -59,8 +78,8 @@ export function renderRooms() {
 
 export function renderCatalogs() {
   const cls = state.classCatalog.length ? state.classCatalog.join(', ') : 'Keine Klassen';
-  const subs = state.subjectCatalog.length ? state.subjectCatalog.join(', ') : 'Keine FÃ¤cher';
-  els.catalogInfo.textContent = `Klassen: ${cls} | FÃ¤cher: ${subs}`;
+  const subs = state.subjectCatalog.length ? state.subjectCatalog.join(', ') : 'Keine Fächer';
+  els.catalogInfo.textContent = `Klassen: ${cls} | Fächer: ${subs}`;
 
   const fillSelect = (el, data, label) => {
     const prev = el.value;
@@ -82,8 +101,8 @@ export function renderCatalogs() {
     }).join('');
   };
 
-  fillSelect(els.roomSubjectInput, state.subjectCatalog, 'Fach wÃ¤hlen');
-  fillSelect(els.teachSubjectSelect, state.subjectCatalog, 'Fach wÃ¤hlen');
+  fillSelect(els.roomSubjectInput, state.subjectCatalog, 'Fach wählen');
+  fillSelect(els.teachSubjectSelect, state.subjectCatalog, 'Fach wählen');
   if (els.codeClassSelect) fillSelect(els.codeClassSelect, state.classCatalog, 'Klasse waehlen');
   fillChecklist(els.roomClassList, state.classCatalog);
   fillChecklist(els.teachClassList, state.classCatalog);
@@ -146,7 +165,7 @@ export function renderAdminPanel() {
   }
   if (els.moveStudentSelect) {
     const prev = els.moveStudentSelect.value;
-    els.moveStudentSelect.innerHTML = '<option value="">SchÃ¼ler wÃ¤hlen</option>';
+    els.moveStudentSelect.innerHTML = '<option value="">Schüler wählen</option>';
     (state.adminStudents || []).forEach((s) => {
       const opt = document.createElement('option');
       opt.value = s.id;
@@ -159,7 +178,7 @@ export function renderAdminPanel() {
   }
   if (els.moveClassSelect) {
     const prevClass = els.moveClassSelect.value;
-    els.moveClassSelect.innerHTML = '<option value="">Klasse wÃ¤hlen</option>';
+    els.moveClassSelect.innerHTML = '<option value="">Klasse wählen</option>';
     (state.classCatalog || []).forEach((cls) => {
       const opt = document.createElement('option');
       opt.value = cls;
@@ -174,7 +193,7 @@ export function renderAdminPanel() {
     const emails = (state.bans && Array.isArray(state.bans.emails)) ? state.bans.emails : [];
     const ips = (state.bans && Array.isArray(state.bans.ips)) ? state.bans.ips : [];
     if (!emails.length && !ips.length) {
-      els.banList.innerHTML = 'Keine EintrÃ¤ge';
+      els.banList.innerHTML = 'Keine Einträge';
     } else {
       const emailRows = emails.map((e) => `<div class="row" style="justify-content: space-between; align-items:center; margin-top:4px;"><div>${e}</div><button class="ghost" data-unban-email="${e}">Entfernen</button></div>`).join('');
       const ipRows = ips.map((ip) => `<div class="row" style="justify-content: space-between; align-items:center; margin-top:4px;"><div>${ip}</div><button class="ghost" data-unban-ip="${ip}">Entfernen</button></div>`).join('');
@@ -210,19 +229,32 @@ export function renderTeacherInbox() {
   }
   els.teacherInbox.innerHTML = state.teacherInbox.map((item) => {
     const time = new Date(item.ts || Date.now()).toLocaleString();
-    const from = item.fromName || 'SchÃ¼ler';
+    const from = item.fromName || 'Schüler';
     const subject = item.subject || 'Fach';
-    const answers = (item.answers || []).map((a) => `${a.id}: ${a.value}`).join(' | ');
+    const answersList = Array.isArray(item.answersDetailed) ? item.answersDetailed : (item.answers || []);
+    const qMap = new Map((state.questionnaireStudent?.questions || []).map((q) => [q.id, q.text]));
+    const answers = answersList.map((a) => `${a.text || qMap.get(a.id) || a.id}: ${a.value}`).join(' | ');
     const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
+    const deleteBtn = item.id ? `<button class="ghost" data-delete="${item.id}">Löschen</button>` : '';
     return `
       <div class="inbox-item">
-        <div><strong>${from}</strong> ${subject}</div>
+        <div class="row" style="justify-content: space-between; align-items:center;">
+          <div><strong>${from}</strong> ${subject}</div>
+          ${deleteBtn}
+        </div>
         <div class="small">${time}</div>
         <div class="small">${answers}</div>
         ${text}
       </div>
     `;
   }).join('');
+  els.teacherInbox.querySelectorAll('[data-delete]').forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-delete');
+      if (!id) return;
+      sendJson({ type: 'feedbackDelete', id });
+    };
+  });
 }
 
 export function renderFeedbackForm() {
@@ -232,7 +264,7 @@ export function renderFeedbackForm() {
   }
   if (els.feedbackStudentSelect) {
     const prev = els.feedbackStudentSelect.value;
-    els.feedbackStudentSelect.innerHTML = '<option value="">SchÃ¼ler wÃ¤hlen</option>';
+    els.feedbackStudentSelect.innerHTML = '<option value="">Schüler wählen</option>';
     const list = Array.isArray(state.classStats.students) ? state.classStats.students : [];
     list.forEach((s) => {
       const opt = document.createElement('option');
@@ -249,15 +281,16 @@ export function renderFeedbackForm() {
     els.feedbackQuestions.innerHTML = '<div class="small">Kein Feedback-Fragebogen vorhanden.</div>';
     return;
   }
-  const scaleType = state.questionnaireTeacher?.scaleType === 'yesno' ? 'yesno' : 'scale';
-  const scaleMin = Number.isFinite(Number(state.questionnaireTeacher?.scaleMin)) ? Number(state.questionnaireTeacher.scaleMin) : 1;
-  const scaleMax = Number.isFinite(Number(state.questionnaireTeacher?.scaleMax)) ? Number(state.questionnaireTeacher.scaleMax) : 5;
-  const scaleHint = state.questionnaireTeacher?.scaleHint || (scaleType === 'yesno' ? 'Ja / Nein' : `${scaleMin} = trifft nicht zu, ${scaleMax} = trifft voll zu`);
+  const globalType = state.questionnaireTeacher?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(state.questionnaireTeacher?.scaleMin)) ? Number(state.questionnaireTeacher.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(state.questionnaireTeacher?.scaleMax)) ? Number(state.questionnaireTeacher.scaleMax) : 5;
+  const scaleHint = state.questionnaireTeacher?.scaleHint || (globalType === 'yesno' ? 'Ja / Nein' : `${globalMin} = trifft nicht zu, ${globalMax} = trifft voll zu`);
   els.feedbackQuestions.innerHTML = questions.map((q) => {
     const current = state.feedbackAnswers[q.id];
-    const hint = q.hint || scaleHint;
-    const options = scaleType === 'yesno' ? [{ label: 'Ja', value: 1 }, { label: 'Nein', value: 0 }] : Array.from({ length: Math.max(1, scaleMax - scaleMin + 1) }).map((_, idx) => {
-      const v = scaleMin + idx;
+    const scale = resolveQuestionScale(state.questionnaireTeacher, q);
+    const hint = q.hint || (scale.type === 'yesno' ? 'Ja / Nein' : `${scale.min} = trifft nicht zu, ${scale.max} = trifft voll zu`) || scaleHint;
+    const options = scale.type === 'yesno' ? [{ label: 'Ja', value: 1 }, { label: 'Nein', value: 0 }] : Array.from({ length: Math.max(1, scale.max - scale.min + 1) }).map((_, idx) => {
+      const v = scale.min + idx;
       return { label: String(v), value: v };
     });
     return `
@@ -276,6 +309,9 @@ export function renderQuestionnaireEditor() {
   if (!els.questionnaireTypeSelect) return;
   const type = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
   const data = type === 'teacher' ? state.questionnaireTeacher : state.questionnaireStudent;
+  if (els.questionnaireSlotSelect) {
+    els.questionnaireSlotSelect.style.display = type === 'student' ? '' : 'none';
+  }
   if (data) {
     if (els.questionnaireTitleInput) els.questionnaireTitleInput.value = data.title || '';
     if (els.questionnaireQuestionsInput) {
@@ -285,6 +321,18 @@ export function renderQuestionnaireEditor() {
     if (els.questionnaireHintsInput) {
       const hints = Array.isArray(data.questions) ? data.questions.map((q) => q.hint || '').join('\n') : '';
       els.questionnaireHintsInput.value = hints;
+    }
+    if (els.questionnaireScaleLines) {
+      const lines = Array.isArray(data.questions)
+        ? data.questions.map((q) => {
+          if (q.scaleType === 'yesno') return 'ja/nein';
+          if (Number.isFinite(Number(q.scaleMin)) && Number.isFinite(Number(q.scaleMax))) {
+            return `${q.scaleMin}-${q.scaleMax}`;
+          }
+          return '';
+        }).join('\n')
+        : '';
+      els.questionnaireScaleLines.value = lines;
     }
     if (els.questionnaireScaleType) {
       els.questionnaireScaleType.value = data.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -303,10 +351,20 @@ export function renderQuestionnaireEditor() {
   }
 }
 
+export function renderQuestionnaireBroadcast() {
+  if (!els.questionnaireBroadcastStatus) return;
+  if (!state.activeQuestionnaire || !state.activeQuestionnaire.active) {
+    els.questionnaireBroadcastStatus.textContent = 'Kein Fragebogen aktiv';
+    return;
+  }
+  const slotLabel = state.activeQuestionnaire.slot === 'extra2' ? 'Extra 2' : 'Extra 1';
+  els.questionnaireBroadcastStatus.textContent = `Aktiv: ${slotLabel}`;
+}
+
 export function renderTeachings() {
   const list = Array.isArray(state.profile.teachings) ? state.profile.teachings : [];
   if (!list.length) {
-    els.teachingsList.innerHTML = '<div class="small">Keine EintrÃ¤ge</div>';
+    els.teachingsList.innerHTML = '<div class="small">Keine Einträge</div>';
     return;
   }
   const classesLabel = (t) => Array.isArray(t.classNames) && t.classNames.length ? t.classNames.join(', ') : (t.className || '');
@@ -348,16 +406,24 @@ export function renderTeachings() {
 export function renderCurrentRoom() {
   const room = state.rooms.find((r) => r.id === state.currentRoom);
   if (!room) {
-    els.currentRoomInfo.textContent = 'Kein Raum ausgewÃ¤hlt';
+    if (state.activeQuestionnaire) {
+      state.activeQuestionnaire = null;
+      renderQuestionnaireBroadcast();
+    }
+    els.currentRoomInfo.textContent = 'Kein Raum ausgewählt';
     els.closeRoomBtn.disabled = true;
     els.membersBoard.innerHTML = '';
-    els.logBox.innerHTML = '<div class="small">Noch keine EintrÃ¤ge</div>';
+    els.logBox.innerHTML = '<div class="small">Noch keine Einträge</div>';
     els.statsGrid.innerHTML = '';
     updateLayout();
     return;
   }
   const roomClasses = Array.isArray(room.classNames) && room.classNames.length ? room.classNames.join(', ') : (room.className || '-');
   els.currentRoomInfo.textContent = `${room.name} (Klassen ${roomClasses})`;
+  if (state.activeQuestionnaire && state.activeQuestionnaire.roomId !== room.id) {
+    state.activeQuestionnaire = null;
+    renderQuestionnaireBroadcast();
+  }
   els.closeRoomBtn.disabled = room.active === false;
   renderMembers();
   renderLog();
@@ -429,7 +495,7 @@ export function renderMembers() {
 
 export function renderLog() {
   if (!state.logEntries.length) {
-    els.logBox.innerHTML = '<div class="small">Noch keine EintrÃ¤ge</div>';
+    els.logBox.innerHTML = '<div class="small">Noch keine Einträge</div>';
     return;
   }
   const rows = state.logEntries.map((e) => {

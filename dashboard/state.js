@@ -18,6 +18,7 @@ export const state = {
   teacherInbox: [],
   questionnaireStudent: null,
   questionnaireTeacher: null,
+  activeQuestionnaire: null,
   feedbackAnswers: {},
   toiletStates: new Map(), // userId -> {status,start}
   questions: [],

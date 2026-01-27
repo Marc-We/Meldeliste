@@ -21,6 +21,25 @@ function courseKey(subject, teacherId) {
   return `${subject || 'default'}::${teacherId || ''}`;
 }
 
+function resolveQuestionScale(questionnaire, question) {
+  const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
+  const qType = question?.scaleType === 'yesno' ? 'yesno' : (question?.scaleType === 'scale' ? 'scale' : '');
+  const qMin = Number.isFinite(Number(question?.scaleMin)) ? Number(question.scaleMin) : null;
+  const qMax = Number.isFinite(Number(question?.scaleMax)) ? Number(question.scaleMax) : null;
+  if (qType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  if (qMin !== null && qMax !== null) {
+    return { type: 'scale', min: Math.min(qMin, qMax), max: Math.max(qMin, qMax) };
+  }
+  if (globalType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  return { type: 'scale', min: Math.min(globalMin, globalMax), max: Math.max(globalMin, globalMax) };
+}
+
 export function renderCourseCatalog() {
   if (!els.coursePanel) return;
   if (!state.profile.userId) {
@@ -67,7 +86,7 @@ export function renderRooms() {
       return allowedCourses.has(courseKey(r.subject || 'default', r.teacherId || ''));
     });
   if (activeRooms.length === 0) {
-    els.roomSelect.innerHTML = '<option value="">Keine aktiven RÃ¤ume</option>';
+    els.roomSelect.innerHTML = '<option value="">Keine aktiven Räume</option>';
     els.readyBtn.disabled = true;
     els.leaveBtn.disabled = true;
     els.withdrawBtn.disabled = true;
@@ -112,7 +131,7 @@ export function renderCalled(on) {
 
 export function renderLog() {
   if (!state.myLog.length) {
-    els.logBox.innerHTML = '<div class="empty">Noch keine EintrÃ¤ge</div>';
+    els.logBox.innerHTML = '<div class="empty">Noch keine Einträge</div>';
     return;
   }
   const rows = state.myLog.map((entry) => {
@@ -166,6 +185,7 @@ export function renderSubjectStats() {
       state.questionnaire.data = null;
       state.questionnaire.answers = {};
       state.questionnaire.teacherId = '';
+      state.questionnaire.slot = 'default';
       state.questionnaire.loading = false;
       renderQuestionnaire();
     };
@@ -205,10 +225,14 @@ export function renderQuestionnaire() {
     els.questionnairePanel.style.display = 'none';
     return;
   }
+  if (!state.questionnaire.slot) state.questionnaire.slot = 'default';
   els.questionnairePanel.style.display = 'block';
   const subject = state.questionnaire.subject;
+  const forcedTeacher = state.questionnaire.slot && state.questionnaire.slot !== 'default';
   const teachers = getTeacherOptionsForSubject(subject);
-  if (teachers.length > 1) {
+  if (forcedTeacher && state.questionnaire.teacherId) {
+    els.questionnaireTeacherRow.style.display = 'none';
+  } else if (teachers.length > 1) {
     els.questionnaireTeacherRow.style.display = 'block';
     els.questionnaireTeacher.innerHTML = teachers.map((t) => `<option value="${t.teacherId}">${t.teacherName}</option>`).join('');
     if (!state.questionnaire.teacherId) {
@@ -227,15 +251,16 @@ export function renderQuestionnaire() {
     els.questionnaireQuestions.innerHTML = '<div class="empty">Lade Fragebogen...</div>';
     if (!state.questionnaire.loading && state.questionnaire.teacherId) {
       state.questionnaire.loading = true;
-      sendJson({ type: 'questionnaireRequest', role: 'student', teacherId: state.questionnaire.teacherId });
+      const slot = state.questionnaire.slot || 'default';
+      sendJson({ type: 'questionnaireRequest', role: 'student', teacherId: state.questionnaire.teacherId, slot });
     }
     return;
   }
   els.questionnaireTitle.textContent = state.questionnaire.data.title || 'Fragebogen';
-  const scaleType = state.questionnaire.data.scaleType === 'yesno' ? 'yesno' : 'scale';
-  const scaleMin = Number.isFinite(Number(state.questionnaire.data.scaleMin)) ? Number(state.questionnaire.data.scaleMin) : 1;
-  const scaleMax = Number.isFinite(Number(state.questionnaire.data.scaleMax)) ? Number(state.questionnaire.data.scaleMax) : 5;
-  const scaleHint = state.questionnaire.data.scaleHint || (scaleType === 'yesno' ? 'Ja / Nein' : `${scaleMin} = trifft nicht zu, ${scaleMax} = trifft voll zu`);
+  const globalType = state.questionnaire.data.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(state.questionnaire.data.scaleMin)) ? Number(state.questionnaire.data.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(state.questionnaire.data.scaleMax)) ? Number(state.questionnaire.data.scaleMax) : 5;
+  const globalHint = state.questionnaire.data.scaleHint || (globalType === 'yesno' ? 'Ja / Nein' : `${globalMin} = trifft nicht zu, ${globalMax} = trifft voll zu`);
   const questions = Array.isArray(state.questionnaire.data.questions) ? state.questionnaire.data.questions : [];
   if (!questions.length) {
     els.questionnaireQuestions.innerHTML = '<div class="empty">Keine Fragen vorhanden.</div>';
@@ -243,9 +268,10 @@ export function renderQuestionnaire() {
   }
   els.questionnaireQuestions.innerHTML = questions.map((q) => {
     const current = state.questionnaire.answers[q.id];
-    const hint = q.hint || scaleHint;
-    const options = scaleType === 'yesno' ? [{ label: 'Ja', value: 1 }, { label: 'Nein', value: 0 }] : Array.from({ length: Math.max(1, scaleMax - scaleMin + 1) }).map((_, idx) => {
-      const v = scaleMin + idx;
+    const scale = resolveQuestionScale(state.questionnaire.data, q);
+    const hint = q.hint || (scale.type === 'yesno' ? 'Ja / Nein' : `${scale.min} = trifft nicht zu, ${scale.max} = trifft voll zu`) || globalHint;
+    const options = scale.type === 'yesno' ? [{ label: 'Ja', value: 1 }, { label: 'Nein', value: 0 }] : Array.from({ length: Math.max(1, scale.max - scale.min + 1) }).map((_, idx) => {
+      const v = scale.min + idx;
       return { label: String(v), value: v };
     });
     return `
@@ -272,17 +298,29 @@ export function renderFeedbackInbox() {
     const time = new Date(item.ts || Date.now()).toLocaleString();
     const from = item.fromName || 'Lehrer';
     const subject = item.subject || 'Fach';
-    const answers = (item.answers || []).map((a) => `${a.id}: ${a.value}`).join(' | ');
+    const answersList = Array.isArray(item.answersDetailed) ? item.answersDetailed : (item.answers || []);
+    const answers = answersList.map((a) => `${a.text || a.id}: ${a.value}`).join(' | ');
     const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
+    const deleteBtn = item.id ? `<button class="ghost" data-delete="${item.id}">Löschen</button>` : '';
     return `
       <div class="inbox-item">
-        <div><strong>${from}</strong> ${subject}</div>
+        <div class="row" style="justify-content: space-between; align-items:center;">
+          <div><strong>${from}</strong> ${subject}</div>
+          ${deleteBtn}
+        </div>
         <div class="small">${time}</div>
         <div class="small">${answers}</div>
         ${text}
       </div>
     `;
   }).join('');
+  els.feedbackList.querySelectorAll('[data-delete]').forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-delete');
+      if (!id) return;
+      sendJson({ type: 'feedbackDelete', id });
+    };
+  });
 }
 
 export function renderPoll() {
@@ -338,4 +376,3 @@ export function updateStatsMode() {
     requestSubjectStats();
   }
 }
-

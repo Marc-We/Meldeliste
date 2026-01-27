@@ -18,6 +18,7 @@ export const state = {
   thoughtActive: false,
   pollCollapsed: false,
   homeworkItems: [],
-  questionnaire: { open: false, subject: '', teacherId: '', data: null, answers: {}, loading: false },
+  questionnaire: { open: false, subject: '', teacherId: '', slot: 'default', data: null, answers: {}, loading: false },
+  activeQuestionnaire: null,
   feedbackInbox: [],
 };

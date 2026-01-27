@@ -3,7 +3,7 @@ const layout = document.querySelector('.layout');
 const homeworkPanel = document.createElement('div');
 homeworkPanel.className = 'panel';
 homeworkPanel.id = 'homeworkPanel';
-homeworkPanel.innerHTML = '<h2>Hausaufgaben</h2><div id="homeworkList"><div class="small">Keine Hausaufgaben</div></div><div class="row" style="margin-top:8px;"><input id="homeworkText" style="flex:1" placeholder="Hausaufgabe fÃ¼r diesen Raum"><button id="sendHomework" class="primary">Senden</button></div>';
+homeworkPanel.innerHTML = '<h2>Hausaufgaben</h2><div id="homeworkList"><div class="small">Keine Hausaufgaben</div></div><div class="row" style="margin-top:8px;"><input id="homeworkText" style="flex:1" placeholder="Hausaufgabe für diesen Raum"><button id="sendHomework" class="primary">Senden</button></div>';
 if (layout) layout.appendChild(homeworkPanel);
 
 export const els = {
@@ -106,14 +106,20 @@ export const els = {
   feedbackText: document.getElementById('feedbackText'),
   feedbackSendBtn: document.getElementById('feedbackSend'),
   questionnaireTypeSelect: document.getElementById('questionnaireType'),
+  questionnaireSlotSelect: document.getElementById('questionnaireSlot'),
   questionnaireScaleType: document.getElementById('questionnaireScaleType'),
   questionnaireScaleMin: document.getElementById('questionnaireScaleMin'),
   questionnaireScaleMax: document.getElementById('questionnaireScaleMax'),
   questionnaireTitleInput: document.getElementById('questionnaireTitleInput'),
   questionnaireQuestionsInput: document.getElementById('questionnaireQuestionsInput'),
   questionnaireHintsInput: document.getElementById('questionnaireHintsInput'),
+  questionnaireScaleLines: document.getElementById('questionnaireScaleLines'),
   questionnaireLoadBtn: document.getElementById('questionnaireLoad'),
   questionnaireSaveBtn: document.getElementById('questionnaireSave'),
+  questionnaireBroadcastSlot: document.getElementById('questionnaireBroadcastSlot'),
+  questionnaireBroadcastStart: document.getElementById('questionnaireBroadcastStart'),
+  questionnaireBroadcastEnd: document.getElementById('questionnaireBroadcastEnd'),
+  questionnaireBroadcastStatus: document.getElementById('questionnaireBroadcastStatus'),
   homeworkPanel,
   homeworkList: homeworkPanel.querySelector('#homeworkList'),
   homeworkText: homeworkPanel.querySelector('#homeworkText'),

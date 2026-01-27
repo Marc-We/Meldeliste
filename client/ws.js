@@ -51,6 +51,8 @@ function handleMessage(msg) {
     renderClassOptions();
   }
   if (msg.type === 'questionnaire' && msg.role === 'student') {
+    const slot = msg.slot || 'default';
+    if ((state.questionnaire.slot || 'default') !== slot) return;
     state.questionnaire.data = msg.data || null;
     state.questionnaire.loading = false;
     renderQuestionnaire();
@@ -58,6 +60,30 @@ function handleMessage(msg) {
   if (msg.type === 'feedbackInbox' && msg.role === 'student') {
     state.feedbackInbox = msg.items || [];
     renderFeedbackInbox();
+  }
+  if (msg.type === 'questionnaireActive') {
+    if (msg.roomId && state.currentRoom && msg.roomId !== state.currentRoom) return;
+    if (msg.active) {
+      state.activeQuestionnaire = msg;
+      state.questionnaire.open = true;
+      state.questionnaire.subject = msg.subject || state.questionnaire.subject || 'Fach';
+      state.questionnaire.teacherId = msg.teacherId || '';
+      state.questionnaire.slot = msg.slot || 'default';
+      state.questionnaire.data = null;
+      state.questionnaire.answers = {};
+      state.questionnaire.loading = false;
+      renderQuestionnaire();
+    } else {
+      state.activeQuestionnaire = null;
+      if (state.questionnaire.slot !== 'default') {
+        state.questionnaire.open = false;
+        state.questionnaire.data = null;
+        state.questionnaire.answers = {};
+        state.questionnaire.loading = false;
+        state.questionnaire.slot = 'default';
+        renderQuestionnaire();
+      }
+    }
   }
   if (msg.type === 'courseCatalog') {
     state.courseCatalog = msg.courses || [];

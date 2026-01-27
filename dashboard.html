@@ -237,13 +237,13 @@
         <div id="pendingTeachers" class="small">Keine Anfragen</div>
       </div>
       <div class="card" style="margin-top:10px;">
-        <strong>SchÃ¼ler verschieben</strong>
+        <strong>Schüler verschieben</strong>
         <div class="row" style="margin-top:8px;">
           <select id="moveStudentSelect" style="flex:1">
-            <option value="">SchÃ¼ler wÃ¤hlen</option>
+            <option value="">Schüler wählen</option>
           </select>
           <select id="moveClassSelect" style="width:160px">
-            <option value="">Klasse wÃ¤hlen</option>
+            <option value="">Klasse wählen</option>
           </select>
           <button id="moveStudentBtn" class="primary">Verschieben</button>
         </div>
@@ -259,7 +259,7 @@
           <input id="banIpInput" placeholder="IP-Adresse">
           <button id="banAddIp" class="danger">IP bannen</button>
         </div>
-        <div id="banList" class="small" style="margin-top:8px;">Keine EintrÃ¤ge</div>
+        <div id="banList" class="small" style="margin-top:8px;">Keine Einträge</div>
       </div>
     </div>
 
@@ -316,7 +316,7 @@
           <h2>Feedback senden</h2>
           <div class="row">
             <select id="feedbackStudentSelect" style="flex:1">
-              <option value="">SchÃ¼ler wÃ¤hlen</option>
+              <option value="">Schüler wählen</option>
             </select>
             <input id="feedbackSubject" placeholder="Fach">
           </div>
@@ -331,8 +331,13 @@
           <h2>Fragebogen bearbeiten</h2>
           <div class="row">
             <select id="questionnaireType">
-              <option value="student">SchÃ¼ler -> Lehrer</option>
-              <option value="teacher">Lehrer -> SchÃ¼ler</option>
+              <option value="student">Schüler -> Lehrer</option>
+              <option value="teacher">Lehrer -> Schüler</option>
+            </select>
+            <select id="questionnaireSlot">
+              <option value="default">Standard</option>
+              <option value="extra1">Extra 1</option>
+              <option value="extra2">Extra 2</option>
             </select>
             <select id="questionnaireScaleType">
               <option value="scale">Skala</option>
@@ -346,10 +351,24 @@
           <textarea id="questionnaireQuestionsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
           <div class="small" style="margin-top:6px;">Optional: Hinweis pro Zeile (gleiche Reihenfolge)</div>
           <textarea id="questionnaireHintsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          <div class="small" style="margin-top:6px;">Optional: Skala pro Zeile (z. B. 1-5 oder ja/nein)</div>
+          <textarea id="questionnaireScaleLines" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
           <div class="row" style="margin-top:8px;">
             <button id="questionnaireLoad" class="ghost">Aktuell laden</button>
             <button id="questionnaireSave" class="primary">Speichern</button>
           </div>
+        </div>
+        <div class="tool-card" id="questionnaireBroadcastPanel">
+          <h2>Fragebogen senden</h2>
+          <div class="row">
+            <select id="questionnaireBroadcastSlot">
+              <option value="extra1">Extra 1</option>
+              <option value="extra2">Extra 2</option>
+            </select>
+            <button id="questionnaireBroadcastStart" class="primary">Senden</button>
+            <button id="questionnaireBroadcastEnd" class="ghost">Beenden</button>
+          </div>
+          <div class="small" id="questionnaireBroadcastStatus">Kein Fragebogen aktiv</div>
         </div>
       </div>
     </details>

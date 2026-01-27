@@ -4,6 +4,25 @@ import { sendJson, sendJoin } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, flashSend } from './ui.js';
 import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode } from './render.js';
 
+function resolveQuestionScale(questionnaire, question) {
+  const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(questionnaire?.scaleMax)) ? Number(questionnaire.scaleMax) : 5;
+  const qType = question?.scaleType === 'yesno' ? 'yesno' : (question?.scaleType === 'scale' ? 'scale' : '');
+  const qMin = Number.isFinite(Number(question?.scaleMin)) ? Number(question.scaleMin) : null;
+  const qMax = Number.isFinite(Number(question?.scaleMax)) ? Number(question.scaleMax) : null;
+  if (qType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  if (qMin !== null && qMax !== null) {
+    return { type: 'scale', min: Math.min(qMin, qMax), max: Math.max(qMin, qMax) };
+  }
+  if (globalType === 'yesno') {
+    return { type: 'yesno', min: 0, max: 1 };
+  }
+  return { type: 'scale', min: Math.min(globalMin, globalMax), max: Math.max(globalMin, globalMax) };
+}
+
 export function bindHandlers() {
   els.saveProfileBtn.onclick = () => {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
@@ -108,7 +127,19 @@ export function bindHandlers() {
   }
 
   els.roomSelect.onchange = () => {
+    const prevRoom = state.currentRoom;
     state.currentRoom = els.roomSelect.value || null;
+    if (prevRoom && prevRoom !== state.currentRoom) {
+      state.activeQuestionnaire = null;
+      if (state.questionnaire.slot !== 'default') {
+        state.questionnaire.open = false;
+        state.questionnaire.data = null;
+        state.questionnaire.answers = {};
+        state.questionnaire.loading = false;
+        state.questionnaire.slot = 'default';
+        renderQuestionnaire();
+      }
+    }
     if (state.currentRoom) {
       sendJoin(state.currentRoom);
       els.readyBtn.disabled = false;
@@ -177,6 +208,15 @@ export function bindHandlers() {
     els.leaveBtn.disabled = true;
     els.withdrawBtn.disabled = true;
     renderCalled(false);
+    state.activeQuestionnaire = null;
+    if (state.questionnaire.slot !== 'default') {
+      state.questionnaire.open = false;
+      state.questionnaire.data = null;
+      state.questionnaire.answers = {};
+      state.questionnaire.loading = false;
+      state.questionnaire.slot = 'default';
+      renderQuestionnaire();
+    }
     updateStatsMode();
   };
 
@@ -189,6 +229,9 @@ export function bindHandlers() {
       state.questionnaire.open = false;
       state.questionnaire.data = null;
       state.questionnaire.loading = false;
+      if (state.questionnaire.slot !== 'default') {
+        state.questionnaire.slot = 'default';
+      }
       renderQuestionnaire();
     };
   }
@@ -198,7 +241,8 @@ export function bindHandlers() {
       state.questionnaire.data = null;
       state.questionnaire.loading = false;
       if (state.questionnaire.teacherId) {
-        sendJson({ type: 'questionnaireRequest', role: 'student', teacherId: state.questionnaire.teacherId });
+        const slot = state.questionnaire.slot || 'default';
+        sendJson({ type: 'questionnaireRequest', role: 'student', teacherId: state.questionnaire.teacherId, slot });
       }
     };
   }
@@ -222,14 +266,14 @@ export function bindHandlers() {
       const questions = Array.isArray(state.questionnaire.data.questions) ? state.questionnaire.data.questions : [];
       if (!questions.length) return;
       const answers = questions.map((q) => ({ id: q.id, value: state.questionnaire.answers[q.id] }));
-      const scaleType = state.questionnaire.data.scaleType === 'yesno' ? 'yesno' : 'scale';
-      const scaleMin = Number.isFinite(Number(state.questionnaire.data.scaleMin)) ? Number(state.questionnaire.data.scaleMin) : 1;
-      const scaleMax = Number.isFinite(Number(state.questionnaire.data.scaleMax)) ? Number(state.questionnaire.data.scaleMax) : 5;
       const missing = answers.some((a) => {
         const val = Number(a.value);
         if (!Number.isFinite(val)) return true;
-        if (scaleType === 'yesno') return !(val === 0 || val === 1);
-        return val < scaleMin || val > scaleMax;
+        const q = questions.find((qItem) => qItem.id === a.id);
+        if (!q) return true;
+        const scale = resolveQuestionScale(state.questionnaire.data, q);
+        if (scale.type === 'yesno') return !(val === 0 || val === 1);
+        return val < scale.min || val > scale.max;
       });
       if (missing) return;
       const text = els.questionnaireText.value.trim();
@@ -237,6 +281,7 @@ export function bindHandlers() {
         type: 'questionnaireSubmit',
         teacherId: state.questionnaire.teacherId,
         subject: state.questionnaire.subject,
+        slot: state.questionnaire.slot || 'default',
         answers,
         text,
       });
@@ -246,6 +291,7 @@ export function bindHandlers() {
       state.questionnaire.data = null;
       state.questionnaire.answers = {};
       state.questionnaire.loading = false;
+      state.questionnaire.slot = 'default';
       renderQuestionnaire();
     };
   }
