@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -99,6 +99,7 @@
       background: rgba(255,255,255,0.03);
       font-size: 14px;
     }
+    input[type="checkbox"] { width: auto; }
     .course-list input { width: auto; }
     .questionnaire { border: 1px solid #24304c; border-radius: 12px; padding: 12px; margin-top: 12px; background: rgba(255,255,255,0.03); }
     .questionnaire h3 { margin: 0 0 8px; }
@@ -108,18 +109,6 @@
     .rating button { padding: 6px 10px; border-radius: 8px; border: 1px solid #2b3652; background: #0c1424; color: var(--text); }
     .rating button.active { background: var(--accent); color: #06110b; }
     .inbox-item { border: 1px solid #24304c; border-radius: 10px; padding: 10px; margin-top: 8px; background: #0c1424; }
-    .sent { animation: sentPop 0.35s ease-out; }
-    @keyframes sentPop {
-      0% { transform: scale(1); box-shadow: 0 0 0 rgba(54,195,140,0.0); }
-      50% { transform: scale(1.04); box-shadow: 0 0 18px rgba(54,195,140,0.35); }
-      100% { transform: scale(1); box-shadow: 0 0 0 rgba(54,195,140,0.0); }
-    }
-    .tap { animation: tapPop 0.18s ease-out; }
-    @keyframes tapPop {
-      0% { transform: scale(1); }
-      50% { transform: scale(0.97); }
-      100% { transform: scale(1); }
-    }
     details.panel > summary { cursor: pointer; font-weight: 700; list-style: none; }
     details.panel > summary::-webkit-details-marker { display: none; }
   </style>
@@ -178,7 +167,7 @@
       <div class="pill" id="authStatus"></div>
     </div>
 
-      <div class="panel">
+      <div class="panel" id="roomPanel">
         <h2>Raum & Meldung</h2>
         <label>
           Aktiver Raum
@@ -189,7 +178,7 @@
         <button id="withdrawBtn" class="ghost" disabled>Meldung zurücknehmen</button>
         <button id="leaveBtn" class="ghost" disabled>Raum verlassen</button>
       </div>
-      <div class="called" id="calledBox" title="Klicken zum Schließen">Du wurdest aufgerufen – bitte melden!</div>
+      <div class="called" id="calledBox" title="Klicken zum Schließen">Du wurdest aufgerufen â€“ bitte melden!</div>
       <div style="margin-top:12px">
         <label>Frage</label>
         <textarea id="questionText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>

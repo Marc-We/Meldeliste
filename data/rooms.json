@@ -529,7 +529,46 @@
       "10A"
     ],
     "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769541067004,
+    "closedAt": 1769541346512
+  },
+  "room-mkwzmta5-tssh": {
+    "id": "room-mkwzmta5-tssh",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769542025405,
+    "closedAt": 1769542693744
+  },
+  "room-mkx034bt-jc8g": {
+    "id": "room-mkx034bt-jc8g",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769542786217,
+    "closedAt": 1769543135566
+  },
+  "room-mkx0ec0q-z6fc": {
+    "id": "room-mkx0ec0q-z6fc",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
     "active": true,
-    "createdAt": 1769541067004
+    "createdAt": 1769543309402
   }
 }

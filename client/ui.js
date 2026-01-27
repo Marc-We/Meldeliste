@@ -16,12 +16,7 @@ export function setAuthStatus(text) {
 }
 
 export function flashSend(el) {
-  if (!el) return;
-  el.classList.remove('sent');
-  // force reflow to restart animation
-  void el.offsetWidth;
-  el.classList.add('sent');
-  setTimeout(() => el.classList.remove('sent'), 400);
+  void el;
 }
 
 export function updateAuthModeButtons() {

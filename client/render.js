@@ -92,18 +92,18 @@ export function renderRooms() {
     els.withdrawBtn.disabled = true;
     return;
   }
+  els.roomSelect.innerHTML = '<option value="">Raum wählen</option>';
   activeRooms.forEach((room) => {
     const opt = document.createElement('option');
     opt.value = room.id;
     opt.textContent = `${room.name} (${room.subject})`;
     els.roomSelect.appendChild(opt);
   });
-  if (state.currentRoom) {
+  if (state.currentRoom && activeRooms.some((r) => r.id === state.currentRoom)) {
     els.roomSelect.value = state.currentRoom;
   } else {
-    els.roomSelect.selectedIndex = 0;
-    state.currentRoom = els.roomSelect.value || null;
-    if (state.currentRoom) sendJoin(state.currentRoom);
+    state.currentRoom = null;
+    els.roomSelect.value = '';
   }
   els.readyBtn.disabled = !state.currentRoom;
   els.leaveBtn.disabled = !state.currentRoom;

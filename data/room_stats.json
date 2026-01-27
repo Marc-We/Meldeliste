@@ -445,7 +445,7 @@
     ],
     "subject": "Mathematik",
     "createdAt": 1769541067004,
-    "closedAt": null,
+    "closedAt": 1769541346512,
     "students": {
       "s-mktnutua-pddp": {
         "signals": 0,
@@ -460,5 +460,67 @@
         }
       }
     }
+  },
+  "room-mkwzmta5-tssh": {
+    "roomId": "room-mkwzmta5-tssh",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769542025405,
+    "closedAt": 1769542693744,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 1,
+        "calls": 0,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  },
+  "room-mkx034bt-jc8g": {
+    "roomId": "room-mkx034bt-jc8g",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769542786217,
+    "closedAt": 1769543135566,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 1,
+        "calls": 0,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  },
+  "room-mkx0ec0q-z6fc": {
+    "roomId": "room-mkx0ec0q-z6fc",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769543309402,
+    "closedAt": null,
+    "students": {}
   }
 }

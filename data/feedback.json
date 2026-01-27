@@ -2,8 +2,8 @@
   "teacher": {
     "t-mktnvwjm-rsat": [
       {
-        "id": "fb-mkwyrn9o-i5dv",
-        "ts": 1769540571276,
+        "id": "fb-mkx0a2ip-4nlp",
+        "ts": 1769543110465,
         "fromStudentId": "s-mktnutua-pddp",
         "fromName": "Marc Wermke",
         "subject": "Mathematik",
@@ -20,7 +20,7 @@
             "value": 1
           }
         ],
-        "text": "Ja bin ich",
+        "text": "Weil",
         "questionnaireTitle": "Fragebogen",
         "questionnaireSlot": "extra1"
       }

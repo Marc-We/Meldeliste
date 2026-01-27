@@ -5,16 +5,6 @@ import { renderClassOptions, updateStatsMode } from './render.js';
 import { bindHandlers } from './handlers.js';
 import { connect } from './ws.js';
 
-function bindTapAnimation() {
-  document.addEventListener('click', (event) => {
-    const btn = event.target.closest('button');
-    if (!btn) return;
-    btn.classList.remove('tap');
-    void btn.offsetWidth;
-    btn.classList.add('tap');
-    setTimeout(() => btn.classList.remove('tap'), 180);
-  });
-}
 
 function loadSavedProfile() {
   const saved = localStorage.getItem('meldelisteProfile');
@@ -33,7 +23,6 @@ function loadSavedProfile() {
 
 els.questionText.placeholder = 'Deine Frage oder Gedanken';
 bindHandlers();
-bindTapAnimation();
 loadSavedProfile();
 renderClassOptions();
 updateStatsMode();

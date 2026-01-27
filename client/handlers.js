@@ -145,11 +145,16 @@ export function bindHandlers() {
       els.readyBtn.disabled = false;
       els.leaveBtn.disabled = false;
       els.withdrawBtn.disabled = true;
+      els.sendQuestionBtn.disabled = false;
       renderCalled(false);
     } else {
+      if (prevRoom && state.ws && state.ws.readyState === WebSocket.OPEN) {
+        sendJson({ type: 'leave' });
+      }
       els.readyBtn.disabled = true;
       els.leaveBtn.disabled = true;
       els.withdrawBtn.disabled = true;
+      els.sendQuestionBtn.disabled = true;
     }
     updateStatsMode();
   };
