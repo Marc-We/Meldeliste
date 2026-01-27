@@ -276,6 +276,10 @@ export function renderClassStats() {
         <h4>${s.name}</h4>
         <div class="small">Gesamt: Meldungen ${total.signals || 0} Â· Aufrufe ${total.calls || 0}</div>
         <div class="small">Bew.: -- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}</div>
+        <div class="row" style="margin-top:8px;">
+          <button class="ghost" data-report="${s.userId}">Melden</button>
+          <button class="danger" data-kick="${s.userId}">Kurs entfernen</button>
+        </div>
       </div>`;
   }).join('');
   els.classStatsGrid.querySelectorAll('[data-user]').forEach((card) => {
@@ -284,6 +288,24 @@ export function renderClassStats() {
       const userId = card.getAttribute('data-user');
       if (!userId) return;
       sendJson({ type: 'classStudentStats', className: state.classStats.className, classNames: state.classStats.classNames, subject: state.classStats.subject, userId });
+    };
+  });
+  els.classStatsGrid.querySelectorAll('[data-report]').forEach((btn) => {
+    btn.onclick = (event) => {
+      event.stopPropagation();
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const userId = btn.getAttribute('data-report');
+      if (!userId) return;
+      sendJson({ type: 'courseReport', userId, subject: state.classStats.subject || 'default' });
+    };
+  });
+  els.classStatsGrid.querySelectorAll('[data-kick]').forEach((btn) => {
+    btn.onclick = (event) => {
+      event.stopPropagation();
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const userId = btn.getAttribute('data-kick');
+      if (!userId) return;
+      sendJson({ type: 'courseKick', userId, subject: state.classStats.subject || 'default' });
     };
   });
   els.classStatsPanel.style.display = 'block';

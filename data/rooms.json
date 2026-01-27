@@ -358,8 +358,9 @@
       "10A"
     ],
     "teacherId": "t-mktnvwjm-rsat",
-    "active": true,
-    "createdAt": 1769348463848
+    "active": false,
+    "createdAt": 1769348463848,
+    "closedAt": 1769493790537
   },
   "room-mktv28uj-km51": {
     "id": "room-mktv28uj-km51",
@@ -374,5 +375,17 @@
     "active": false,
     "createdAt": 1769352948811,
     "closedAt": 1769352955227
+  },
+  "room-mkw6wzix-c6az": {
+    "id": "room-mkw6wzix-c6az",
+    "name": "Mathematik 10A",
+    "subject": "Mathematik",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": true,
+    "createdAt": 1769493791193
   }
 }

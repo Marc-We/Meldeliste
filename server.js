@@ -247,6 +247,7 @@ function publicUser(user) {
     className: user.className,
     name: user.name,
     teachings: user.teachings || [],
+    courses: user.courses || [],
   };
 }
 
@@ -320,6 +321,110 @@ function getRoomClassNames(room) {
   }
   if (room?.className) return [room.className];
   return [];
+}
+
+function courseKey(subject, teacherId) {
+  return `${subject || 'default'}::${teacherId || ''}`;
+}
+
+function listAvailableCoursesForClass(className) {
+  if (!className) return [];
+  const list = [];
+  users.forEach((u) => {
+    if (!u || (u.role !== 'teacher' && u.role !== 'admin')) return;
+    const teachings = Array.isArray(u.teachings) ? u.teachings : [];
+    teachings.forEach((t) => {
+      if (!t || !t.subject) return;
+      const classes = Array.isArray(t.classNames) && t.classNames.length ? t.classNames : (t.className ? [t.className] : []);
+      if (classes.length && !classes.includes(className)) return;
+      list.push({ subject: t.subject, teacherId: u.id, teacherName: u.name || u.email || 'Lehrer' });
+    });
+  });
+  const map = new Map();
+  list.forEach((c) => {
+    const key = courseKey(c.subject, c.teacherId);
+    if (!map.has(key)) map.set(key, c);
+  });
+  return Array.from(map.values());
+}
+
+function normalizeCourseList(courses, allowedCourses) {
+  const allowedKeys = new Set((allowedCourses || []).map((c) => courseKey(c.subject, c.teacherId)));
+  const list = Array.isArray(courses) ? courses : [];
+  return list
+    .map((c) => ({
+      subject: String(c?.subject || '').trim(),
+      teacherId: String(c?.teacherId || '').trim(),
+    }))
+    .filter((c) => c.subject && c.teacherId && allowedKeys.has(courseKey(c.subject, c.teacherId)));
+}
+
+function sendCourseCatalog(ws, user) {
+  if (!ws || !user || user.role !== 'student') return;
+  const courses = listAvailableCoursesForClass(user.className);
+  ws.send(JSON.stringify({ type: 'courseCatalog', courses }));
+}
+
+function sendProfileToUser(userId) {
+  const u = users.get(userId);
+  if (!u) return;
+  const payload = JSON.stringify({ type: 'profile', user: publicUser(u) });
+  const sockets = userSockets.get(userId);
+  if (sockets) sockets.forEach((client) => client.send(payload));
+}
+
+function sendCourseCatalogToUser(userId) {
+  const u = users.get(userId);
+  if (!u || u.role !== 'student') return;
+  const courses = listAvailableCoursesForClass(u.className);
+  const payload = JSON.stringify({ type: 'courseCatalog', courses });
+  const sockets = userSockets.get(userId);
+  if (sockets) sockets.forEach((client) => client.send(payload));
+}
+
+function broadcastCourseCatalogs() {
+  userSockets.forEach((_, userId) => {
+    sendCourseCatalogToUser(userId);
+  });
+}
+
+function isStudentAllowedInRoom(user, room) {
+  if (!user || user.role !== 'student') return true;
+  const roomClasses = getRoomClassNames(room);
+  if (roomClasses.length && user.className && !roomClasses.includes(user.className)) return false;
+  const subject = room?.subject || 'default';
+  const teacherId = room?.teacherId;
+  if (!teacherId) return true;
+  const courses = Array.isArray(user.courses) ? user.courses : [];
+  if (!courses.length) return false;
+  return courses.some((c) => c && c.subject === subject && c.teacherId === teacherId);
+}
+
+function teachingMatchesClass(teaching, className) {
+  if (!teaching) return false;
+  const classes = Array.isArray(teaching.classNames) && teaching.classNames.length
+    ? teaching.classNames
+    : (teaching.className ? [teaching.className] : []);
+  if (!classes.length) return false;
+  return classes.includes(className);
+}
+
+function forceLeaveRoom(userId, roomId) {
+  const set = roomMembers.get(roomId);
+  if (set) set.delete(userId);
+  resetReady(roomId, userId);
+  const imp = importantMap.get(roomId);
+  if (imp) imp.delete(userId);
+  const toilet = toiletMap.get(roomId);
+  if (toilet) toilet.delete(userId);
+  const sockets = userSockets.get(userId);
+  if (sockets) {
+    sockets.forEach((client) => {
+      if (client.roomId === roomId) client.roomId = null;
+      client.send(JSON.stringify({ type: 'roomKicked', roomId }));
+    });
+  }
+  updatePresence(roomId);
 }
 
 function ensureRoomStudentStats(entry, userId) {
@@ -559,12 +664,14 @@ function sendLogUpdates(roomId) {
       .filter((e) => {
         if (!isTeacher && e.userId !== client.userId) return false;
         if (e.action === 'signal' || e.action === 'withdraw') return false; // Meldungen nicht im Log anzeigen
-        if (!isTeacher && e.action === 'rating') return false; // Schüler sieht keine Bewertungen
         return true;
       })
       .map((e) => ({
-        ...e,
-        name: users.get(e.userId)?.name || 'Unbekannt',
+        id: e.id,
+        ts: e.ts,
+        userId: e.userId,
+        name: e.name || 'Unbekannt',
+        action: e.action,
         rating: isTeacher ? e.rating : undefined,
       }));
     client.send(JSON.stringify({ type: isTeacher ? 'log' : 'myLog', roomId, entries: filtered }));
@@ -687,6 +794,7 @@ wss.on('connection', (ws) => {
             name,
             stats: {},
             teachings: [],
+            courses: role === 'student' ? [] : undefined,
           };
           users.set(id, user);
           saveUsers();
@@ -717,11 +825,24 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
       sendRoomList(ws);
       sendCatalogs(ws);
+      if (user.role === 'student') sendCourseCatalog(ws, user);
       return;
     }
 
     if (type === 'catalogsRequest') {
       sendCatalogs(ws);
+      if (ws.userId) {
+        const user = users.get(ws.userId);
+        if (user?.role === 'student') sendCourseCatalog(ws, user);
+      }
+      return;
+    }
+
+    if (type === 'courseCatalogRequest') {
+      if (ws.userId) {
+        const user = users.get(ws.userId);
+        if (user?.role === 'student') sendCourseCatalog(ws, user);
+      }
       return;
     }
 
@@ -781,6 +902,7 @@ wss.on('connection', (ws) => {
         passwordHash: hashSecret(password),
         stats: {},
         teachings: [],
+        courses: role === 'student' ? [] : undefined,
       };
       const code = generateCode();
       user.verification = { codeHash: hashSecret(code), expiresAt: Date.now() + CODE_TTL_MS };
@@ -823,6 +945,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
       sendRoomList(ws);
       sendCatalogs(ws);
+      if (user.role === 'student') sendCourseCatalog(ws, user);
       return;
     }
 
@@ -858,6 +981,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
       sendRoomList(ws);
       sendCatalogs(ws);
+      if (user.role === 'student') sendCourseCatalog(ws, user);
       return;
     }
 
@@ -907,6 +1031,24 @@ wss.on('connection', (ws) => {
     if (!ws.userId) return;
     const user = users.get(ws.userId);
     if (!user) return;
+
+    if (type === 'courseUpdate' && user.role === 'student') {
+      const available = listAvailableCoursesForClass(user.className);
+      const normalized = normalizeCourseList(msg.courses, available);
+      user.courses = normalized;
+      users.set(user.id, user);
+      saveUsers();
+      rooms.forEach((room, roomId) => {
+        const members = roomMembers.get(roomId);
+        if (!members || !members.has(user.id)) return;
+        if (!isStudentAllowedInRoom(user, room)) {
+          forceLeaveRoom(user.id, roomId);
+        }
+      });
+      sendProfileToUser(user.id);
+      sendCourseCatalogToUser(user.id);
+      return;
+    }
 
     if (type === 'roomCreate' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const name = String(msg.name || '').trim() || 'Raum';
@@ -1012,6 +1154,7 @@ wss.on('connection', (ws) => {
       users.set(ws.userId, user);
       saveUsers();
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      broadcastCourseCatalogs();
       return;
     }
 
@@ -1088,6 +1231,51 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (type === 'courseKick' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const targetUserId = String(msg.userId || '').trim();
+      const subject = String(msg.subject || '').trim() || 'default';
+      const teacherId = ws.role === 'admin' ? String(msg.teacherId || ws.userId || '').trim() : ws.userId;
+      if (!targetUserId || !subject || !teacherId) return;
+      const target = users.get(targetUserId);
+      if (!target || target.role !== 'student') return;
+      if (ws.role === 'teacher') {
+        const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
+        const allowed = teaches.some((t) => t.subject === subject && teachingMatchesClass(t, target.className));
+        if (!allowed) return;
+      }
+      const courses = Array.isArray(target.courses) ? target.courses : [];
+      const filtered = courses.filter((c) => !(c.subject === subject && c.teacherId === teacherId));
+      if (filtered.length === courses.length) return;
+      target.courses = filtered;
+      users.set(target.id, target);
+      saveUsers();
+      sendProfileToUser(target.id);
+      sendCourseCatalogToUser(target.id);
+      sendToUser(target.id, { type: 'courseKicked', subject, teacherName: user.name || user.email || 'Lehrer' });
+      rooms.forEach((room, roomId) => {
+        if (room.teacherId !== teacherId) return;
+        const roomSubject = room.subject || 'default';
+        if (roomSubject !== subject) return;
+        forceLeaveRoom(target.id, roomId);
+      });
+      return;
+    }
+
+    if (type === 'courseReport' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const targetUserId = String(msg.userId || '').trim();
+      const subject = String(msg.subject || '').trim() || 'default';
+      if (!targetUserId || !subject) return;
+      const target = users.get(targetUserId);
+      if (!target || target.role !== 'student') return;
+      if (ws.role === 'teacher') {
+        const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
+        const allowed = teaches.some((t) => t.subject === subject && teachingMatchesClass(t, target.className));
+        if (!allowed) return;
+      }
+      sendToUser(target.id, { type: 'courseReport', subject, teacherName: user.name || user.email || 'Lehrer' });
+      return;
+    }
+
     if (type === 'studentSubjectStats' && ws.role === 'student') {
       const userId = ws.userId;
       const grouped = new Map();
@@ -1124,10 +1312,9 @@ wss.on('connection', (ws) => {
       const room = rooms.get(roomId);
       if (!room || room.active === false) return;
 
-       // Schüler dürfen nur eigene Klasse betreten
       const user = users.get(ws.userId);
-      const roomClasses = getRoomClassNames(room);
-      if (user?.role === 'student' && roomClasses.length && user.className && !roomClasses.includes(user.className)) {
+      if (user?.role === 'student' && !isStudentAllowedInRoom(user, room)) {
+        ws.send(JSON.stringify({ type: 'joinDenied', reason: 'course' }));
         return;
       }
 
@@ -1229,8 +1416,10 @@ wss.on('connection', (ws) => {
       if (!room) return;
       const actor = users.get(ws.userId);
       if (actor?.role === 'teacher') return; // Lehrer melden sich nicht
-      const roomClasses = getRoomClassNames(room);
-      if (actor?.role === 'student' && roomClasses.length && actor.className && !roomClasses.includes(actor.className)) return;
+      if (actor?.role === 'student' && !isStudentAllowedInRoom(actor, room)) {
+        ws.send(JSON.stringify({ type: 'joinDenied', reason: 'course' }));
+        return;
+      }
       ws.roomId = roomId;
       if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
       roomMembers.get(roomId).add(ws.userId);
@@ -1450,8 +1639,10 @@ wss.on('connection', (ws) => {
       if (!room) return;
       const actor = users.get(ws.userId);
       if (actor?.role === 'teacher') return;
-      const roomClasses = getRoomClassNames(room);
-      if (actor?.role === 'student' && roomClasses.length && actor.className && !roomClasses.includes(actor.className)) return;
+      if (actor?.role === 'student' && !isStudentAllowedInRoom(actor, room)) {
+        ws.send(JSON.stringify({ type: 'joinDenied', reason: 'course' }));
+        return;
+      }
       ws.roomId = roomId;
       if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
       roomMembers.get(roomId).add(ws.userId);
@@ -1675,3 +1866,4 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
   if (ip) console.log(`LAN: http://${ip}:${PORT}`);
 });
+

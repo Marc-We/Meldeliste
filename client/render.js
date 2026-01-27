@@ -17,8 +17,42 @@ export function renderHomework() {
   }).join('');
 }
 
+function courseKey(subject, teacherId) {
+  return `${subject || 'default'}::${teacherId || ''}`;
+}
+
+export function renderCourseCatalog() {
+  if (!els.coursePanel) return;
+  if (!state.profile.userId) {
+    els.coursePanel.style.display = 'none';
+    return;
+  }
+  els.coursePanel.style.display = 'block';
+  if (!state.courseCatalog.length) {
+    els.courseList.innerHTML = '<div class="empty">Keine Kurse vorhanden</div>';
+    els.courseHint.textContent = 'Ein Lehrer muss den Kurs zuerst anlegen.';
+    return;
+  }
+  const selected = new Set(state.selectedCourses || []);
+  els.courseList.innerHTML = state.courseCatalog.map((course) => {
+    const key = courseKey(course.subject, course.teacherId);
+    const checked = selected.has(key) ? 'checked' : '';
+    const label = course.teacherName ? `${course.subject} (${course.teacherName})` : course.subject;
+    return `<label class="item"><input type="checkbox" value="${key}" data-subject="${course.subject}" data-teacher="${course.teacherId}" ${checked}>${label}</label>`;
+  }).join('');
+  els.courseHint.textContent = 'Nur gewaehlte Kurse sind sichtbar.';
+}
+
 export function renderRooms() {
   els.roomSelect.innerHTML = '';
+  if (state.profile.userId && (!state.selectedCourses || !state.selectedCourses.length)) {
+    els.roomSelect.innerHTML = '<option value="">Bitte Kurse waehlen</option>';
+    els.readyBtn.disabled = true;
+    els.leaveBtn.disabled = true;
+    els.withdrawBtn.disabled = true;
+    return;
+  }
+  const allowedCourses = new Set(state.selectedCourses || []);
   const activeRooms = state.rooms
     .filter((r) => r.active !== false)
     .filter((r) => {
@@ -26,6 +60,11 @@ export function renderRooms() {
       const classes = Array.isArray(r.classNames) && r.classNames.length ? r.classNames : (r.className ? [r.className] : []);
       if (!classes.length) return true;
       return classes.includes(state.profile.className);
+    })
+    .filter((r) => {
+      if (!state.profile.userId) return true;
+      if (!allowedCourses.size) return false;
+      return allowedCourses.has(courseKey(r.subject || 'default', r.teacherId || ''));
     });
   if (activeRooms.length === 0) {
     els.roomSelect.innerHTML = '<option value="">Keine aktiven RÃ¤ume</option>';

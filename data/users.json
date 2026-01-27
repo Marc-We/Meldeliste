@@ -342,7 +342,25 @@
         }
       }
     },
-    "teachings": []
+    "teachings": [],
+    "courses": [
+      {
+        "subject": "Mathematik",
+        "teacherId": "t-mi98l3de-kuar"
+      },
+      {
+        "subject": "Mathematik",
+        "teacherId": "t-mktnvwjm-rsat"
+      },
+      {
+        "subject": "Deutsch",
+        "teacherId": "t-mktnvwjm-rsat"
+      },
+      {
+        "subject": "Physik",
+        "teacherId": "t-mktnvwjm-rsat"
+      }
+    ]
   },
   "t-mktnvwjm-rsat": {
     "id": "t-mktnvwjm-rsat",

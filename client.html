@@ -82,11 +82,24 @@
     .card.clickable:hover { border-color: #2b3652; background: #0c1424; }
     .card h3 { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
     .card .num { font-size: 24px; font-weight: 800; }
+    .small { font-size: 13px; color: var(--muted); }
     .log { max-height: 240px; overflow: auto; margin-top: 10px; }
     .log table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--text); }
     .log th, .log td { padding: 8px 6px; border-bottom: 1px solid #1c2440; text-align: left; }
     .empty { color: var(--muted); font-size: 14px; }
     .daily { font-size: 13px; color: var(--muted); margin-top: 8px; }
+    .course-list { display: grid; gap: 6px; margin-top: 8px; }
+    .course-list .item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      border: 1px solid #27324f;
+      background: rgba(255,255,255,0.03);
+      font-size: 14px;
+    }
+    .course-list input { width: auto; }
   </style>
 </head>
 <body>
@@ -136,6 +149,14 @@
         <button id="forgotBtn" class="ghost">Passwort vergessen</button>
       </div>
       <div class="pill" id="profileInfo">Noch kein Profil gespeichert</div>
+      <div class="card" id="coursePanel" style="margin-top:12px; display:none;">
+        <div class="row" style="align-items:center; justify-content: space-between;">
+          <strong>Meine Faecher/Kurse</strong>
+          <button id="saveCourses" class="ghost">Speichern</button>
+        </div>
+        <div id="courseList" class="course-list"></div>
+        <div class="small" id="courseHint"></div>
+      </div>
       <div class="row" style="margin-top:6px">
         <button id="modeRegister" class="ghost" style="flex:1">Registrieren</button>
         <button id="modeLogin" class="ghost" style="flex:1">Anmelden</button>

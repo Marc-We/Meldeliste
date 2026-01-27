@@ -1,9 +1,11 @@
 export const state = {
   ws: null,
-  profile: { role: 'student', userId: null, email: '', firstName: '', lastName: '', className: '' },
+  profile: { role: 'student', userId: null, email: '', firstName: '', lastName: '', className: '', courses: [] },
   authMode: 'login', // login | register | verify | reset-request | reset-confirm
   pendingEmail: '',
   classCatalog: [],
+  courseCatalog: [],
+  selectedCourses: [],
   rooms: [],
   currentRoom: null,
   myLog: [],

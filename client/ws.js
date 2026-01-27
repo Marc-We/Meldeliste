@@ -6,6 +6,7 @@ import { setAuthStatus, setConnection, renderAuthFields, renderProfileInfo } fro
 import {
   renderCalled,
   renderClassOptions,
+  renderCourseCatalog,
   renderHomework,
   renderLog,
   renderPoll,
@@ -15,6 +16,10 @@ import {
   renderThoughtState,
 } from './render.js';
 
+function courseKey(subject, teacherId) {
+  return `${subject || 'default'}::${teacherId || ''}`;
+}
+
 function handleMessage(msg) {
   if (msg.type === 'profile' && msg.user) {
     state.profile.userId = msg.user.id;
@@ -22,9 +27,12 @@ function handleMessage(msg) {
     state.profile.firstName = msg.user.firstName || state.profile.firstName;
     state.profile.lastName = msg.user.lastName || state.profile.lastName;
     state.profile.className = msg.user.className || state.profile.className;
+    state.profile.courses = Array.isArray(msg.user.courses) ? msg.user.courses : state.profile.courses;
+    state.selectedCourses = (state.profile.courses || []).map((c) => courseKey(c.subject, c.teacherId));
     state.authMode = 'login';
     setAuthStatus('');
     renderProfileInfo();
+    renderCourseCatalog();
     if (state.lastAuth?.email && state.lastAuth?.password) {
       localStorage.setItem('meldelisteRemember', JSON.stringify(state.lastAuth));
     }
@@ -33,10 +41,16 @@ function handleMessage(msg) {
       sendJson({ type: 'homeworkListRequest' });
       requestSubjectStats();
     }
+    renderRooms();
   }
   if (msg.type === 'catalogs') {
     state.classCatalog = msg.classes || [];
     renderClassOptions();
+  }
+  if (msg.type === 'courseCatalog') {
+    state.courseCatalog = msg.courses || [];
+    renderCourseCatalog();
+    renderRooms();
   }
   if (msg.type === 'roomList') {
     state.rooms = msg.rooms || [];
@@ -107,6 +121,29 @@ function handleMessage(msg) {
       renderAuthFields();
     }
   }
+  if (msg.type === 'joinDenied') {
+    setAuthStatus('Du bist fuer diesen Kurs nicht freigeschaltet.');
+    state.currentRoom = null;
+    if (els.roomSelect) els.roomSelect.value = '';
+    renderRooms();
+  }
+  if (msg.type === 'roomKicked') {
+    if (msg.roomId && state.currentRoom === msg.roomId) {
+      state.currentRoom = null;
+      if (els.roomSelect) els.roomSelect.value = '';
+      renderRooms();
+    }
+  }
+  if (msg.type === 'courseReport') {
+    const teacher = msg.teacherName || 'Lehrer';
+    const subject = msg.subject || 'Fach';
+    setAuthStatus(`Meldung vom Kurs ${subject} (${teacher}).`);
+  }
+  if (msg.type === 'courseKicked') {
+    const teacher = msg.teacherName || 'Lehrer';
+    const subject = msg.subject || 'Fach';
+    setAuthStatus(`Aus Kurs ${subject} (${teacher}) entfernt.`);
+  }
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;
     state.pollSelection = [];
@@ -140,6 +177,7 @@ export function connect() {
   state.ws.onopen = () => {
     setConnection(true);
     sendJson({ type: 'catalogsRequest' });
+    sendJson({ type: 'courseCatalogRequest' });
     const remembered = localStorage.getItem('meldelisteRemember');
     if (remembered && !state.profile.userId) {
       try {

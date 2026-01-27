@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson, sendJoin } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus } from './ui.js';
-import { renderCalled, updateStatsMode } from './render.js';
+import { renderCalled, renderRooms, updateStatsMode } from './render.js';
 
 export function bindHandlers() {
   els.saveProfileBtn.onclick = () => {
@@ -92,6 +92,21 @@ export function bindHandlers() {
     setAuthStatus('Code wird an die E-Mail gesendet.');
     renderAuthFields();
   };
+
+  if (els.saveCoursesBtn) {
+    els.saveCoursesBtn.onclick = () => {
+      if (!state.profile.userId || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const checked = Array.from(els.courseList.querySelectorAll('input[type=checkbox]:checked'));
+      const courses = checked.map((input) => ({
+        subject: input.getAttribute('data-subject') || '',
+        teacherId: input.getAttribute('data-teacher') || '',
+      })).filter((c) => c.subject && c.teacherId);
+      state.selectedCourses = checked.map((input) => input.value);
+      sendJson({ type: 'courseUpdate', courses });
+      renderRooms();
+      updateStatsMode();
+    };
+  }
 
   els.roomSelect.onchange = () => {
     state.currentRoom = els.roomSelect.value || null;

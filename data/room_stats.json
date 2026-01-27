@@ -261,7 +261,7 @@
     ],
     "subject": "Mathematik",
     "createdAt": 1769348463848,
-    "closedAt": null,
+    "closedAt": 1769493790537,
     "students": {
       "s-mktnutua-pddp": {
         "signals": 1,
@@ -288,6 +288,18 @@
     "subject": "Mathematik",
     "createdAt": 1769352948811,
     "closedAt": 1769352955227,
+    "students": {}
+  },
+  "room-mkw6wzix-c6az": {
+    "roomId": "room-mkw6wzix-c6az",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1769493791193,
+    "closedAt": null,
     "students": {}
   }
 }
