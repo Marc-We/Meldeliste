@@ -2639,6 +2639,13 @@ function getLocalIp() {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Local: http://127.0.0.1:${PORT}`);
-  const ip = getLocalIp();
+
+  let ip = null;
+  try {
+    ip = getLocalIp();
+  } catch (err) {
+    ip = null; // iSH: kann crashen -> ignorieren
+  }
+
   if (ip) console.log(`LAN: http://${ip}:${PORT}`);
 });
