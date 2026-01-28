@@ -568,7 +568,25 @@
       "10A"
     ],
     "teacherId": "t-mktnvwjm-rsat",
-    "active": true,
-    "createdAt": 1769543309402
+    "active": false,
+    "createdAt": 1769543309402,
+    "closedAt": 1769580290237
+  },
+  "room-mkxmeuw9-1cne": {
+    "id": "room-mkxmeuw9-1cne",
+    "name": "Informatik 10A, 10B, 10C, 10D, 10E",
+    "subject": "Informatik",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B",
+      "10C",
+      "10D",
+      "10E"
+    ],
+    "teacherId": "t-mktnvwjm-rsat",
+    "active": false,
+    "createdAt": 1769580285417,
+    "closedAt": 1769580341540
   }
 }

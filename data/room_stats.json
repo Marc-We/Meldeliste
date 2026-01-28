@@ -520,7 +520,48 @@
     ],
     "subject": "Mathematik",
     "createdAt": 1769543309402,
-    "closedAt": null,
+    "closedAt": 1769580290237,
     "students": {}
+  },
+  "room-mkxmeuw9-1cne": {
+    "roomId": "room-mkxmeuw9-1cne",
+    "name": "Informatik 10A, 10B, 10C, 10D, 10E",
+    "className": "10A",
+    "classNames": [
+      "10A",
+      "10B",
+      "10C",
+      "10D",
+      "10E"
+    ],
+    "subject": "Informatik",
+    "createdAt": 1769580285417,
+    "closedAt": 1769580341540,
+    "students": {
+      "s-mktrcx4t-g4e5": {
+        "signals": 0,
+        "calls": 0,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      },
+      "s-mktnutua-pddp": {
+        "signals": 1,
+        "calls": 0,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
   }
 }

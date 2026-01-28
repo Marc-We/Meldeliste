@@ -22,6 +22,7 @@ const ROOM_STATS_FILE = path.join(DATA_DIR, 'room_stats.json');
 const CODES_FILE = path.join(DATA_DIR, 'codes.json');
 const BANS_FILE = path.join(DATA_DIR, 'bans.json');
 const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
+const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const QUESTIONNAIRES_DIR = path.join(__dirname, 'questionnaires');
 const QUESTIONNAIRES_TEACHER_DIR = path.join(QUESTIONNAIRES_DIR, 'teachers');
 
@@ -63,6 +64,7 @@ let roomStats = new Map(Object.entries(loadJson(ROOM_STATS_FILE, {})));
 let codes = new Map(Object.entries(loadJson(CODES_FILE, {}))); // key role:class -> {code, role, className, createdAt, expiresAt}
 let bans = loadJson(BANS_FILE, { emails: [], ips: [] });
 let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
+let notes = loadJson(NOTES_FILE, {});
 
 // Seeds for demo if empty
 if (users.size === 0) {
@@ -115,6 +117,9 @@ function saveBans() {
 function saveFeedback() {
   saveJson(FEEDBACK_FILE, feedback);
 }
+function saveNotes() {
+  saveJson(NOTES_FILE, notes);
+}
 
 // socket tracking
 const userSockets = new Map(); // userId -> Set<ws>
@@ -122,6 +127,7 @@ const userSockets = new Map(); // userId -> Set<ws>
 // per-room membership & ready status
 const roomMembers = new Map(); // roomId -> Set<userId>
 const readyMap = new Map(); // roomId -> Set<userId>
+const readyAtMap = new Map(); // roomId -> Map<userId, ts>
 const roomCounters = new Map(); // roomId -> Map<userId, {signals, calls, toiletSeconds}>
 const toiletMap = new Map(); // roomId -> Map<userId, {status: 'pending'|'allowed'|'back', start: number|null}>
 const importantMap = new Map(); // roomId -> Set<userId>
@@ -877,6 +883,7 @@ function broadcastQuestions(roomId) {
 function updatePresence(roomId) {
   const members = roomMembers.get(roomId) || new Set();
   const ready = readyMap.get(roomId) || new Set();
+  const readyTimes = readyAtMap.get(roomId) || new Map();
   const payload = {
     type: 'presence',
     roomId,
@@ -886,8 +893,10 @@ function updatePresence(roomId) {
       return {
         userId,
         name: user?.name || 'Unbekannt',
+        lastName: user?.lastName || '',
         role: user?.role || 'student',
         ready: ready.has(userId),
+        readyAt: ready.has(userId) ? (readyTimes.get(userId) || null) : null,
         online: Boolean(sockets && sockets.size > 0),
         important: isImportant(roomId, userId),
       };
@@ -989,6 +998,8 @@ function sendStats(roomId) {
 function resetReady(roomId, userId) {
   const set = readyMap.get(roomId);
   if (set) set.delete(userId);
+  const times = readyAtMap.get(roomId);
+  if (times) times.delete(userId);
 }
 
 // --- Message handling --------------------------------------------------------
@@ -1789,6 +1800,29 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    if (type === 'noteRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const studentId = String(msg.userId || '').trim();
+      if (!studentId) return;
+      const teacherNotes = notes[ws.userId] || {};
+      ws.send(JSON.stringify({ type: 'note', userId: studentId, note: teacherNotes[studentId] || '' }));
+      return;
+    }
+
+    if (type === 'noteSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const studentId = String(msg.userId || '').trim();
+      if (!studentId) return;
+      const text = String(msg.note || '').trim();
+      if (!notes[ws.userId]) notes[ws.userId] = {};
+      if (text) {
+        notes[ws.userId][studentId] = text;
+      } else {
+        delete notes[ws.userId][studentId];
+      }
+      saveNotes();
+      ws.send(JSON.stringify({ type: 'noteSaved', userId: studentId, note: text }));
+      return;
+    }
+
     if (type === 'addTeaching' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
@@ -1835,11 +1869,13 @@ wss.on('connection', (ws, req) => {
         });
         if (!classes.every((cls) => allowed(cls))) return;
       }
+      const teacherNotes = notes[ws.userId] || {};
       const students = Array.from(users.values())
         .filter((u) => u && u.role === 'student' && classes.includes(u.className || ''))
         .map((u) => ({
           userId: u.id,
           name: u.name || 'Unbekannt',
+          note: teacherNotes[u.id] || '',
           total: subject ? getSubjectTotals(u, subject) : aggregateTotalStats(u),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -2124,6 +2160,10 @@ wss.on('connection', (ws, req) => {
       roomMembers.get(roomId).add(ws.userId);
       if (!readyMap.has(roomId)) readyMap.set(roomId, new Set());
       readyMap.get(roomId).add(ws.userId);
+      if (!readyAtMap.has(roomId)) readyAtMap.set(roomId, new Map());
+      if (!readyAtMap.get(roomId).has(ws.userId)) {
+        readyAtMap.get(roomId).set(ws.userId, Date.now());
+      }
 
       if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
       const counter = roomCounters.get(roomId);
@@ -2468,6 +2508,7 @@ wss.on('connection', (ws, req) => {
 
       // clear all raised hands in room
       readyMap.set(roomId, new Set());
+      readyAtMap.set(roomId, new Map());
       broadcastRoom(roomId, { type: 'resetAll', roomId });
 
       sendToUser(targetUserId, { type: 'called', roomId });

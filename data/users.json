@@ -388,7 +388,7 @@
         }
       },
       "Informatik": {
-        "signals": 0,
+        "signals": 1,
         "calls": 0,
         "ratings": {
           "0": 0,
@@ -398,7 +398,13 @@
           "++": 0
         },
         "toiletSeconds": 0,
-        "daily": {}
+        "daily": {
+          "2026-01-28": {
+            "signals": 1,
+            "calls": 0,
+            "toiletSeconds": 0
+          }
+        }
       }
     },
     "teachings": [],
@@ -413,6 +419,10 @@
       },
       {
         "subject": "Physik",
+        "teacherId": "t-mktnvwjm-rsat"
+      },
+      {
+        "subject": "Informatik",
         "teacherId": "t-mktnvwjm-rsat"
       }
     ],
@@ -514,10 +524,27 @@
           "++": 0
         },
         "toiletSeconds": 0,
-        "daily": {}
+        "daily": {
+          "2026-01-28": {
+            "signals": 0,
+            "calls": 0,
+            "toiletSeconds": 0
+          }
+        }
       }
     },
-    "teachings": []
+    "teachings": [],
+    "lastIp": "192.168.178.164",
+    "courses": [
+      {
+        "subject": "Physik",
+        "teacherId": "t-mktnvwjm-rsat"
+      },
+      {
+        "subject": "Informatik",
+        "teacherId": "t-mktnvwjm-rsat"
+      }
+    ]
   },
   "t-mkwpezo9-kqa1": {
     "id": "t-mkwpezo9-kqa1",

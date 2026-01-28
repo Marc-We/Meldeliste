@@ -99,6 +99,10 @@ function handleMessage(msg) {
   if (msg.type === 'classStats') {
     state.classStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', students: msg.students || [] };
     state.classStudentStats = { className: msg.className || '', classNames: msg.classNames || [], subject: msg.subject || '', student: null, sessions: [] };
+    state.studentNotes = {};
+    (msg.students || []).forEach((s) => {
+      if (s && s.userId) state.studentNotes[s.userId] = s.note || '';
+    });
     renderClassStats();
     renderFeedbackForm();
     updateLayout();
@@ -197,6 +201,26 @@ function handleMessage(msg) {
   if (msg.type === 'feedbackInbox' && msg.role === 'teacher') {
     state.teacherInbox = msg.items || [];
     renderTeacherInbox();
+  }
+  if (msg.type === 'note') {
+    const userId = msg.userId;
+    if (!userId) return;
+    const current = typeof msg.note === 'string' ? msg.note : (state.studentNotes[userId] || '');
+    const name = state.presence.get(userId)?.name
+      || state.classStats.students.find((s) => s.userId === userId)?.name
+      || 'Schüler';
+    const result = prompt(`Notizen für ${name}:`, current);
+    state.pendingNoteUserId = '';
+    if (result === null) return;
+    sendJson({ type: 'noteSave', userId, note: result });
+  }
+  if (msg.type === 'noteSaved') {
+    const userId = msg.userId;
+    if (!userId) return;
+    const note = typeof msg.note === 'string' ? msg.note : '';
+    state.studentNotes[userId] = note;
+    state.classStats.students = (state.classStats.students || []).map((s) => (s.userId === userId ? { ...s, note } : s));
+    renderClassStats();
   }
   if (msg.type === 'teacherApproved') {
     setAuthStatus('Admin hat deinen Account freigegeben.');

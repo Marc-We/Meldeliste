@@ -19,6 +19,8 @@ export const state = {
   questionnaireStudent: null,
   questionnaireTeacher: null,
   activeQuestionnaire: null,
+  studentNotes: {},
+  pendingNoteUserId: '',
   feedbackAnswers: {},
   toiletStates: new Map(), // userId -> {status,start}
   questions: [],

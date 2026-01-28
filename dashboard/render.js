@@ -438,11 +438,32 @@ export function renderMembers() {
     return;
   }
   const members = Array.from(state.presence.values()).filter((m) => m.role !== 'teacher' && m.role !== 'admin');
+  const anyReady = members.some((m) => m.ready);
+  const getLastName = (m) => (m.lastName || '').trim().toLowerCase();
+  const nameSort = (a, b) => {
+    const lastA = getLastName(a);
+    const lastB = getLastName(b);
+    if (lastA && lastB && lastA !== lastB) return lastA.localeCompare(lastB, 'de');
+    return (a.name || '').localeCompare((b.name || ''), 'de');
+  };
+  const sorted = members.slice().sort((a, b) => {
+    if (anyReady) {
+      if (a.ready && !b.ready) return -1;
+      if (!a.ready && b.ready) return 1;
+      if (a.ready && b.ready) {
+        const aTime = Number(a.readyAt || 0);
+        const bTime = Number(b.readyAt || 0);
+        if (aTime !== bTime) return aTime - bTime;
+      }
+      return nameSort(a, b);
+    }
+    return nameSort(a, b);
+  });
   if (!members.length) {
     els.membersBoard.innerHTML = '<div class="small" style="padding:10px;">Noch keine Teilnehmer</div>';
     return;
   }
-  const rows = members.map((m) => `
+  const rows = sorted.map((m) => `
     <div class="member-row ${m.ready ? 'ready' : ''}">
       <div></div>
       <div>
@@ -455,6 +476,7 @@ export function renderMembers() {
         ${state.toiletStates.get(m.userId)?.status === 'pending' ? '<button data-allow="toilet">Erlauben</button>' : ''}
         ${state.toiletStates.get(m.userId)?.status === 'allowed' ? `<span class="small">Toilette seit ${formatDuration(state.toiletStates.get(m.userId)?.start)}</span>` : ''}
         ${m.important ? '<button data-important="clear">Wichtig erledigt</button>' : ''}
+        <button data-note="open">Notizen</button>
       </div>
     </div>
   `).join('');
@@ -467,6 +489,7 @@ export function renderMembers() {
       const isCallOnly = btn.getAttribute('data-call') === 'only';
       const isAllowToilet = btn.getAttribute('data-allow') === 'toilet';
       const impAction = btn.getAttribute('data-important');
+      const noteAction = btn.getAttribute('data-note');
       if (!state.currentRoom || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
 
       if (isCallOnly) {
@@ -483,6 +506,12 @@ export function renderMembers() {
       }
       if (impAction === 'set') {
         sendJson({ type: 'important', roomId: state.currentRoom });
+        return;
+      }
+      if (noteAction === 'open') {
+        if (!userId) return;
+        state.pendingNoteUserId = userId;
+        sendJson({ type: 'noteRequest', userId });
         return;
       }
 
@@ -552,11 +581,13 @@ export function renderClassStats() {
   els.classStatsGrid.innerHTML = state.classStats.students.map((s) => {
     const total = s.total || { signals: 0, calls: 0, ratings: { '--': 0, '-': 0, '0': 0, '+': 0, '++': 0 } };
     const ratings = total.ratings || {};
+    const noteText = s.note ? `<div class="small">Notiz: ${s.note}</div>` : '';
     return `
       <div class="stat-card clickable" data-user="${s.userId}">
         <h4>${s.name}</h4>
         <div class="small">Gesamt: Meldungen ${total.signals || 0} Â· Aufrufe ${total.calls || 0}</div>
         <div class="small">Bew.: -- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}</div>
+        ${noteText}
         <div class="row" style="margin-top:8px;">
           <button class="ghost" data-report="${s.userId}">Melden</button>
           <button class="danger" data-kick="${s.userId}">Kurs entfernen</button>
