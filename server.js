@@ -2621,6 +2621,7 @@ wss.on('connection', (ws, req) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
 function getLocalIp() {
   try {
     const nets = os.networkInterfaces();
@@ -2630,13 +2631,14 @@ function getLocalIp() {
       }
     }
   } catch (err) {
-    // iSH: kann fehlschlagen -> kein LAN-Output, aber Server läuft
+    // iSH: os.networkInterfaces() kann hier crashen -> dann einfach keine LAN-IP ausgeben
+    return null;
   }
   return null;
 }
+
 server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Local: http://127.0.0.1:${PORT}`);
   const ip = getLocalIp();
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
   if (ip) console.log(`LAN: http://${ip}:${PORT}`);
 });
-
