@@ -642,9 +642,11 @@ export function renderClassStudentStats() {
   const subjectLabel = state.classStudentStats.subject ? ` Â· Fach ${state.classStudentStats.subject}` : '';
   const classLabel = (state.classStudentStats.classNames && state.classStudentStats.classNames.length) ? state.classStudentStats.classNames.join(', ') : state.classStudentStats.className;
   els.classStudentTitle.textContent = `${state.classStudentStats.student.name} (Klassen ${classLabel}${subjectLabel})`;
+  const noteText = state.classStudentStats.student.note || state.studentNotes[state.classStudentStats.student.userId] || '';
+  const noteHtml = noteText ? `<div class="small">Notiz: ${noteText}</div>` : '';
   const sessions = state.classStudentStats.sessions || [];
   if (!sessions.length) {
-    els.classStudentTable.innerHTML = '<div class="small">Keine Daten</div>';
+    els.classStudentTable.innerHTML = `${noteHtml}<div class="small">Keine Daten</div>`;
     els.classStudentPanel.style.display = 'block';
     return;
   }
@@ -655,7 +657,7 @@ export function renderClassStudentStats() {
     const ratingText = `-- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}`;
     return `<tr><td>${time}</td><td>${s.name || '-'}</td><td>${s.subject || 'default'}</td><td>${stats.signals || 0}</td><td>${stats.calls || 0}</td><td>${ratingText}</td></tr>`;
   }).join('');
-  els.classStudentTable.innerHTML = `<table><thead><tr><th>Zeit</th><th>Raum</th><th>Fach</th><th>Meldungen</th><th>Aufrufe</th><th>Bewertungen</th></tr></thead><tbody>${rows}</tbody></table>`;
+  els.classStudentTable.innerHTML = `${noteHtml}<table><thead><tr><th>Zeit</th><th>Raum</th><th>Fach</th><th>Meldungen</th><th>Aufrufe</th><th>Bewertungen</th></tr></thead><tbody>${rows}</tbody></table>`;
   els.classStudentPanel.style.display = 'block';
 }
 
