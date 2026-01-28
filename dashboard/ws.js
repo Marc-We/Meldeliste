@@ -72,6 +72,7 @@ function handleMessage(msg) {
     const p = state.presence.get(msg.userId);
     p.ready = true;
     p.online = true;
+    if (msg.readyAt) p.readyAt = msg.readyAt;
     renderMembers();
   }
   if (msg.type === 'reset' && msg.roomId === state.currentRoom) {
@@ -220,6 +221,9 @@ function handleMessage(msg) {
     const note = typeof msg.note === 'string' ? msg.note : '';
     state.studentNotes[userId] = note;
     state.classStats.students = (state.classStats.students || []).map((s) => (s.userId === userId ? { ...s, note } : s));
+    if (state.classStudentStats.student && state.classStudentStats.student.userId === userId) {
+      state.classStudentStats.student = { ...state.classStudentStats.student, note };
+    }
     renderClassStats();
   }
   if (msg.type === 'teacherApproved') {

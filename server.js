@@ -1899,6 +1899,7 @@ wss.on('connection', (ws, req) => {
         });
         if (!classes.every((cls) => allowed(cls))) return;
       }
+      const teacherNotes = notes[ws.userId] || {};
       const target = users.get(userId);
       if (!target || target.role !== 'student' || !classes.includes(target.className || '')) return;
       const sessions = Array.from(roomStats.values())
@@ -1923,7 +1924,7 @@ wss.on('connection', (ws, req) => {
         className: classes.join(', '),
         classNames: classes,
         subject,
-        student: { userId: target.id, name: target.name || 'Unbekannt' },
+        student: { userId: target.id, name: target.name || 'Unbekannt', note: teacherNotes[target.id] || '' },
         sessions,
       }));
       return;
@@ -2161,9 +2162,9 @@ wss.on('connection', (ws, req) => {
       if (!readyMap.has(roomId)) readyMap.set(roomId, new Set());
       readyMap.get(roomId).add(ws.userId);
       if (!readyAtMap.has(roomId)) readyAtMap.set(roomId, new Map());
-      if (!readyAtMap.get(roomId).has(ws.userId)) {
-        readyAtMap.get(roomId).set(ws.userId, Date.now());
-      }
+      const readyTimes = readyAtMap.get(roomId);
+      const readyAt = readyTimes.has(ws.userId) ? readyTimes.get(ws.userId) : Date.now();
+      readyTimes.set(ws.userId, readyAt);
 
       if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
       const counter = roomCounters.get(roomId);
@@ -2183,7 +2184,7 @@ wss.on('connection', (ws, req) => {
       roomStat.signals = Math.max(0, (roomStat.signals || 0) + 1);
       roomStats.set(roomId, entry);
       saveRoomStats();
-      broadcastRoom(roomId, { type: 'ready', roomId, userId: ws.userId, name: user.name });
+      broadcastRoom(roomId, { type: 'ready', roomId, userId: ws.userId, name: user.name, readyAt });
       updatePresence(roomId);
       sendStats(roomId);
       return;
