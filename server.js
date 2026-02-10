@@ -2651,47 +2651,19 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-const os = require("os");
-
-const PORT = Number(process.env.PORT) || 3000;
-const HOST = process.env.HOST || "0.0.0.0";
-
+const PORT = process.env.PORT || 3000;
 function getLocalIp() {
-  try {
-    const nets = os.networkInterfaces();
-
-    for (const name of Object.keys(nets)) {
-      for (const net of nets[name] ?? []) {
-        const family = net.family; // "IPv4" oder 4
-        const isV4 = family === "IPv4" || family === 4;
-
-        if (!isV4) continue;
-        if (net.internal) continue;
-
-        const addr = net.address;
-
-        // Manche Umgebungen liefern "komische" Adressen, die du eher nicht willst:
-        if (!addr) continue;
-        if (addr.startsWith("169.254.")) continue; // link-local, oft nutzlos
-
-        return addr;
-      }
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
     }
-  } catch (e) {
-    // iSH / exotische Umgebungen: einfach ruhig bleiben
   }
-
   return null;
 }
-
-server.listen(PORT, HOST, () => {
-  console.log(`Server listening on http://${HOST}:${PORT}`);
-  console.log(`Local: http://127.0.0.1:${PORT} (oder http://localhost:${PORT})`);
-
+server.listen(PORT, '0.0.0.0', () => {
   const ip = getLocalIp();
-  if (ip) {
-    console.log(`LAN:   http://${ip}:${PORT}`);
-  } else {
-    console.log(`LAN:   (keine LAN-IP gefunden – in iSH ist das häufig normal)`);
-  }
+  console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  if (ip) console.log(`LAN: http://${ip}:${PORT}`);
 });
+
