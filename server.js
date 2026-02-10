@@ -121,6 +121,34 @@ function saveNotes() {
   saveJson(NOTES_FILE, notes);
 }
 
+function normalizeNoteList(entry) {
+  if (Array.isArray(entry)) {
+    return entry
+      .filter((n) => n && typeof n.text === 'string')
+      .map((n) => ({ text: String(n.text || '').trim(), ts: n.ts || null }))
+      .filter((n) => n.text);
+  }
+  if (typeof entry === 'string' && entry.trim()) {
+    return [{ text: entry.trim(), ts: null }];
+  }
+  return [];
+}
+
+function getTeacherNotes(teacherId) {
+  if (!notes[teacherId] || typeof notes[teacherId] !== 'object') notes[teacherId] = {};
+  return notes[teacherId];
+}
+
+function getStudentNotes(teacherId, studentId) {
+  const teacherNotes = getTeacherNotes(teacherId);
+  return normalizeNoteList(teacherNotes[studentId]);
+}
+
+function getLatestNoteText(list) {
+  if (!Array.isArray(list) || !list.length) return '';
+  return list[list.length - 1].text || '';
+}
+
 // socket tracking
 const userSockets = new Map(); // userId -> Set<ws>
 
@@ -654,6 +682,7 @@ function isStudentAllowedInRoom(user, room) {
   if (!user || user.role !== 'student') return true;
   const roomClasses = getRoomClassNames(room);
   if (roomClasses.length && user.className && !roomClasses.includes(user.className)) return false;
+  if (room?.substitute) return true;
   const subject = room?.subject || 'default';
   const teacherId = room?.teacherId;
   if (!teacherId) return true;
@@ -1385,12 +1414,14 @@ wss.on('connection', (ws, req) => {
       const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
       const classes = classNames.length ? classNames : (className ? [className] : []);
+      const substitute = Boolean(msg.substitute);
       if (!classes.length) return;
       const id = genId('room');
       const room = {
         id,
         name,
         subject,
+        substitute,
         className: classes[0] || '',
         classNames: classes,
         teacherId: ws.userId,
@@ -1803,8 +1834,8 @@ wss.on('connection', (ws, req) => {
     if (type === 'noteRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const studentId = String(msg.userId || '').trim();
       if (!studentId) return;
-      const teacherNotes = notes[ws.userId] || {};
-      ws.send(JSON.stringify({ type: 'note', userId: studentId, note: teacherNotes[studentId] || '' }));
+      const list = getStudentNotes(ws.userId, studentId);
+      ws.send(JSON.stringify({ type: 'note', userId: studentId, notes: list }));
       return;
     }
 
@@ -1812,14 +1843,13 @@ wss.on('connection', (ws, req) => {
       const studentId = String(msg.userId || '').trim();
       if (!studentId) return;
       const text = String(msg.note || '').trim();
-      if (!notes[ws.userId]) notes[ws.userId] = {};
-      if (text) {
-        notes[ws.userId][studentId] = text;
-      } else {
-        delete notes[ws.userId][studentId];
-      }
+      if (!text) return;
+      const teacherNotes = getTeacherNotes(ws.userId);
+      const list = getStudentNotes(ws.userId, studentId);
+      list.push({ text, ts: Date.now() });
+      teacherNotes[studentId] = list;
       saveNotes();
-      ws.send(JSON.stringify({ type: 'noteSaved', userId: studentId, note: text }));
+      ws.send(JSON.stringify({ type: 'noteSaved', userId: studentId, note: getLatestNoteText(list), notes: list }));
       return;
     }
 
@@ -1869,13 +1899,13 @@ wss.on('connection', (ws, req) => {
         });
         if (!classes.every((cls) => allowed(cls))) return;
       }
-      const teacherNotes = notes[ws.userId] || {};
+      const teacherNotes = getTeacherNotes(ws.userId);
       const students = Array.from(users.values())
         .filter((u) => u && u.role === 'student' && classes.includes(u.className || ''))
         .map((u) => ({
           userId: u.id,
           name: u.name || 'Unbekannt',
-          note: teacherNotes[u.id] || '',
+          note: getLatestNoteText(normalizeNoteList(teacherNotes[u.id])),
           total: subject ? getSubjectTotals(u, subject) : aggregateTotalStats(u),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -1899,9 +1929,10 @@ wss.on('connection', (ws, req) => {
         });
         if (!classes.every((cls) => allowed(cls))) return;
       }
-      const teacherNotes = notes[ws.userId] || {};
+      const teacherNotes = getTeacherNotes(ws.userId);
       const target = users.get(userId);
       if (!target || target.role !== 'student' || !classes.includes(target.className || '')) return;
+      const noteList = getStudentNotes(ws.userId, target.id);
       const sessions = Array.from(roomStats.values())
         .filter((entry) => {
           if (!entry) return false;
@@ -1924,7 +1955,7 @@ wss.on('connection', (ws, req) => {
         className: classes.join(', '),
         classNames: classes,
         subject,
-        student: { userId: target.id, name: target.name || 'Unbekannt', note: teacherNotes[target.id] || '' },
+        student: { userId: target.id, name: target.name || 'Unbekannt', notes: noteList },
         sessions,
       }));
       return;
@@ -2621,31 +2652,18 @@ wss.on('connection', (ws, req) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 function getLocalIp() {
-  try {
-    const nets = os.networkInterfaces();
-    for (const name of Object.keys(nets || {})) {
-      for (const net of (nets[name] || [])) {
-        if (net.family === 'IPv4' && !net.internal) return net.address;
-      }
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
     }
-  } catch (err) {
-    // iSH: os.networkInterfaces() kann hier crashen -> dann einfach keine LAN-IP ausgeben
-    return null;
   }
   return null;
 }
-
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Local: http://127.0.0.1:${PORT}`);
-
-  let ip = null;
-  try {
-    ip = getLocalIp();
-  } catch (err) {
-    ip = null; // iSH: kann crashen -> ignorieren
-  }
-
+  const ip = getLocalIp();
+  console.log(`Server listening on http://0.0.0.0:${PORT}`);
   if (ip) console.log(`LAN: http://${ip}:${PORT}`);
 });
+
