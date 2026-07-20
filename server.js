@@ -23,6 +23,8 @@ const CODES_FILE = path.join(DATA_DIR, 'codes.json');
 const BANS_FILE = path.join(DATA_DIR, 'bans.json');
 const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
+const GRADE_SHEETS_FILE = path.join(DATA_DIR, 'grade_sheets.json');
+const ASSIGNMENTS_FILE = path.join(DATA_DIR, 'assignments.json');
 const QUESTIONNAIRES_DIR = path.join(__dirname, 'questionnaires');
 const QUESTIONNAIRES_TEACHER_DIR = path.join(QUESTIONNAIRES_DIR, 'teachers');
 
@@ -42,10 +44,13 @@ function loadJson(file, fallback) {
 }
 
 function saveJson(file, data) {
+  const tmp = file + '.tmp';
   try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tmp, file);
   } catch (err) {
     console.error(`Failed to save ${file}`, err);
+    try { fs.unlinkSync(tmp); } catch {}
   }
 }
 
@@ -65,6 +70,8 @@ let codes = new Map(Object.entries(loadJson(CODES_FILE, {}))); // key role:class
 let bans = loadJson(BANS_FILE, { emails: [], ips: [] });
 let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
 let notes = loadJson(NOTES_FILE, {});
+let gradeSheets = loadJson(GRADE_SHEETS_FILE, {});
+let assignmentTemplates = loadJson(ASSIGNMENTS_FILE, {});
 
 // Seeds for demo if empty
 if (users.size === 0) {
@@ -100,10 +107,6 @@ function saveSubjects() {
 function saveHomework() {
   saveJson(HOMEWORK_FILE, Object.fromEntries(homework));
 }
-function saveHomework() {
-  const plain = Object.fromEntries(homework);
-  saveJson(HOMEWORK_FILE, plain);
-}
 function saveRoomStats() {
   const plain = Object.fromEntries(roomStats);
   saveJson(ROOM_STATS_FILE, plain);
@@ -120,33 +123,11 @@ function saveFeedback() {
 function saveNotes() {
   saveJson(NOTES_FILE, notes);
 }
-
-function normalizeNoteList(entry) {
-  if (Array.isArray(entry)) {
-    return entry
-      .filter((n) => n && typeof n.text === 'string')
-      .map((n) => ({ text: String(n.text || '').trim(), ts: n.ts || null }))
-      .filter((n) => n.text);
-  }
-  if (typeof entry === 'string' && entry.trim()) {
-    return [{ text: entry.trim(), ts: null }];
-  }
-  return [];
+function saveGradeSheets() {
+  saveJson(GRADE_SHEETS_FILE, gradeSheets);
 }
-
-function getTeacherNotes(teacherId) {
-  if (!notes[teacherId] || typeof notes[teacherId] !== 'object') notes[teacherId] = {};
-  return notes[teacherId];
-}
-
-function getStudentNotes(teacherId, studentId) {
-  const teacherNotes = getTeacherNotes(teacherId);
-  return normalizeNoteList(teacherNotes[studentId]);
-}
-
-function getLatestNoteText(list) {
-  if (!Array.isArray(list) || !list.length) return '';
-  return list[list.length - 1].text || '';
+function saveAssignmentTemplates() {
+  saveJson(ASSIGNMENTS_FILE, assignmentTemplates);
 }
 
 // socket tracking
@@ -163,6 +144,8 @@ const questionsMap = new Map(); // roomId -> [{id,text,ts}]
 const pollsMap = new Map(); // roomId -> {id, question, options:[{id,text,count}], multiple, votes: Map<userId, string[]>}
 const thoughtsMap = new Map(); // roomId -> {active:boolean, entries:string[]}
 const roomQuestionnaires = new Map(); // roomId -> {teacherId, subject, slot, activeAt}
+const timersMap = new Map(); // roomId -> {totalSeconds, remainingAtSnapshot, snapshotAt, running} | null
+const activeAssignmentsMap = new Map(); // roomId -> {assignmentId, title, description, totalSeconds, remainingAtSnapshot, snapshotAt, running} | null
 const homeworkMap = homework; // alias for clarity
 
 function normalizeHomework(entry) {
@@ -189,9 +172,16 @@ const server = http.createServer((req, res) => {
     res.writeHead(405);
     return res.end();
   }
-  const urlPath = decodeURIComponent(req.url.split('?')[0]);
-  const safePath = urlPath === '/' ? '/index.html' : urlPath;
-  const filePath = path.join(__dirname, safePath.replace(/^\/+/, ''));
+const urlPath = decodeURIComponent(req.url.split('?')[0]);
+
+let safePath = urlPath === '/' ? '/index.html' : urlPath;
+
+// Extra-Seite: mwermke.de/darts
+if (safePath === '/darts' || safePath === '/darts/') {
+  safePath = '/darts/index.html';
+}
+
+const filePath = path.join(__dirname, safePath.replace(/^\/+/, ''));
 
   // prevent path traversal
   if (!filePath.startsWith(__dirname)) {
@@ -209,6 +199,16 @@ const server = http.createServer((req, res) => {
   });
 });
 const wss = new WebSocketServer({ server });
+
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (!ws.isAlive) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
+wss.on('close', () => clearInterval(heartbeatInterval));
 
 // --- Utility functions -------------------------------------------------------
 const ratingKeys = ['--', '-', '0', '+', '++'];
@@ -682,7 +682,6 @@ function isStudentAllowedInRoom(user, room) {
   if (!user || user.role !== 'student') return true;
   const roomClasses = getRoomClassNames(room);
   if (roomClasses.length && user.className && !roomClasses.includes(user.className)) return false;
-  if (room?.substitute) return true;
   const subject = room?.subject || 'default';
   const teacherId = room?.teacherId;
   if (!teacherId) return true;
@@ -778,8 +777,14 @@ function findUserByCredentials({ role, firstName, lastName, className, salutatio
         if ((u.className || '') !== className) continue;
       }
     }
-    // password check
-    if (u.password && password && u.password !== password) continue;
+    // password check — prefer hash, fall back to legacy plaintext
+    if (password) {
+      if (u.passwordHash) {
+        if (!verifySecret(password, u.passwordHash)) continue;
+      } else if (u.password && u.password !== password) {
+        continue;
+      }
+    }
     return u;
   }
   return null;
@@ -887,6 +892,16 @@ function broadcastThoughts(roomId, payload) {
     if (client.roomId !== roomId) return;
     client.send(json);
   });
+}
+
+function broadcastTimer(roomId) {
+  const timer = timersMap.get(roomId) || null;
+  broadcastRoom(roomId, { type: 'timer', roomId, timer });
+}
+
+function broadcastAssignment(roomId) {
+  const assignment = activeAssignmentsMap.get(roomId) || null;
+  broadcastRoom(roomId, { type: 'assignment', roomId, assignment });
 }
 
 function broadcastHomework(className, subject, entry) {
@@ -1033,6 +1048,9 @@ function resetReady(roomId, userId) {
 
 // --- Message handling --------------------------------------------------------
 wss.on('connection', (ws, req) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   ws.userId = null;
   ws.role = null;
   ws.roomId = null;
@@ -1060,9 +1078,19 @@ wss.on('connection', (ws, req) => {
 
       let user = incomingId ? users.get(incomingId) : null;
       if (user) {
-        if (user.password && password && user.password !== password) {
-          ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_password' }));
-          return;
+        if (password) {
+          const ok = user.passwordHash
+            ? verifySecret(password, user.passwordHash)
+            : (!user.password || user.password === password);
+          if (!ok) {
+            ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_password' }));
+            return;
+          }
+          // migrate legacy plaintext to hash on next login
+          if (!user.passwordHash && user.password) {
+            user.passwordHash = hashSecret(user.password);
+            delete user.password;
+          }
         }
       } else {
         // Try to find existing by credentials on login
@@ -1094,7 +1122,7 @@ wss.on('connection', (ws, req) => {
             lastName,
             salutation,
             className,
-            password,
+            passwordHash: hashSecret(password),
             name,
             stats: {},
             teachings: [],
@@ -1117,7 +1145,10 @@ wss.on('connection', (ws, req) => {
         if (className) user.className = className;
         user.name = `${user.firstName || ''} ${user.lastName || ''}`.trim();
       }
-      if (password) user.password = password;
+      if (password) {
+        user.passwordHash = hashSecret(password);
+        delete user.password;
+      }
       users.set(user.id, user);
       saveUsers();
 
@@ -1414,14 +1445,12 @@ wss.on('connection', (ws, req) => {
       const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
       const classes = classNames.length ? classNames : (className ? [className] : []);
-      const substitute = Boolean(msg.substitute);
       if (!classes.length) return;
       const id = genId('room');
       const room = {
         id,
         name,
         subject,
-        substitute,
         className: classes[0] || '',
         classNames: classes,
         teacherId: ws.userId,
@@ -1834,8 +1863,8 @@ wss.on('connection', (ws, req) => {
     if (type === 'noteRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const studentId = String(msg.userId || '').trim();
       if (!studentId) return;
-      const list = getStudentNotes(ws.userId, studentId);
-      ws.send(JSON.stringify({ type: 'note', userId: studentId, notes: list }));
+      const teacherNotes = notes[ws.userId] || {};
+      ws.send(JSON.stringify({ type: 'note', userId: studentId, note: teacherNotes[studentId] || '' }));
       return;
     }
 
@@ -1843,13 +1872,14 @@ wss.on('connection', (ws, req) => {
       const studentId = String(msg.userId || '').trim();
       if (!studentId) return;
       const text = String(msg.note || '').trim();
-      if (!text) return;
-      const teacherNotes = getTeacherNotes(ws.userId);
-      const list = getStudentNotes(ws.userId, studentId);
-      list.push({ text, ts: Date.now() });
-      teacherNotes[studentId] = list;
+      if (!notes[ws.userId]) notes[ws.userId] = {};
+      if (text) {
+        notes[ws.userId][studentId] = text;
+      } else {
+        delete notes[ws.userId][studentId];
+      }
       saveNotes();
-      ws.send(JSON.stringify({ type: 'noteSaved', userId: studentId, note: getLatestNoteText(list), notes: list }));
+      ws.send(JSON.stringify({ type: 'noteSaved', userId: studentId, note: text }));
       return;
     }
 
@@ -1899,13 +1929,13 @@ wss.on('connection', (ws, req) => {
         });
         if (!classes.every((cls) => allowed(cls))) return;
       }
-      const teacherNotes = getTeacherNotes(ws.userId);
+      const teacherNotes = notes[ws.userId] || {};
       const students = Array.from(users.values())
         .filter((u) => u && u.role === 'student' && classes.includes(u.className || ''))
         .map((u) => ({
           userId: u.id,
           name: u.name || 'Unbekannt',
-          note: getLatestNoteText(normalizeNoteList(teacherNotes[u.id])),
+          note: teacherNotes[u.id] || '',
           total: subject ? getSubjectTotals(u, subject) : aggregateTotalStats(u),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -1929,10 +1959,8 @@ wss.on('connection', (ws, req) => {
         });
         if (!classes.every((cls) => allowed(cls))) return;
       }
-      const teacherNotes = getTeacherNotes(ws.userId);
       const target = users.get(userId);
       if (!target || target.role !== 'student' || !classes.includes(target.className || '')) return;
-      const noteList = getStudentNotes(ws.userId, target.id);
       const sessions = Array.from(roomStats.values())
         .filter((entry) => {
           if (!entry) return false;
@@ -1955,7 +1983,7 @@ wss.on('connection', (ws, req) => {
         className: classes.join(', '),
         classNames: classes,
         subject,
-        student: { userId: target.id, name: target.name || 'Unbekannt', notes: noteList },
+        student: { userId: target.id, name: target.name || 'Unbekannt' },
         sessions,
       }));
       return;
@@ -2105,6 +2133,8 @@ wss.on('connection', (ws, req) => {
       if (!questionsMap.has(roomId)) questionsMap.set(roomId, []);
       if (!pollsMap.has(roomId)) pollsMap.set(roomId, null);
       if (!thoughtsMap.has(roomId)) thoughtsMap.set(roomId, { active: false, entries: [] });
+      if (!timersMap.has(roomId)) timersMap.set(roomId, null);
+      if (!activeAssignmentsMap.has(roomId)) activeAssignmentsMap.set(roomId, null);
       ensureRoomStatsEntry(roomId, room);
       updatePresence(roomId);
       sendLogUpdates(roomId);
@@ -2121,6 +2151,10 @@ wss.on('connection', (ws, req) => {
         broadcastQuestions(roomId);
         broadcastPoll(roomId);
       }
+      const currentTimer = timersMap.get(roomId) || null;
+      ws.send(JSON.stringify({ type: 'timer', roomId, timer: currentTimer }));
+      const currentAssignment = activeAssignmentsMap.get(roomId) || null;
+      ws.send(JSON.stringify({ type: 'assignment', roomId, assignment: currentAssignment }));
       sendActiveQuestionnaireTo(ws, roomId);
       return;
     }
@@ -2193,9 +2227,9 @@ wss.on('connection', (ws, req) => {
       if (!readyMap.has(roomId)) readyMap.set(roomId, new Set());
       readyMap.get(roomId).add(ws.userId);
       if (!readyAtMap.has(roomId)) readyAtMap.set(roomId, new Map());
-      const readyTimes = readyAtMap.get(roomId);
-      const readyAt = readyTimes.has(ws.userId) ? readyTimes.get(ws.userId) : Date.now();
-      readyTimes.set(ws.userId, readyAt);
+      if (!readyAtMap.get(roomId).has(ws.userId)) {
+        readyAtMap.get(roomId).set(ws.userId, Date.now());
+      }
 
       if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
       const counter = roomCounters.get(roomId);
@@ -2215,7 +2249,7 @@ wss.on('connection', (ws, req) => {
       roomStat.signals = Math.max(0, (roomStat.signals || 0) + 1);
       roomStats.set(roomId, entry);
       saveRoomStats();
-      broadcastRoom(roomId, { type: 'ready', roomId, userId: ws.userId, name: user.name, readyAt });
+      broadcastRoom(roomId, { type: 'ready', roomId, userId: ws.userId, name: user.name });
       updatePresence(roomId);
       sendStats(roomId);
       return;
@@ -2328,6 +2362,187 @@ wss.on('connection', (ws, req) => {
       poll.open = false;
       pollsMap.set(roomId, poll);
       broadcastPoll(roomId);
+      return;
+    }
+
+    if (type === 'timerSet' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      if (!rooms.has(roomId)) return;
+      const total = Math.max(1, Math.min(Number(msg.totalSeconds) || 0, 7200));
+      timersMap.set(roomId, { totalSeconds: total, remainingAtSnapshot: total, snapshotAt: Date.now(), running: false });
+      broadcastTimer(roomId);
+      return;
+    }
+
+    if (type === 'timerStart' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const timer = timersMap.get(roomId);
+      if (!timer || timer.running) return;
+      timer.snapshotAt = Date.now();
+      timer.running = true;
+      broadcastTimer(roomId);
+      return;
+    }
+
+    if (type === 'timerPause' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const timer = timersMap.get(roomId);
+      if (!timer || !timer.running) return;
+      const elapsed = Math.floor((Date.now() - timer.snapshotAt) / 1000);
+      timer.remainingAtSnapshot = Math.max(0, timer.remainingAtSnapshot - elapsed);
+      timer.snapshotAt = Date.now();
+      timer.running = false;
+      broadcastTimer(roomId);
+      return;
+    }
+
+    if (type === 'timerStop' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      if (!rooms.has(roomId)) return;
+      timersMap.set(roomId, null);
+      broadcastTimer(roomId);
+      return;
+    }
+
+    // --- Assignment handlers ---
+    if (type === 'assignmentSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const id = String(msg.assignmentId || '').trim() || `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const title = String(msg.title || '').trim().slice(0, 200);
+      const description = String(msg.description || '').trim().slice(0, 2000);
+      const totalSeconds = Math.max(0, Math.min(Number(msg.totalSeconds) || 0, 7200));
+      if (!title) return;
+      const existing = assignmentTemplates[id];
+      if (existing && existing.teacherId !== ws.userId && ws.role !== 'admin') return;
+      assignmentTemplates[id] = { id, teacherId: ws.userId, title, description, totalSeconds, createdAt: existing?.createdAt || Date.now() };
+      saveAssignmentTemplates();
+      const myTemplates = Object.values(assignmentTemplates).filter((a) => a.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'assignmentList', assignments: myTemplates }));
+      return;
+    }
+
+    if (type === 'assignmentListRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const myTemplates = Object.values(assignmentTemplates).filter((a) => a.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'assignmentList', assignments: myTemplates }));
+      return;
+    }
+
+    if (type === 'assignmentLaunch' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      if (!rooms.has(roomId)) return;
+      const tpl = assignmentTemplates[String(msg.assignmentId || '')];
+      if (!tpl) return;
+      const active = {
+        assignmentId: tpl.id,
+        title: tpl.title,
+        description: tpl.description,
+        totalSeconds: tpl.totalSeconds,
+        remainingAtSnapshot: tpl.totalSeconds,
+        snapshotAt: Date.now(),
+        running: tpl.totalSeconds > 0,
+      };
+      activeAssignmentsMap.set(roomId, active);
+      broadcastAssignment(roomId);
+      return;
+    }
+
+    if (type === 'assignmentEnd' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      if (!rooms.has(roomId)) return;
+      activeAssignmentsMap.set(roomId, null);
+      broadcastAssignment(roomId);
+      return;
+    }
+
+    if (type === 'assignmentDelete' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const id = String(msg.assignmentId || '');
+      const tpl = assignmentTemplates[id];
+      if (!tpl) return;
+      if (tpl.teacherId !== ws.userId && ws.role !== 'admin') return;
+      delete assignmentTemplates[id];
+      saveAssignmentTemplates();
+      const myTemplates = Object.values(assignmentTemplates).filter((a) => a.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'assignmentList', assignments: myTemplates }));
+      return;
+    }
+
+    // --- Grade sheet handlers ---
+    if (type === 'gradeSheetSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const id = String(msg.sheetId || '').trim() || `gs-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const label = String(msg.label || '').trim().slice(0, 200);
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || '').trim() || 'default';
+      if (!label) return;
+      const existing = gradeSheets[id];
+      if (existing && existing.teacherId !== ws.userId && ws.role !== 'admin') return;
+      const entries = {};
+      if (msg.entries && typeof msg.entries === 'object') {
+        for (const [uid, entry] of Object.entries(msg.entries)) {
+          const mss = entry.mss === null || entry.mss === undefined ? null : Math.max(0, Math.min(15, Number(entry.mss)));
+          entries[uid] = { mss: isNaN(mss) ? null : mss, comment: String(entry.comment || '').trim().slice(0, 500) };
+        }
+      }
+      gradeSheets[id] = { id, teacherId: ws.userId, label, className, subject, entries, createdAt: existing?.createdAt || Date.now(), updatedAt: Date.now() };
+      saveGradeSheets();
+      const mySheets = Object.values(gradeSheets).filter((s) => s.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'gradeSheetList', sheets: mySheets }));
+      return;
+    }
+
+    if (type === 'gradeSheetListRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const mySheets = Object.values(gradeSheets).filter((s) => s.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'gradeSheetList', sheets: mySheets }));
+      return;
+    }
+
+    if (type === 'gradeStudentListRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      if (!className) return;
+      if (ws.role === 'teacher') {
+        const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
+        const allowed = teaches.some((t) => {
+          if (Array.isArray(t.classNames)) return t.classNames.includes(className);
+          return t.className === className;
+        });
+        if (!allowed) return;
+      }
+      const students = Array.from(users.values())
+        .filter((u) => u && u.role === 'student' && (u.className || '') === className)
+        .map((u) => ({ userId: u.id, name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Unbekannt' }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      ws.send(JSON.stringify({ type: 'gradeStudentList', className, students }));
+      return;
+    }
+
+    if (type === 'gradeSheetSend' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      if (!rooms.has(roomId)) return;
+      const sheet = gradeSheets[String(msg.sheetId || '')];
+      if (!sheet) return;
+      if (sheet.teacherId !== ws.userId && ws.role !== 'admin') return;
+      const members = roomMembers.get(roomId) || new Set();
+      members.forEach((userId) => {
+        const entry = sheet.entries[userId];
+        if (!entry || entry.mss === null || entry.mss === undefined) return;
+        const sockets = userSockets.get(userId);
+        if (!sockets) return;
+        sockets.forEach((s) => {
+          if (s.readyState === 1) {
+            s.send(JSON.stringify({ type: 'gradeSent', mss: entry.mss, comment: entry.comment, label: sheet.label, subject: sheet.subject }));
+          }
+        });
+      });
+      return;
+    }
+
+    if (type === 'gradeSheetDelete' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const id = String(msg.sheetId || '');
+      const sheet = gradeSheets[id];
+      if (!sheet) return;
+      if (sheet.teacherId !== ws.userId && ws.role !== 'admin') return;
+      delete gradeSheets[id];
+      saveGradeSheets();
+      const mySheets = Object.values(gradeSheets).filter((s) => s.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'gradeSheetList', sheets: mySheets }));
       return;
     }
 
@@ -2588,7 +2803,7 @@ wss.on('connection', (ws, req) => {
       logs.set(roomId, roomLog);
       saveLogs();
 
-      const room = rooms.get(roomId);
+       const room = rooms.get(roomId);
       if (room) {
         const subject = room.subject || 'default';
         const targetUser = users.get(entry.userId);
@@ -2651,19 +2866,28 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
-function getLocalIp() {
+const PORT = Number(process.env.PORT || 3000);
+
+function getLocalIP() {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
-    for (const net of nets[name] || []) {
+    for (const net of nets[name]) {
       if (net.family === 'IPv4' && !net.internal) return net.address;
     }
   }
   return null;
 }
+
 server.listen(PORT, '0.0.0.0', () => {
-  const ip = getLocalIp();
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
-  if (ip) console.log(`LAN: http://${ip}:${PORT}`);
+  console.log(`Server läuft auf http://localhost:${PORT}`);
+  const ip = getLocalIP();
+  if (ip) console.log(`Im Schulnetz erreichbar unter: http://${ip}:${PORT}`);
 });
 
+process.on('uncaughtException', (err) => {
+  console.error('[FEHLER] Unbehandelte Ausnahme:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FEHLER] Unbehandelte Promise-Ablehnung:', reason);
+});

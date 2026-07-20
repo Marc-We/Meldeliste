@@ -23,6 +23,11 @@ import {
   renderAdminPanel,
   renderQuestionnaireEditor,
   renderQuestionnaireBroadcast,
+  renderTimer,
+  renderAssignment,
+  renderAssignmentTemplates,
+  renderGradeSheet,
+  renderGradeClassOptions,
 } from './render.js';
 
 function handleMessage(msg) {
@@ -42,11 +47,14 @@ function handleMessage(msg) {
     renderFeedbackForm();
     renderTeacherInbox();
     renderQuestionnaireBroadcast();
+    renderGradeClassOptions();
     updateLayout();
     localStorage.setItem('meldelisteProfileTeacher', JSON.stringify(state.profile));
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       sendJson({ type: 'homeworkListRequest' });
       sendJson({ type: 'feedbackInboxRequest' });
+      sendJson({ type: 'assignmentListRequest' });
+      sendJson({ type: 'gradeSheetListRequest' });
       sendJson({ type: 'questionnaireRequest', role: 'student' });
       sendJson({ type: 'questionnaireRequest', role: 'teacher' });
       if (state.profile.role === 'admin') {
@@ -72,7 +80,6 @@ function handleMessage(msg) {
     const p = state.presence.get(msg.userId);
     p.ready = true;
     p.online = true;
-    if (msg.readyAt) p.readyAt = msg.readyAt;
     renderMembers();
   }
   if (msg.type === 'reset' && msg.roomId === state.currentRoom) {
@@ -121,7 +128,7 @@ function handleMessage(msg) {
     } else if (msg.status === 'verify_required') {
       state.pendingEmail = msg.email || els.emailInput.value.trim();
       state.authMode = 'verify';
-      setAuthStatus('Code gesendet. Bitte pruefen.');
+      setAuthStatus('Code gesendet. Bitte prüfen.');
       renderAuthFields();
     } else if (msg.status === 'reset_sent') {
       state.pendingEmail = msg.email || els.emailInput.value.trim();
@@ -133,21 +140,21 @@ function handleMessage(msg) {
       setAuthStatus('Passwort aktualisiert. Bitte anmelden.');
       renderAuthFields();
     } else if (msg.status === 'verified') {
-      setAuthStatus('E-Mail bereits bestaetigt.');
+      setAuthStatus('E-Mail bereits bestätigt.');
     }
   }
   if (msg.type === 'authError') {
     const reason = msg.reason || 'Anmeldung fehlgeschlagen';
     const messages = {
-      missing_fields: 'Bitte alle Felder ausfuellen.',
+      missing_fields: 'Bitte alle Felder ausfüllen.',
       email_exists: 'E-Mail existiert bereits.',
       not_found: 'Account nicht gefunden.',
       wrong_password: 'Passwort falsch.',
-      email_unverified: 'E-Mail noch nicht bestaetigt.',
-      code_invalid: 'Code ungueltig.',
+      email_unverified: 'E-Mail noch nicht bestätigt.',
+      code_invalid: 'Code ungültig.',
       code_expired: 'Code abgelaufen.',
-      class_invalid: 'Klasse ungueltig.',
-      wrong_role: 'Falsche Rolle fuer diesen Account.',
+      class_invalid: 'Klasse ungültig.',
+      wrong_role: 'Falsche Rolle für diesen Account.',
       teacher_unapproved: 'Admin muss den Account freigeben.',
       banned: 'Account gesperrt.',
     };
@@ -221,9 +228,6 @@ function handleMessage(msg) {
     const note = typeof msg.note === 'string' ? msg.note : '';
     state.studentNotes[userId] = note;
     state.classStats.students = (state.classStats.students || []).map((s) => (s.userId === userId ? { ...s, note } : s));
-    if (state.classStudentStats.student && state.classStudentStats.student.userId === userId) {
-      state.classStudentStats.student = { ...state.classStudentStats.student, note };
-    }
     renderClassStats();
   }
   if (msg.type === 'teacherApproved') {
@@ -250,6 +254,41 @@ function handleMessage(msg) {
   if (msg.type === 'question' && msg.roomId === state.currentRoom) {
     state.questions.push(msg.question);
     renderQuestions();
+  }
+  if (msg.type === 'timer' && msg.roomId === state.currentRoom) {
+    state.timer = msg.timer || null;
+    renderTimer();
+  }
+  if (msg.type === 'assignment' && msg.roomId === state.currentRoom) {
+    state.assignment = msg.assignment || null;
+    renderAssignment();
+  }
+  if (msg.type === 'assignmentList') {
+    state.assignmentTemplates = msg.assignments || [];
+    if (state.pendingSelectAssignmentTitle) {
+      const known = state.knownAssignmentIds || [];
+      const added = state.assignmentTemplates.find((t) => !known.includes(t.id));
+      if (added) state.selectedAssignmentId = added.id;
+      state.pendingSelectAssignmentTitle = null;
+      state.knownAssignmentIds = null;
+    }
+    renderAssignmentTemplates();
+  }
+  if (msg.type === 'gradeSheetList') {
+    state.gradeSheets = msg.sheets || [];
+    if (state.pendingSelectLabel) {
+      const known = state.knownSheetIds || [];
+      const added = state.gradeSheets.find((s) => !known.includes(s.id));
+      if (added) state.selectedSheetId = added.id;
+      state.pendingSelectLabel = null;
+      state.knownSheetIds = null;
+    }
+    renderGradeSheet();
+  }
+  if (msg.type === 'gradeStudentList') {
+    state.gradeStudentList = msg.students || [];
+    state.gradeClassName = msg.className || '';
+    renderGradeSheet();
   }
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;
@@ -303,6 +342,9 @@ export function connect() {
   state.ws.onopen = () => {
     setConnection(true);
     sendJson({ type: 'catalogsRequest' });
+  };
+  state.ws.onerror = () => {
+    setConnection(false);
   };
   state.ws.onclose = () => {
     setConnection(false);

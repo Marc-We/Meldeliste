@@ -111,6 +111,12 @@
     .inbox-item { border: 1px solid #24304c; border-radius: 10px; padding: 10px; margin-top: 8px; background: #0c1424; }
     details.panel > summary { cursor: pointer; font-weight: 700; list-style: none; }
     details.panel > summary::-webkit-details-marker { display: none; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .statbox { grid-template-columns: 1fr 1fr; }
+      .card { padding: 10px; }
+      .rating { flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>
@@ -178,7 +184,7 @@
         <button id="withdrawBtn" class="ghost" disabled>Meldung zurücknehmen</button>
         <button id="leaveBtn" class="ghost" disabled>Raum verlassen</button>
       </div>
-      <div class="called" id="calledBox" title="Klicken zum Schließen">Du wurdest aufgerufen â€“ bitte melden!</div>
+      <div class="called" id="calledBox" title="Klicken zum Schließen">Du wurdest aufgerufen – bitte melden!</div>
       <div style="margin-top:12px">
         <label>Frage</label>
         <textarea id="questionText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
@@ -193,6 +199,26 @@
     <div class="panel" id="thoughtPanel" style="display:none">
       <h2>Gedankenrunde</h2>
       <div id="thoughtState" class="small">Nicht aktiv</div>
+    </div>
+
+    <div class="panel" id="timerPanel" style="display:none">
+      <h2>Timer</h2>
+      <div id="timerDisplay" style="font-size:2.4rem;font-weight:700;letter-spacing:0.05em;text-align:center;padding:8px 0">--:--</div>
+      <div id="timerFinished" style="display:none;text-align:center;color:#f0a500;font-weight:600;margin-top:4px">Timer abgelaufen</div>
+    </div>
+
+    <div class="panel" id="assignmentPanel" style="display:none">
+      <div id="assignmentClientTitle" style="font-weight:700;font-size:1.15rem;margin-bottom:4px"></div>
+      <div id="assignmentClientDesc" style="white-space:pre-wrap;color:var(--muted);margin-bottom:8px"></div>
+      <div id="assignmentClientCountdown" style="font-size:2rem;font-weight:700;text-align:center;letter-spacing:0.05em;padding:4px 0"></div>
+      <div id="assignmentClientFinished" style="display:none;text-align:center;color:#f0a500;font-weight:600;margin-top:4px">Zeit abgelaufen</div>
+    </div>
+
+    <div class="panel" id="gradePanel" style="display:none">
+      <div id="gradeLabel" style="font-size:0.85rem;color:var(--muted);margin-bottom:2px"></div>
+      <div id="gradeValue" style="font-size:2.2rem;font-weight:700;text-align:center;padding:8px 0"></div>
+      <div id="gradeComment" style="color:var(--muted);margin-top:4px"></div>
+      <button id="gradePanelClose" class="ghost" style="margin-top:8px;width:100%">Schließen</button>
     </div>
 
     <div class="panel" id="pollPanel">

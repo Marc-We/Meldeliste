@@ -16,6 +16,9 @@ import {
   renderSubjectStats,
   renderQuestionnaire,
   renderThoughtState,
+  renderTimer,
+  renderAssignment,
+  renderGrade,
 } from './render.js';
 
 function courseKey(subject, teacherId) {
@@ -125,7 +128,7 @@ function handleMessage(msg) {
     if (msg.status === 'verify_required') {
       state.pendingEmail = msg.email || els.emailInput.value.trim();
       state.authMode = 'verify';
-      setAuthStatus('Code gesendet. Bitte pruefen.');
+      setAuthStatus('Code gesendet. Bitte prüfen.');
       renderAuthFields();
     } else if (msg.status === 'reset_sent') {
       state.pendingEmail = msg.email || els.emailInput.value.trim();
@@ -137,21 +140,21 @@ function handleMessage(msg) {
       setAuthStatus('Passwort aktualisiert. Bitte anmelden.');
       renderAuthFields();
     } else if (msg.status === 'verified') {
-      setAuthStatus('E-Mail bereits bestaetigt.');
+      setAuthStatus('E-Mail bereits bestätigt.');
     }
   }
   if (msg.type === 'authError') {
     const reason = msg.reason || 'Anmeldung fehlgeschlagen';
     const messages = {
-      missing_fields: 'Bitte alle Felder ausfuellen.',
+      missing_fields: 'Bitte alle Felder ausfüllen.',
       email_exists: 'E-Mail existiert bereits.',
       not_found: 'Account nicht gefunden.',
       wrong_password: 'Passwort falsch.',
-      email_unverified: 'E-Mail noch nicht bestaetigt.',
-      code_invalid: 'Code ungueltig.',
+      email_unverified: 'E-Mail noch nicht bestätigt.',
+      code_invalid: 'Code ungültig.',
       code_expired: 'Code abgelaufen.',
-      class_invalid: 'Klasse ungueltig.',
-      wrong_role: 'Falsche Rolle fuer diesen Account.',
+      class_invalid: 'Klasse ungültig.',
+      wrong_role: 'Falsche Rolle für diesen Account.',
       banned: 'Account gesperrt.',
     };
     setAuthStatus(messages[reason] || `Fehler: ${reason}`);
@@ -161,7 +164,7 @@ function handleMessage(msg) {
     }
   }
   if (msg.type === 'joinDenied') {
-    setAuthStatus('Du bist fuer diesen Kurs nicht freigeschaltet.');
+    setAuthStatus('Du bist für diesen Kurs nicht freigeschaltet.');
     state.currentRoom = null;
     if (els.roomSelect) els.roomSelect.value = '';
     renderRooms();
@@ -188,6 +191,18 @@ function handleMessage(msg) {
     localStorage.removeItem('meldelisteRemember');
     setAuthStatus('Account gesperrt.');
     if (state.ws) state.ws.close();
+  }
+  if (msg.type === 'timer' && msg.roomId === state.currentRoom) {
+    state.timer = msg.timer || null;
+    renderTimer();
+  }
+  if (msg.type === 'assignment' && msg.roomId === state.currentRoom) {
+    state.assignment = msg.assignment || null;
+    renderAssignment();
+  }
+  if (msg.type === 'gradeSent') {
+    state.grade = msg;
+    renderGrade();
   }
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;
@@ -232,6 +247,9 @@ export function connect() {
         }
       } catch (e) {}
     }
+  };
+  state.ws.onerror = () => {
+    setConnection(false);
   };
   state.ws.onclose = () => {
     setConnection(false);

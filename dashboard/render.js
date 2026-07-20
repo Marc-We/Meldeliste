@@ -3,6 +3,10 @@ import { els } from './dom.js';
 import { sendJson, sendJoin } from './api.js';
 import { setPanelVisible, updateLayout } from './ui.js';
 
+function escHtml(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function formatDuration(start) {
   if (!start) return '-';
   const diff = Date.now() - start;
@@ -103,7 +107,7 @@ export function renderCatalogs() {
 
   fillSelect(els.roomSubjectInput, state.subjectCatalog, 'Fach wählen');
   fillSelect(els.teachSubjectSelect, state.subjectCatalog, 'Fach wählen');
-  if (els.codeClassSelect) fillSelect(els.codeClassSelect, state.classCatalog, 'Klasse waehlen');
+  if (els.codeClassSelect) fillSelect(els.codeClassSelect, state.classCatalog, 'Klasse wählen');
   fillChecklist(els.roomClassList, state.classCatalog);
   fillChecklist(els.teachClassList, state.classCatalog);
 }
@@ -121,7 +125,7 @@ export function renderCodes() {
   }
   const entry = state.classCode;
   const label = entry.className ? `${entry.className}: ${entry.code}` : entry.code;
-  els.classCodeInfo.textContent = `${label} (gueltig bis ${formatExpiry(entry.expiresAt)})`;
+  els.classCodeInfo.textContent = `${label} (gültig bis ${formatExpiry(entry.expiresAt)})`;
 }
 
 export function renderAdminPanel() {
@@ -129,7 +133,7 @@ export function renderAdminPanel() {
     if (!state.teacherCode) {
       els.teacherCodeInfo.textContent = 'Kein Code geladen';
     } else {
-      els.teacherCodeInfo.textContent = `${state.teacherCode.code} (gueltig bis ${formatExpiry(state.teacherCode.expiresAt)})`;
+      els.teacherCodeInfo.textContent = `${state.teacherCode.code} (gültig bis ${formatExpiry(state.teacherCode.expiresAt)})`;
     }
   }
   if (els.pendingTeachers) {
@@ -531,7 +535,7 @@ export function renderLog() {
     const time = new Date(e.ts).toLocaleTimeString();
     const action = e.action === 'rating' ? 'Bewertung' : 'Aufruf';
     const rating = e.rating ? e.rating : '';
-    return `<tr><td>${time}</td><td>${e.name}</td><td>${action}</td><td>${rating}</td><td><button class="ghost trash" data-log="${e.id}">ðŸ—‘</button></td></tr>`;
+    return `<tr><td>${time}</td><td>${e.name}</td><td>${action}</td><td>${rating}</td><td><button class="ghost trash" data-log="${e.id}">🗑</button></td></tr>`;
   }).join('');
   els.logBox.innerHTML = `<table><thead><tr><th>Zeit</th><th>Name</th><th>Aktion</th><th>Bew.</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   els.logBox.querySelectorAll('[data-log]').forEach((btn) => {
@@ -556,8 +560,8 @@ export function renderStats() {
     return `
     <div class="stat-card">
       <h4>${s.name}</h4>
-      <div class="small">Stunde: Meldungen ${session.signals || 0} Â· Aufrufe ${session.calls || 0}</div>
-      <div class="small">Gesamt: Meldungen ${total.signals || 0} Â· Aufrufe ${total.calls || 0}</div>
+      <div class="small">Stunde: Meldungen ${session.signals || 0} · Aufrufe ${session.calls || 0}</div>
+      <div class="small">Gesamt: Meldungen ${total.signals || 0} · Aufrufe ${total.calls || 0}</div>
       <div class="small">Bew.: -- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}</div>
     </div>`;
   }).join('');
@@ -569,7 +573,7 @@ export function renderClassStats() {
     els.classStatsPanel.style.display = 'none';
     return;
   }
-  const subjectLabel = state.classStats.subject ? ` Â· Fach ${state.classStats.subject}` : '';
+  const subjectLabel = state.classStats.subject ? ` · Fach ${state.classStats.subject}` : '';
   const classLabel = (state.classStats.classNames && state.classStats.classNames.length) ? state.classStats.classNames.join(', ') : state.classStats.className;
   els.classStatsTitle.textContent = `Klassen ${classLabel}${subjectLabel}`;
   if (!state.classStats.students.length) {
@@ -585,7 +589,7 @@ export function renderClassStats() {
     return `
       <div class="stat-card clickable" data-user="${s.userId}">
         <h4>${s.name}</h4>
-        <div class="small">Gesamt: Meldungen ${total.signals || 0} Â· Aufrufe ${total.calls || 0}</div>
+        <div class="small">Gesamt: Meldungen ${total.signals || 0} · Aufrufe ${total.calls || 0}</div>
         <div class="small">Bew.: -- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}</div>
         ${noteText}
         <div class="row" style="margin-top:8px;">
@@ -639,14 +643,12 @@ export function renderClassStudentStats() {
     els.classStudentPanel.style.display = 'none';
     return;
   }
-  const subjectLabel = state.classStudentStats.subject ? ` Â· Fach ${state.classStudentStats.subject}` : '';
+  const subjectLabel = state.classStudentStats.subject ? ` · Fach ${state.classStudentStats.subject}` : '';
   const classLabel = (state.classStudentStats.classNames && state.classStudentStats.classNames.length) ? state.classStudentStats.classNames.join(', ') : state.classStudentStats.className;
   els.classStudentTitle.textContent = `${state.classStudentStats.student.name} (Klassen ${classLabel}${subjectLabel})`;
-  const noteText = state.classStudentStats.student.note || state.studentNotes[state.classStudentStats.student.userId] || '';
-  const noteHtml = noteText ? `<div class="small">Notiz: ${noteText}</div>` : '';
   const sessions = state.classStudentStats.sessions || [];
   if (!sessions.length) {
-    els.classStudentTable.innerHTML = `${noteHtml}<div class="small">Keine Daten</div>`;
+    els.classStudentTable.innerHTML = '<div class="small">Keine Daten</div>';
     els.classStudentPanel.style.display = 'block';
     return;
   }
@@ -657,8 +659,187 @@ export function renderClassStudentStats() {
     const ratingText = `-- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}`;
     return `<tr><td>${time}</td><td>${s.name || '-'}</td><td>${s.subject || 'default'}</td><td>${stats.signals || 0}</td><td>${stats.calls || 0}</td><td>${ratingText}</td></tr>`;
   }).join('');
-  els.classStudentTable.innerHTML = `${noteHtml}<table><thead><tr><th>Zeit</th><th>Raum</th><th>Fach</th><th>Meldungen</th><th>Aufrufe</th><th>Bewertungen</th></tr></thead><tbody>${rows}</tbody></table>`;
+  els.classStudentTable.innerHTML = `<table><thead><tr><th>Zeit</th><th>Raum</th><th>Fach</th><th>Meldungen</th><th>Aufrufe</th><th>Bewertungen</th></tr></thead><tbody>${rows}</tbody></table>`;
   els.classStudentPanel.style.display = 'block';
+}
+
+let _timerInterval = null;
+
+function _timerRemaining(timer) {
+  if (!timer) return 0;
+  if (!timer.running) return timer.remainingAtSnapshot;
+  return Math.max(0, timer.remainingAtSnapshot - Math.floor((Date.now() - timer.snapshotAt) / 1000));
+}
+
+function _fmtTime(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+export function renderTimer() {
+  clearInterval(_timerInterval);
+  const t = state.timer;
+  if (!t) {
+    els.timerDisplay.textContent = '--:--';
+    els.timerFinished.style.display = 'none';
+    els.timerStartBtn.disabled = true;
+    els.timerPauseBtn.disabled = true;
+    els.timerStopBtn.disabled = true;
+    return;
+  }
+  els.timerStartBtn.disabled = t.running;
+  els.timerPauseBtn.disabled = false;
+  els.timerPauseBtn.textContent = t.running ? 'Pause' : 'Weiter';
+  els.timerStopBtn.disabled = false;
+  let alerted = false;
+
+  const tick = () => {
+    const rem = _timerRemaining(state.timer);
+    els.timerDisplay.textContent = _fmtTime(rem);
+    if (rem <= 0 && !alerted) {
+      alerted = true;
+      els.timerFinished.style.display = 'flex';
+      els.timerStartBtn.disabled = true;
+      els.timerPauseBtn.disabled = true;
+      clearInterval(_timerInterval);
+    }
+  };
+  tick();
+  if (t.running) _timerInterval = setInterval(tick, 500);
+}
+
+let _assignmentInterval = null;
+
+export function renderAssignment() {
+  clearInterval(_assignmentInterval);
+  const a = state.assignment;
+  const display = els.assignmentDisplay;
+  if (!a) {
+    display.style.display = 'none';
+    els.assignmentEndBtn.disabled = true;
+    return;
+  }
+  display.style.display = 'block';
+  els.assignmentEndBtn.disabled = false;
+  els.assignmentActiveTitle.textContent = a.title || '';
+  els.assignmentActiveDesc.textContent = a.description || '';
+  els.assignmentFinished.style.display = 'none';
+
+  if (a.totalSeconds === 0) {
+    els.assignmentCountdown.textContent = '';
+    return;
+  }
+
+  let alerted = false;
+  const tick = () => {
+    const rem = a.running
+      ? Math.max(0, a.remainingAtSnapshot - Math.floor((Date.now() - a.snapshotAt) / 1000))
+      : a.remainingAtSnapshot;
+    els.assignmentCountdown.textContent = _fmtTime(rem);
+    if (rem <= 0 && !alerted) {
+      alerted = true;
+      els.assignmentFinished.style.display = 'block';
+      clearInterval(_assignmentInterval);
+    }
+  };
+  tick();
+  if (a.running) _assignmentInterval = setInterval(tick, 500);
+}
+
+export function renderAssignmentTemplates() {
+  const list = els.assignmentTemplateList;
+  if (!state.assignmentTemplates.length) {
+    list.innerHTML = '<div class="small">Keine Vorlagen gespeichert</div>';
+    return;
+  }
+  list.innerHTML = state.assignmentTemplates.map((t) => `
+    <div class="log-entry" style="cursor:pointer;padding:6px 8px;border-radius:6px;background:${state.selectedAssignmentId === t.id ? 'var(--accent)' : 'var(--card)'};color:${state.selectedAssignmentId === t.id ? '#fff' : 'inherit'};margin-bottom:4px" data-id="${t.id}">
+      <span style="font-weight:600">${escHtml(t.title)}</span>
+      <span style="font-size:0.8rem;margin-left:6px;opacity:0.7">${t.totalSeconds > 0 ? _fmtTime(t.totalSeconds) : 'kein Timer'}</span>
+    </div>`).join('');
+  list.querySelectorAll('[data-id]').forEach((el) => {
+    el.onclick = () => {
+      const tpl = state.assignmentTemplates.find((t) => t.id === el.dataset.id);
+      if (!tpl) return;
+      state.selectedAssignmentId = tpl.id;
+      els.assignmentTitle.value = tpl.title;
+      els.assignmentDescription.value = tpl.description;
+      const h = Math.floor(tpl.totalSeconds / 3600);
+      const m = Math.floor((tpl.totalSeconds % 3600) / 60);
+      const s = tpl.totalSeconds % 60;
+      els.assignmentHours.value = h;
+      els.assignmentMinutes.value = m;
+      els.assignmentSeconds.value = s;
+      els.assignmentDeleteBtn.style.display = '';
+      renderAssignmentTemplates();
+    };
+  });
+}
+
+const MSS_LABEL = ['6', '5–', '5', '5+', '4–', '4', '4+', '3–', '3', '3+', '2–', '2', '2+', '1–', '1', '1+'];
+
+export function renderGradeClassOptions() {
+  const teachings = Array.isArray(state.profile?.teachings) ? state.profile.teachings : [];
+  const classSet = new Set();
+  teachings.forEach((t) => {
+    if (Array.isArray(t.classNames)) t.classNames.forEach((c) => classSet.add(c));
+    else if (t.className) classSet.add(t.className);
+  });
+  const classes = Array.from(classSet).sort((a, b) => a.localeCompare(b, 'de'));
+  const current = els.gradeClassSelect.value;
+  els.gradeClassSelect.innerHTML = '<option value="">– Klasse wählen –</option>' +
+    classes.map((c) => `<option value="${escHtml(c)}" ${c === current ? 'selected' : ''}>${escHtml(c)}</option>`).join('');
+}
+
+export function renderGradeSheet() {
+  const sheetList = els.gradeSheetList;
+  if (!state.gradeSheets.length) {
+    sheetList.innerHTML = '<div class="small">Keine Bögen gespeichert</div>';
+  } else {
+    sheetList.innerHTML = state.gradeSheets.map((s) => `
+      <div class="log-entry" style="cursor:pointer;padding:5px 8px;border-radius:6px;background:${state.selectedSheetId === s.id ? 'var(--accent)' : 'var(--card)'};color:${state.selectedSheetId === s.id ? '#fff' : 'inherit'};margin-bottom:3px" data-id="${s.id}">
+        <span style="font-weight:600">${escHtml(s.label)}</span>
+        <span style="font-size:0.8rem;margin-left:6px;opacity:0.7">${escHtml(s.className)} ${escHtml(s.subject)}</span>
+      </div>`).join('');
+    sheetList.querySelectorAll('[data-id]').forEach((el) => {
+      el.onclick = () => {
+        const sheet = state.gradeSheets.find((s) => s.id === el.dataset.id);
+        if (!sheet) return;
+        state.selectedSheetId = sheet.id;
+        els.gradeSheetLabel.value = sheet.label;
+        els.gradeClassSelect.value = sheet.className;
+        els.gradeSheetSubject.value = sheet.subject || '';
+        state.gradeClassName = sheet.className;
+        els.gradeSheetDeleteBtn.style.display = '';
+        renderGradeSheet();
+        renderGradeEntries(sheet);
+      };
+    });
+  }
+  renderGradeEntries(state.selectedSheetId ? state.gradeSheets.find((s) => s.id === state.selectedSheetId) || null : null);
+}
+
+function renderGradeEntries(sheet) {
+  const entries = sheet?.entries || {};
+  const students = state.gradeStudentList;
+  if (!students.length) {
+    els.gradeEntryList.innerHTML = '<div class="small" style="color:var(--muted)">Klasse auswählen um Schüler zu laden</div>';
+    return;
+  }
+  els.gradeEntryList.innerHTML = students.map((m) => {
+    const e = entries[m.userId] || { mss: null, comment: '' };
+    const mssOptions = [{ v: '', l: '– (keine Note)' }, ...[...MSS_LABEL.map((l, i) => ({ v: i, l: `${i} – ${l}` }))].reverse()];
+    const opts = mssOptions.map((o) => `<option value="${o.v}" ${String(e.mss) === String(o.v) ? 'selected' : ''}>${o.l}</option>`).join('');
+    return `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap" data-uid="${m.userId}">
+      <span style="min-width:120px;font-size:0.9rem">${escHtml(m.name || m.userId)}</span>
+      <select class="grade-mss" style="width:130px">${opts}</select>
+      <input class="grade-comment" type="text" placeholder="Kommentar" value="${escHtml(e.comment || '')}" style="flex:1;min-width:120px">
+    </div>`;
+  }).join('');
 }
 
 export function renderPoll() {
@@ -672,7 +853,7 @@ export function renderPoll() {
   els.pollResultsBox.innerHTML = `
     <div class="q-item">
       <div>${state.poll.question}</div>
-      <div class="q-time">${state.poll.multiple ? 'Mehrfachauswahl' : 'Einzelauswahl'} Â· ${state.poll.anonymous ? 'Anonym' : 'Namen sichtbar'} Â· ${status}</div>
+      <div class="q-time">${state.poll.multiple ? 'Mehrfachauswahl' : 'Einzelauswahl'} · ${state.poll.anonymous ? 'Anonym' : 'Namen sichtbar'} · ${status}</div>
     </div>
     ${state.poll.options.map((o) => `<div class="q-item"><div>${o.text}</div><div class="q-time">${o.count || 0} Stimmen</div></div>`).join('')}
     ${state.poll.anonymous ? '' : `
@@ -706,7 +887,7 @@ export function renderHomework() {
   }
   els.homeworkList.innerHTML = state.homeworkItems.map((item) => `
     <div class="homework-card">
-      <div class="small">Klasse: ${item.className || '-'} Â· Fach: ${item.subject || 'default'}</div>
+      <div class="small">Klasse: ${item.className || '-'} · Fach: ${item.subject || 'default'}</div>
       ${item.homework.current ? `<div>Aktuell: ${item.homework.current.text || ''}</div>` : '<div>Aktuell: -</div>'}
       ${item.homework.previous ? `<div class="small">Letzte Stunde: ${item.homework.previous.text || ''}</div>` : ''}
     </div>

@@ -1,1 +1,1 @@
-export const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname || 'localhost'}:3000`;
+export const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;

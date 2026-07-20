@@ -35,11 +35,11 @@ export function bindHandlers() {
 
     if (state.authMode === 'register') {
       if (!email || !firstName || !lastName || !code || !password || !passwordConfirm) {
-        setAuthStatus('Bitte alle Felder ausfuellen.');
+        setAuthStatus('Bitte alle Felder ausfüllen.');
         return;
       }
       if (password !== passwordConfirm) {
-        setAuthStatus('Passwoerter stimmen nicht ueberein.');
+        setAuthStatus('Passwörter stimmen nicht überein.');
         return;
       }
       state.pendingEmail = email;
@@ -78,11 +78,11 @@ export function bindHandlers() {
     if (state.authMode === 'reset-confirm') {
       const targetEmail = state.pendingEmail || email;
       if (!targetEmail || !code || !password || !passwordConfirm) {
-        setAuthStatus('Bitte alle Felder ausfuellen.');
+        setAuthStatus('Bitte alle Felder ausfüllen.');
         return;
       }
       if (password !== passwordConfirm) {
-        setAuthStatus('Passwoerter stimmen nicht ueberein.');
+        setAuthStatus('Passwörter stimmen nicht überein.');
         return;
       }
       sendJson({ type: 'authResetConfirm', email: targetEmail, code, password });
@@ -184,6 +184,11 @@ export function bindHandlers() {
     }
     els.questionText.value = '';
     flashSend(els.sendQuestionBtn);
+  };
+
+  els.gradePanelClose.onclick = () => {
+    state.grade = null;
+    els.gradePanel.style.display = 'none';
   };
 
   els.pollVoteBtn.onclick = () => {

@@ -40,7 +40,7 @@ export function renderAuthFields() {
 
   if (isRegister) els.saveProfileBtn.textContent = 'Registrieren';
   if (isLogin) els.saveProfileBtn.textContent = 'Anmelden';
-  if (isVerify) els.saveProfileBtn.textContent = 'Code bestaetigen';
+  if (isVerify) els.saveProfileBtn.textContent = 'Code bestätigen';
   if (isResetRequest) els.saveProfileBtn.textContent = 'Code senden';
   if (isResetConfirm) els.saveProfileBtn.textContent = 'Passwort speichern';
   if (els.codeLabel) {

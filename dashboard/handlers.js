@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout, flashSend } from './ui.js';
-import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts } from './render.js';
+import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -49,11 +49,11 @@ export function bindHandlers() {
 
     if (state.authMode === 'register') {
       if (!email || !lastName || !code || !password || !passwordConfirm) {
-        setAuthStatus('Bitte alle Felder ausfuellen.');
+        setAuthStatus('Bitte alle Felder ausfüllen.');
         return;
       }
       if (password !== passwordConfirm) {
-        setAuthStatus('Passwoerter stimmen nicht ueberein.');
+        setAuthStatus('Passwörter stimmen nicht überein.');
         return;
       }
       state.pendingEmail = email;
@@ -90,11 +90,11 @@ export function bindHandlers() {
     if (state.authMode === 'reset-confirm') {
       const targetEmail = state.pendingEmail || email;
       if (!targetEmail || !code || !password || !passwordConfirm) {
-        setAuthStatus('Bitte alle Felder ausfuellen.');
+        setAuthStatus('Bitte alle Felder ausfüllen.');
         return;
       }
       if (password !== passwordConfirm) {
-        setAuthStatus('Passwoerter stimmen nicht ueberein.');
+        setAuthStatus('Passwörter stimmen nicht überein.');
         return;
       }
       sendJson({ type: 'authResetConfirm', email: targetEmail, code, password });
@@ -385,6 +385,162 @@ export function bindHandlers() {
     flashSend(els.endPollBtn);
   };
 
+  els.timerSetBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    const h = Math.max(0, parseInt(els.timerHours.value, 10) || 0);
+    const m = Math.max(0, parseInt(els.timerMinutes.value, 10) || 0);
+    const s = Math.max(0, parseInt(els.timerSeconds.value, 10) || 0);
+    const total = h * 3600 + m * 60 + s;
+    if (total < 1) return;
+    sendJson({ type: 'timerSet', roomId: state.currentRoom, totalSeconds: total });
+  };
+
+  els.timerStartBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    sendJson({ type: 'timerStart', roomId: state.currentRoom });
+  };
+
+  els.timerPauseBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    const t = state.timer;
+    sendJson({ type: t && t.running ? 'timerPause' : 'timerStart', roomId: state.currentRoom });
+  };
+
+  els.timerStopBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    sendJson({ type: 'timerStop', roomId: state.currentRoom });
+  };
+
+  els.timerFinishedClose.onclick = () => {
+    els.timerFinished.style.display = 'none';
+  };
+
+  // --- Assignment handlers ---
+  els.assignmentNewBtn.onclick = () => {
+    state.selectedAssignmentId = null;
+    els.assignmentTitle.value = '';
+    els.assignmentDescription.value = '';
+    els.assignmentHours.value = 0;
+    els.assignmentMinutes.value = 0;
+    els.assignmentSeconds.value = 0;
+    els.assignmentDeleteBtn.style.display = 'none';
+    renderAssignmentTemplates();
+  };
+
+  els.assignmentSaveBtn.onclick = () => {
+    const title = els.assignmentTitle.value.trim();
+    if (!title) return;
+    const h = Math.max(0, parseInt(els.assignmentHours.value, 10) || 0);
+    const m = Math.max(0, parseInt(els.assignmentMinutes.value, 10) || 0);
+    const s = Math.max(0, parseInt(els.assignmentSeconds.value, 10) || 0);
+    const totalSeconds = h * 3600 + m * 60 + s;
+    sendJson({
+      type: 'assignmentSave',
+      assignmentId: state.selectedAssignmentId || undefined,
+      title,
+      description: els.assignmentDescription.value.trim(),
+      totalSeconds,
+    });
+    if (!state.selectedAssignmentId) {
+      state.knownAssignmentIds = state.assignmentTemplates.map((t) => t.id);
+      state.pendingSelectAssignmentTitle = true;
+    }
+    flashSend(els.assignmentSaveBtn);
+  };
+
+  els.assignmentLaunchBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    if (!state.selectedAssignmentId) return;
+    sendJson({ type: 'assignmentLaunch', assignmentId: state.selectedAssignmentId, roomId: state.currentRoom });
+    flashSend(els.assignmentLaunchBtn);
+  };
+
+  els.assignmentEndBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    sendJson({ type: 'assignmentEnd', roomId: state.currentRoom });
+  };
+
+  els.assignmentDeleteBtn.onclick = () => {
+    if (!state.selectedAssignmentId) return;
+    sendJson({ type: 'assignmentDelete', assignmentId: state.selectedAssignmentId });
+    state.selectedAssignmentId = null;
+    els.assignmentTitle.value = '';
+    els.assignmentDescription.value = '';
+    els.assignmentHours.value = 0;
+    els.assignmentMinutes.value = 0;
+    els.assignmentSeconds.value = 0;
+    els.assignmentDeleteBtn.style.display = 'none';
+  };
+
+  // --- Grade sheet handlers ---
+  els.gradeClassSelect.onchange = () => {
+    const className = els.gradeClassSelect.value;
+    state.gradeClassName = className;
+    state.gradeStudentList = [];
+    if (className && state.ws && state.ws.readyState === WebSocket.OPEN) {
+      sendJson({ type: 'gradeStudentListRequest', className });
+    } else {
+      renderGradeSheet();
+    }
+  };
+
+  els.gradeSheetNewBtn.onclick = () => {
+    state.selectedSheetId = null;
+    els.gradeSheetLabel.value = '';
+    els.gradeClassSelect.value = '';
+    els.gradeSheetSubject.value = '';
+    state.gradeStudentList = [];
+    state.gradeClassName = '';
+    els.gradeSheetDeleteBtn.style.display = 'none';
+    renderGradeSheet();
+  };
+
+  els.gradeSheetSaveBtn.onclick = () => {
+    const label = els.gradeSheetLabel.value.trim();
+    if (!label) return;
+    const entries = {};
+    els.gradeEntryList.querySelectorAll('[data-uid]').forEach((row) => {
+      const uid = row.dataset.uid;
+      const mssEl = row.querySelector('.grade-mss');
+      const commentEl = row.querySelector('.grade-comment');
+      const mssVal = mssEl ? mssEl.value : '';
+      entries[uid] = { mss: mssVal === '' ? null : Number(mssVal), comment: commentEl ? commentEl.value.trim() : '' };
+    });
+    sendJson({
+      type: 'gradeSheetSave',
+      sheetId: state.selectedSheetId || undefined,
+      label,
+      className: els.gradeClassSelect.value,
+      subject: els.gradeSheetSubject.value.trim(),
+      entries,
+    });
+    // Wenn ein neuer Bogen (ohne ID) gespeichert wird, nach Rückkehr der Liste auswählen
+    if (!state.selectedSheetId) {
+      state.knownSheetIds = state.gradeSheets.map((s) => s.id);
+      state.pendingSelectLabel = true;
+    }
+    flashSend(els.gradeSheetSaveBtn);
+  };
+
+  els.gradeSheetSendBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom || !state.selectedSheetId) return;
+    sendJson({ type: 'gradeSheetSend', sheetId: state.selectedSheetId, roomId: state.currentRoom });
+    flashSend(els.gradeSheetSendBtn);
+  };
+
+  els.gradeSheetDeleteBtn.onclick = () => {
+    if (!state.selectedSheetId) return;
+    sendJson({ type: 'gradeSheetDelete', sheetId: state.selectedSheetId });
+    state.selectedSheetId = null;
+    els.gradeSheetLabel.value = '';
+    els.gradeClassSelect.value = '';
+    els.gradeSheetSubject.value = '';
+    state.gradeStudentList = [];
+    state.gradeClassName = '';
+    els.gradeSheetDeleteBtn.style.display = 'none';
+    renderGradeSheet();
+  };
+
   els.startThoughtsBtn.onclick = () => {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
     sendJson({ type: 'thoughtStart', roomId: state.currentRoom });
@@ -411,5 +567,3 @@ export function bindHandlers() {
     els.homeworkText.value = '';
   };
 }
-
-

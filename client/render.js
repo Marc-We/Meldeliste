@@ -59,13 +59,13 @@ export function renderCourseCatalog() {
     const label = course.teacherName ? `${course.subject} (${course.teacherName})` : course.subject;
     return `<label class="item"><input type="checkbox" value="${key}" data-subject="${course.subject}" data-teacher="${course.teacherId}" ${checked}>${label}</label>`;
   }).join('');
-  els.courseHint.textContent = 'Nur gewaehlte Kurse sind sichtbar.';
+  els.courseHint.textContent = 'Nur gewählte Kurse sind sichtbar.';
 }
 
 export function renderRooms() {
   els.roomSelect.innerHTML = '';
   if (state.profile.userId && (!state.selectedCourses || !state.selectedCourses.length)) {
-    els.roomSelect.innerHTML = '<option value="">Bitte Kurse waehlen</option>';
+    els.roomSelect.innerHTML = '<option value="">Bitte Kurse wählen</option>';
     els.readyBtn.disabled = true;
     els.leaveBtn.disabled = true;
     els.withdrawBtn.disabled = true;
@@ -113,7 +113,7 @@ export function renderRooms() {
 
 export function renderClassOptions() {
   const prev = els.classInput.value;
-  els.classInput.innerHTML = '<option value="">Klasse waehlen</option>';
+  els.classInput.innerHTML = '<option value="">Klasse wählen</option>';
   state.classCatalog.forEach((cls) => {
     const opt = document.createElement('option');
     opt.value = cls;
@@ -151,7 +151,7 @@ export function renderStats() {
   if (!days.length) {
     els.dailyStatsEl.textContent = 'Keine Tagesdaten';
   } else {
-    els.dailyStatsEl.textContent = 'Letzte Tage: ' + days.map((d) => `${d}: M ${daily[d].signals || 0} Â· A ${daily[d].calls || 0}`).join(' | ');
+    els.dailyStatsEl.textContent = 'Letzte Tage: ' + days.map((d) => `${d}: M ${daily[d].signals || 0} · A ${daily[d].calls || 0}`).join(' | ');
   }
 }
 
@@ -166,7 +166,7 @@ export function renderSubjectStats() {
     return `
       <div class="card clickable" data-subject="${s.subject}">
         <h3>${s.subject}</h3>
-        <div class="num">M ${total.signals || 0} Â· A ${total.calls || 0}</div>
+        <div class="num">M ${total.signals || 0} · A ${total.calls || 0}</div>
         <button class="ghost" data-questionnaire="${s.subject}">Fragebogen</button>
       </div>
     `;
@@ -357,9 +357,102 @@ export function renderPoll() {
   els.pollVoteBtn.disabled = false;
 }
 
+let _timerInterval = null;
+
+function _timerRemaining(timer) {
+  if (!timer) return 0;
+  if (!timer.running) return timer.remainingAtSnapshot;
+  return Math.max(0, timer.remainingAtSnapshot - Math.floor((Date.now() - timer.snapshotAt) / 1000));
+}
+
+function _fmtTime(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+export function renderTimer() {
+  clearInterval(_timerInterval);
+  if (!state.timer) {
+    els.timerPanel.style.display = 'none';
+    els.timerFinished.style.display = 'none';
+    els.timerDisplay.textContent = '--:--';
+    return;
+  }
+  els.timerPanel.style.display = 'block';
+  let alerted = false;
+
+  const tick = () => {
+    const rem = _timerRemaining(state.timer);
+    els.timerDisplay.textContent = _fmtTime(rem);
+    if (rem <= 0 && !alerted) {
+      alerted = true;
+      els.timerFinished.style.display = 'block';
+      clearInterval(_timerInterval);
+    }
+  };
+  tick();
+  if (state.timer.running) _timerInterval = setInterval(tick, 500);
+}
+
+let _assignmentInterval = null;
+
+export function renderAssignment() {
+  clearInterval(_assignmentInterval);
+  const a = state.assignment;
+  if (!a) {
+    els.assignmentPanel.style.display = 'none';
+    els.assignmentClientCountdown.textContent = '';
+    els.assignmentClientFinished.style.display = 'none';
+    return;
+  }
+  els.assignmentPanel.style.display = 'block';
+  els.assignmentClientTitle.textContent = a.title || '';
+  els.assignmentClientDesc.textContent = a.description || '';
+  els.assignmentClientFinished.style.display = 'none';
+
+  if (a.totalSeconds === 0) {
+    els.assignmentClientCountdown.textContent = '';
+    return;
+  }
+
+  let alerted = false;
+  const tick = () => {
+    const rem = a.running
+      ? Math.max(0, a.remainingAtSnapshot - Math.floor((Date.now() - a.snapshotAt) / 1000))
+      : a.remainingAtSnapshot;
+    els.assignmentClientCountdown.textContent = _fmtTime(rem);
+    if (rem <= 0 && !alerted) {
+      alerted = true;
+      els.assignmentClientFinished.style.display = 'block';
+      clearInterval(_assignmentInterval);
+    }
+  };
+  tick();
+  if (a.running) _assignmentInterval = setInterval(tick, 500);
+}
+
+const MSS_LABEL = ['6', '5–', '5', '5+', '4–', '4', '4+', '3–', '3', '3+', '2–', '2', '2+', '1–', '1', '1+'];
+
+export function renderGrade() {
+  const g = state.grade;
+  if (!g) {
+    els.gradePanel.style.display = 'none';
+    return;
+  }
+  els.gradePanel.style.display = 'block';
+  els.gradeLabel.textContent = [g.label, g.subject].filter(Boolean).join(' · ');
+  const mssLabel = g.mss !== null && g.mss !== undefined ? MSS_LABEL[g.mss] : '–';
+  els.gradeValue.textContent = g.mss !== null && g.mss !== undefined ? `${mssLabel} (${g.mss} Pkt.)` : '–';
+  els.gradeComment.textContent = g.comment || '';
+}
+
 export function renderThoughtState() {
   if (state.thoughtActive) {
-    els.thoughtState.textContent = 'Gedankenrunde aktiv schreibe deine Gedanken und sende sie.';
+    els.thoughtState.textContent = 'Gedankenrunde aktiv – schreibe deine Gedanken und sende sie.';
     els.thoughtPanel.style.display = 'block';
   } else {
     els.thoughtState.textContent = 'Nicht aktiv';

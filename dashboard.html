@@ -116,6 +116,14 @@
     }
     details.tool-card > summary { cursor: pointer; font-weight: 700; list-style: none; }
     details.tool-card > summary::-webkit-details-marker { display: none; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .member-row { grid-template-columns: 34px 1fr; }
+      .member-row .rating { grid-column: 1 / -1; flex-wrap: wrap; }
+      .room-list { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .checklist { max-width: 100%; }
+    }
   </style>
 </head>
 <body>
@@ -216,7 +224,7 @@
       <h2>Freischaltcodes</h2>
       <div class="row">
         <select id="codeClassSelect" style="flex:1">
-          <option value="">Klasse waehlen</option>
+          <option value="">Klasse wählen</option>
         </select>
         <button id="fetchClassCode" class="ghost">Code anzeigen</button>
         <button id="rotateClassCode" class="danger">Neuer Code</button>
@@ -277,7 +285,7 @@
       <div id="classStudentPanel" style="display:none; margin-top:12px;">
         <div class="row" style="justify-content: space-between; align-items: center;">
           <div class="pill" id="classStudentTitle">-</div>
-          <button id="classStudentClose" class="ghost">Schliessen</button>
+          <button id="classStudentClose" class="ghost">Schließen</button>
         </div>
         <div class="log" id="classStudentTable"><div class="small">Keine Daten</div></div>
       </div>
@@ -286,6 +294,80 @@
     <details class="panel" id="toolsPanel">
       <summary>Tools</summary>
       <div class="tools-grid">
+        <div class="tool-card" id="timerPanel">
+          <h2>Timer</h2>
+          <div id="timerDisplay" style="font-size:2.4rem;font-weight:700;letter-spacing:0.05em;text-align:center;padding:8px 0">--:--</div>
+          <div id="timerFinished" style="display:none;text-align:center;background:#f0a500;color:#06110b;border-radius:8px;padding:8px;font-weight:700;margin:4px 0">
+            Timer abgelaufen
+            <button id="timerFinishedClose" class="ghost" style="margin-left:8px">OK</button>
+          </div>
+          <div class="row" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
+            <input id="timerHours" type="number" min="0" max="23" value="0" style="width:54px" placeholder="hh">
+            <span style="align-self:center">:</span>
+            <input id="timerMinutes" type="number" min="0" max="59" value="5" style="width:54px" placeholder="mm">
+            <span style="align-self:center">:</span>
+            <input id="timerSeconds" type="number" min="0" max="59" value="0" style="width:54px" placeholder="ss">
+            <button id="timerSetBtn" class="ghost">Setzen</button>
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button id="timerStartBtn" class="primary" disabled>Start</button>
+            <button id="timerPauseBtn" class="ghost" disabled>Pause</button>
+            <button id="timerStopBtn" class="danger" disabled>Stopp</button>
+          </div>
+        </div>
+        <details class="tool-card" id="assignmentPanel">
+          <summary>Arbeitsaufträge</summary>
+          <div style="margin-top:10px">
+            <div id="assignmentDisplay" style="display:none;margin-bottom:10px">
+              <div id="assignmentActiveTitle" style="font-weight:700;font-size:1.1rem"></div>
+              <div id="assignmentActiveDesc" style="white-space:pre-wrap;margin:4px 0 8px 0;color:var(--muted)"></div>
+              <div id="assignmentCountdown" style="font-size:2rem;font-weight:700;text-align:center;letter-spacing:0.05em;padding:4px 0">--:--</div>
+              <div id="assignmentFinished" style="display:none;text-align:center;background:#f0a500;color:#06110b;border-radius:8px;padding:6px;font-weight:700;margin:4px 0">Zeit abgelaufen</div>
+              <button id="assignmentEndBtn" class="danger" style="margin-top:6px;width:100%">Auftrag beenden</button>
+            </div>
+            <div id="assignmentTemplateList" style="margin-bottom:10px;max-height:140px;overflow-y:auto"></div>
+            <input id="assignmentTitle" type="text" placeholder="Titel (kurz)" style="width:100%;box-sizing:border-box;margin-bottom:6px">
+            <textarea id="assignmentDescription" placeholder="Aufgabenbeschreibung..." rows="3" style="width:100%;box-sizing:border-box;resize:vertical;margin-bottom:6px"></textarea>
+            <div class="row" style="margin-bottom:8px;flex-wrap:wrap;gap:6px;align-items:center">
+              <span style="font-size:0.85rem;color:var(--muted)">Zeit:</span>
+              <input id="assignmentHours" type="number" min="0" max="23" value="0" style="width:54px" placeholder="hh">
+              <span style="align-self:center">:</span>
+              <input id="assignmentMinutes" type="number" min="0" max="59" value="0" style="width:54px" placeholder="mm">
+              <span style="align-self:center">:</span>
+              <input id="assignmentSeconds" type="number" min="0" max="59" value="0" style="width:54px" placeholder="ss">
+              <span style="font-size:0.8rem;color:var(--muted)">(0 = kein Timer)</span>
+            </div>
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              <button id="assignmentNewBtn" class="ghost">Neuer Auftrag</button>
+              <button id="assignmentSaveBtn" class="ghost">Speichern</button>
+              <button id="assignmentLaunchBtn" class="primary">Starten</button>
+              <button id="assignmentDeleteBtn" class="danger" style="display:none">Löschen</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="tool-card" id="gradesPanel">
+          <summary>Noten</summary>
+          <div style="margin-top:10px">
+            <div id="gradeSheetList" style="margin-bottom:10px;max-height:120px;overflow-y:auto"></div>
+            <div class="row" style="gap:6px;margin-bottom:6px;flex-wrap:wrap">
+              <input id="gradeSheetLabel" type="text" placeholder="Bezeichnung (z.B. mündliche Note KW24)" style="flex:1;min-width:0">
+            </div>
+            <div class="row" style="gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+              <label style="font-size:0.85rem;color:var(--muted)">Klasse:</label>
+              <select id="gradeClassSelect" style="flex:1;min-width:0"><option value="">– Klasse wählen –</option></select>
+              <input id="gradeSheetSubject" type="text" placeholder="Fach (optional)" style="width:100px">
+            </div>
+            <div id="gradeEntryList" style="margin-bottom:8px"></div>
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              <button id="gradeSheetNewBtn" class="ghost">Neuer Bogen</button>
+              <button id="gradeSheetSaveBtn" class="ghost">Speichern</button>
+              <button id="gradeSheetSendBtn" class="primary">An Schüler senden</button>
+              <button id="gradeSheetDeleteBtn" class="danger" style="display:none">Bogen löschen</button>
+            </div>
+          </div>
+        </details>
+
         <div class="tool-card" id="pollPanel">
           <h2>Umfragen</h2>
           <div class="poll">
@@ -411,4 +493,3 @@
   <script type="module" src="dashboard/main.js"></script>
 </body>
 </html>
-
