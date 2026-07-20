@@ -21,6 +21,7 @@ const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
 const ROOM_STATS_FILE = path.join(DATA_DIR, 'room_stats.json');
 const CODES_FILE = path.join(DATA_DIR, 'codes.json');
 const BANS_FILE = path.join(DATA_DIR, 'bans.json');
+const REPORTS_FILE = path.join(DATA_DIR, 'reports.json');
 const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const GRADE_SHEETS_FILE = path.join(DATA_DIR, 'grade_sheets.json');
@@ -67,7 +68,10 @@ let subjects = new Set(loadJson(SUBJECTS_FILE, []));
 let homework = new Map(Object.entries(loadJson(HOMEWORK_FILE, {}))); // key `${class}|${subject}` -> {text, ts}
 let roomStats = new Map(Object.entries(loadJson(ROOM_STATS_FILE, {})));
 let codes = new Map(Object.entries(loadJson(CODES_FILE, {}))); // key role:class -> {code, role, className, createdAt, expiresAt}
-let bans = loadJson(BANS_FILE, { emails: [], ips: [] });
+let bans = loadJson(BANS_FILE, { emails: [] });
+if (!Array.isArray(bans.emails)) bans.emails = [];
+let reports = loadJson(REPORTS_FILE, []);
+if (!Array.isArray(reports)) reports = [];
 let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
 let notes = loadJson(NOTES_FILE, {});
 let gradeSheets = loadJson(GRADE_SHEETS_FILE, {});
@@ -116,6 +120,9 @@ function saveCodes() {
 }
 function saveBans() {
   saveJson(BANS_FILE, bans);
+}
+function saveReports() {
+  saveJson(REPORTS_FILE, reports);
 }
 function saveFeedback() {
   saveJson(FEEDBACK_FILE, feedback);
@@ -461,8 +468,20 @@ function sendAdminStudents(ws) {
 function sendBans(ws) {
   if (!ws || ws.role !== 'admin') return;
   const emails = Array.isArray(bans.emails) ? bans.emails : [];
-  const ips = Array.isArray(bans.ips) ? bans.ips : [];
-  ws.send(JSON.stringify({ type: 'bans', emails, ips }));
+  ws.send(JSON.stringify({ type: 'bans', emails }));
+}
+
+function sendReports(ws) {
+  if (!ws || ws.role !== 'admin') return;
+  ws.send(JSON.stringify({ type: 'reportList', reports }));
+}
+
+function broadcastReports() {
+  wss.clients.forEach((client) => {
+    if (client.readyState === 1 && client.role === 'admin') {
+      client.send(JSON.stringify({ type: 'reportList', reports }));
+    }
+  });
 }
 
 function broadcastPendingTeachers() {
@@ -528,9 +547,7 @@ function findCodeByValue(role, codeValue) {
 function isBanned(email, ip) {
   const e = normalizeEmail(email || '');
   const emails = Array.isArray(bans.emails) ? bans.emails : [];
-  const ips = Array.isArray(bans.ips) ? bans.ips : [];
   if (e && emails.includes(e)) return true;
-  if (ip && ips.includes(ip)) return true;
   return false;
 }
 
@@ -1625,6 +1642,11 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    if (type === 'reportsRequest' && ws.role === 'admin') {
+      sendReports(ws);
+      return;
+    }
+
     if (type === 'banAdd' && ws.role === 'admin') {
       const kind = String(msg.kind || '').trim();
       const value = String(msg.value || '').trim();
@@ -1637,10 +1659,6 @@ wss.on('connection', (ws, req) => {
         const target = findUserByEmail(email);
         if (target) {
           target.bannedAt = Date.now();
-          if (target.lastIp) {
-            if (!Array.isArray(bans.ips)) bans.ips = [];
-            if (!bans.ips.includes(target.lastIp)) bans.ips.push(target.lastIp);
-          }
           users.set(target.id, target);
           saveUsers();
           rooms.forEach((_, roomId) => forceLeaveRoom(target.id, roomId));
@@ -1652,30 +1670,6 @@ wss.on('connection', (ws, req) => {
             });
           }
         }
-      } else if (kind === 'ip') {
-        const ip = value;
-        if (!Array.isArray(bans.ips)) bans.ips = [];
-        if (!bans.ips.includes(ip)) bans.ips.push(ip);
-        users.forEach((u) => {
-          if (u && u.lastIp === ip) {
-            u.bannedAt = Date.now();
-            const email = normalizeEmail(u.email || '');
-            if (email) {
-              if (!Array.isArray(bans.emails)) bans.emails = [];
-              if (!bans.emails.includes(email)) bans.emails.push(email);
-            }
-            users.set(u.id, u);
-            rooms.forEach((_, roomId) => forceLeaveRoom(u.id, roomId));
-            const sockets = userSockets.get(u.id);
-            if (sockets) {
-              sockets.forEach((client) => {
-                client.send(JSON.stringify({ type: 'banned' }));
-                client.close();
-              });
-            }
-          }
-        });
-        saveUsers();
       } else {
         return;
       }
@@ -1697,16 +1691,6 @@ wss.on('connection', (ws, req) => {
           users.set(target.id, target);
           saveUsers();
         }
-      } else if (kind === 'ip') {
-        const ip = value;
-        bans.ips = (Array.isArray(bans.ips) ? bans.ips : []).filter((i) => i !== ip);
-        users.forEach((u) => {
-          if (u && u.lastIp === ip) {
-            delete u.bannedAt;
-            users.set(u.id, u);
-          }
-        });
-        saveUsers();
       } else {
         return;
       }
@@ -2019,24 +2003,10 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
-    if (type === 'courseReport' && (ws.role === 'teacher' || ws.role === 'admin')) {
+    if (type === 'reportCreate' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const targetUserId = String(msg.userId || '').trim();
       const subject = String(msg.subject || '').trim() || 'default';
-      if (!targetUserId || !subject) return;
-      const target = users.get(targetUserId);
-      if (!target || target.role !== 'student') return;
-      if (ws.role === 'teacher') {
-        const teaches = Array.isArray(user?.teachings) ? user.teachings : [];
-        const allowed = teaches.some((t) => t.subject === subject && teachingMatchesClass(t, target.className));
-        if (!allowed) return;
-      }
-      sendToUser(target.id, { type: 'courseReport', subject, teacherName: user.name || user.email || 'Lehrer' });
-      return;
-    }
-
-    if (type === 'banStudent' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const targetUserId = String(msg.userId || '').trim();
-      const subject = String(msg.subject || '').trim() || 'default';
+      const reason = String(msg.reason || '').trim().slice(0, 500);
       if (!targetUserId) return;
       const target = users.get(targetUserId);
       if (!target || target.role !== 'student') return;
@@ -2045,28 +2015,60 @@ wss.on('connection', (ws, req) => {
         const allowed = teaches.some((t) => t.subject === subject && teachingMatchesClass(t, target.className));
         if (!allowed) return;
       }
-      const email = normalizeEmail(target.email || '');
+      const report = {
+        id: `r-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        targetUserId: target.id,
+        targetEmail: normalizeEmail(target.email || ''),
+        targetName: target.name || [target.firstName, target.lastName].filter(Boolean).join(' ') || 'Unbekannt',
+        reason,
+        reporterId: user.id,
+        reporterName: user.name || user.email || 'Lehrer',
+        createdAt: Date.now(),
+      };
+      reports.push(report);
+      saveReports();
+      broadcastReports();
+      return;
+    }
+
+    if (type === 'reportBan' && ws.role === 'admin') {
+      const reportId = String(msg.reportId || '').trim();
+      if (!reportId) return;
+      const report = reports.find((r) => r.id === reportId);
+      if (!report) return;
+      const email = normalizeEmail(report.targetEmail || '');
       if (email) {
         if (!Array.isArray(bans.emails)) bans.emails = [];
         if (!bans.emails.includes(email)) bans.emails.push(email);
+        saveBans();
+        const target = findUserByEmail(email);
+        if (target) {
+          target.bannedAt = Date.now();
+          users.set(target.id, target);
+          saveUsers();
+          rooms.forEach((_, roomId) => forceLeaveRoom(target.id, roomId));
+          const sockets = userSockets.get(target.id);
+          if (sockets) {
+            sockets.forEach((client) => {
+              client.send(JSON.stringify({ type: 'banned' }));
+              client.close();
+            });
+          }
+        }
       }
-      const ip = target.lastIp || '';
-      if (ip) {
-        if (!Array.isArray(bans.ips)) bans.ips = [];
-        if (!bans.ips.includes(ip)) bans.ips.push(ip);
-      }
-      target.bannedAt = Date.now();
-      users.set(target.id, target);
-      saveUsers();
-      saveBans();
-      rooms.forEach((_, roomId) => forceLeaveRoom(target.id, roomId));
-      const sockets = userSockets.get(target.id);
-      if (sockets) {
-        sockets.forEach((client) => {
-          client.send(JSON.stringify({ type: 'banned' }));
-          client.close();
-        });
-      }
+      reports = reports.filter((r) => r.id !== reportId);
+      saveReports();
+      broadcastReports();
+      sendBans(ws);
+      return;
+    }
+
+    if (type === 'reportIgnore' && ws.role === 'admin') {
+      const reportId = String(msg.reportId || '').trim();
+      if (!reportId) return;
+      reports = reports.filter((r) => r.id !== reportId);
+      saveReports();
+      broadcastReports();
       return;
     }
 

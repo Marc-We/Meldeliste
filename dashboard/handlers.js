@@ -178,16 +178,6 @@ export function bindHandlers() {
       els.banEmailInput.value = '';
     };
   }
-  if (els.banAddIpBtn) {
-    els.banAddIpBtn.onclick = () => {
-      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-      const value = els.banIpInput.value.trim();
-      if (!value) return;
-      sendJson({ type: 'banAdd', kind: 'ip', value });
-      flashSend(els.banAddIpBtn);
-      els.banIpInput.value = '';
-    };
-  }
 
   if (els.fetchClassCodeBtn) {
     els.fetchClassCodeBtn.onclick = () => {
@@ -416,7 +406,7 @@ export function bindHandlers() {
   };
 
   // --- Assignment handlers ---
-  els.assignmentNewBtn.onclick = () => {
+  if (els.assignmentNewBtn) els.assignmentNewBtn.onclick = () => {
     state.selectedAssignmentId = null;
     els.assignmentTitle.value = '';
     els.assignmentDescription.value = '';
@@ -484,7 +474,7 @@ export function bindHandlers() {
     }
   };
 
-  els.gradeSheetNewBtn.onclick = () => {
+  if (els.gradeSheetNewBtn) els.gradeSheetNewBtn.onclick = () => {
     state.selectedSheetId = null;
     els.gradeSheetLabel.value = '';
     els.gradeClassSelect.value = '';

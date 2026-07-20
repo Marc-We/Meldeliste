@@ -62,6 +62,7 @@ function handleMessage(msg) {
         sendJson({ type: 'teacherCodeRequest' });
         sendJson({ type: 'adminStudentsRequest' });
         sendJson({ type: 'bansRequest' });
+        sendJson({ type: 'reportsRequest' });
       }
     }
   }
@@ -187,7 +188,11 @@ function handleMessage(msg) {
     renderAdminPanel();
   }
   if (msg.type === 'bans') {
-    state.bans = { emails: msg.emails || [], ips: msg.ips || [] };
+    state.bans = { emails: msg.emails || [] };
+    renderAdminPanel();
+  }
+  if (msg.type === 'reportList') {
+    state.reports = msg.reports || [];
     renderAdminPanel();
   }
   if (msg.type === 'questionnaire') {
@@ -265,24 +270,10 @@ function handleMessage(msg) {
   }
   if (msg.type === 'assignmentList') {
     state.assignmentTemplates = msg.assignments || [];
-    if (state.pendingSelectAssignmentTitle) {
-      const known = state.knownAssignmentIds || [];
-      const added = state.assignmentTemplates.find((t) => !known.includes(t.id));
-      if (added) state.selectedAssignmentId = added.id;
-      state.pendingSelectAssignmentTitle = null;
-      state.knownAssignmentIds = null;
-    }
     renderAssignmentTemplates();
   }
   if (msg.type === 'gradeSheetList') {
     state.gradeSheets = msg.sheets || [];
-    if (state.pendingSelectLabel) {
-      const known = state.knownSheetIds || [];
-      const added = state.gradeSheets.find((s) => !known.includes(s.id));
-      if (added) state.selectedSheetId = added.id;
-      state.pendingSelectLabel = null;
-      state.knownSheetIds = null;
-    }
     renderGradeSheet();
   }
   if (msg.type === 'gradeStudentList') {

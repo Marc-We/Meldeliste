@@ -193,18 +193,49 @@ export function renderAdminPanel() {
       els.moveClassSelect.value = prevClass;
     }
   }
+  if (els.reportList) {
+    const reports = Array.isArray(state.reports) ? state.reports : [];
+    if (!reports.length) {
+      els.reportList.innerHTML = 'Keine Meldungen';
+    } else {
+      els.reportList.innerHTML = reports.map((r) => {
+        const time = new Date(r.createdAt || Date.now()).toLocaleString();
+        const reasonHtml = r.reason ? `<div style="margin-top:2px;">Grund: ${escHtml(r.reason)}</div>` : '<div style="margin-top:2px;opacity:0.7">Kein Grund angegeben</div>';
+        return `<div class="card" style="margin-top:6px;padding:8px;" data-report-id="${r.id}">
+          <div><strong>${escHtml(r.targetName || 'Unbekannt')}</strong> (${escHtml(r.targetEmail || '-')})</div>
+          ${reasonHtml}
+          <div style="margin-top:2px;opacity:0.7">Gemeldet von: ${escHtml(r.reporterName || '-')} · ${time}</div>
+          <div class="row" style="margin-top:6px;gap:6px;">
+            <button class="danger" data-report-ban="${r.id}">Bannen</button>
+            <button class="ghost" data-report-ignore="${r.id}">Ignorieren</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    els.reportList.querySelectorAll('[data-report-ban]').forEach((btn) => {
+      btn.onclick = () => {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        const reportId = btn.getAttribute('data-report-ban');
+        if (!reportId) return;
+        sendJson({ type: 'reportBan', reportId });
+      };
+    });
+    els.reportList.querySelectorAll('[data-report-ignore]').forEach((btn) => {
+      btn.onclick = () => {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        const reportId = btn.getAttribute('data-report-ignore');
+        if (!reportId) return;
+        sendJson({ type: 'reportIgnore', reportId });
+      };
+    });
+  }
   if (els.banList) {
     const emails = (state.bans && Array.isArray(state.bans.emails)) ? state.bans.emails : [];
-    const ips = (state.bans && Array.isArray(state.bans.ips)) ? state.bans.ips : [];
-    if (!emails.length && !ips.length) {
+    if (!emails.length) {
       els.banList.innerHTML = 'Keine Einträge';
     } else {
       const emailRows = emails.map((e) => `<div class="row" style="justify-content: space-between; align-items:center; margin-top:4px;"><div>${e}</div><button class="ghost" data-unban-email="${e}">Entfernen</button></div>`).join('');
-      const ipRows = ips.map((ip) => `<div class="row" style="justify-content: space-between; align-items:center; margin-top:4px;"><div>${ip}</div><button class="ghost" data-unban-ip="${ip}">Entfernen</button></div>`).join('');
-      els.banList.innerHTML = `
-        ${emails.length ? `<div><strong>E-Mails</strong>${emailRows}</div>` : ''}
-        ${ips.length ? `<div style="margin-top:6px;"><strong>IPs</strong>${ipRows}</div>` : ''}
-      `;
+      els.banList.innerHTML = `<div><strong>E-Mails</strong>${emailRows}</div>`;
     }
     els.banList.querySelectorAll('[data-unban-email]').forEach((btn) => {
       btn.onclick = () => {
@@ -212,14 +243,6 @@ export function renderAdminPanel() {
         const value = btn.getAttribute('data-unban-email');
         if (!value) return;
         sendJson({ type: 'banRemove', kind: 'email', value });
-      };
-    });
-    els.banList.querySelectorAll('[data-unban-ip]').forEach((btn) => {
-      btn.onclick = () => {
-        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-        const value = btn.getAttribute('data-unban-ip');
-        if (!value) return;
-        sendJson({ type: 'banRemove', kind: 'ip', value });
       };
     });
   }
@@ -595,7 +618,6 @@ export function renderClassStats() {
         <div class="row" style="margin-top:8px;">
           <button class="ghost" data-report="${s.userId}">Melden</button>
           <button class="danger" data-kick="${s.userId}">Kurs entfernen</button>
-          <button class="danger" data-ban="${s.userId}">Bannen</button>
         </div>
       </div>`;
   }).join('');
@@ -613,7 +635,9 @@ export function renderClassStats() {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
       const userId = btn.getAttribute('data-report');
       if (!userId) return;
-      sendJson({ type: 'courseReport', userId, subject: state.classStats.subject || 'default' });
+      const reason = prompt('Grund für die Meldung (optional):', '');
+      if (reason === null) return;
+      sendJson({ type: 'reportCreate', userId, subject: state.classStats.subject || 'default', reason });
     };
   });
   els.classStatsGrid.querySelectorAll('[data-kick]').forEach((btn) => {
@@ -623,15 +647,6 @@ export function renderClassStats() {
       const userId = btn.getAttribute('data-kick');
       if (!userId) return;
       sendJson({ type: 'courseKick', userId, subject: state.classStats.subject || 'default' });
-    };
-  });
-  els.classStatsGrid.querySelectorAll('[data-ban]').forEach((btn) => {
-    btn.onclick = (event) => {
-      event.stopPropagation();
-      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-      const userId = btn.getAttribute('data-ban');
-      if (!userId) return;
-      sendJson({ type: 'banStudent', userId, subject: state.classStats.subject || 'default' });
     };
   });
   els.classStatsPanel.style.display = 'block';
@@ -912,5 +927,3 @@ export function renderQuestions() {
   els.questionBannerText.innerHTML = `<div>${latest.text}</div><div class="q-time">${new Date(latest.ts).toLocaleTimeString()} | ${latestAuthor}</div>`;
   els.questionBanner.style.display = 'block';
 }
-
-

@@ -1,2 +1,9 @@
 {
+  "teacher:": {
+    "role": "teacher",
+    "className": "",
+    "code": "555868",
+    "createdAt": 1784577037322,
+    "expiresAt": 1785786637322
+  }
 }
