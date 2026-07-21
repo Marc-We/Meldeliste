@@ -6,20 +6,33 @@
   <title>Meldeliste – Lehrer</title>
   <style>
     :root {
-      --bg: #06070c;
-      --panel: #0f1524;
-      --card: #10192f;
-      --text: #e9eeff;
-      --accent: #36c38c;
-      --accent-strong: #2ecc71;
-      --toilet: #9b59b6;
-      --line: #1f2943;
-      --danger: #f45b69;
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --card: #ffffff;
+      --sunken: #eef2f8;
+      --text: #1a2233;
+      --muted: #5a6478;
+      --accent: #2563c9;
+      --accent-ink: #ffffff;
+      --accent-strong: #1d4fa8;
+      --toilet: #7c4bc0;
+      --line: #dbe1ea;
+      --field-border: #c7d0dd;
+      --danger: #d83a3e;
+      --sig-green: #1e9e5a;
+      --sig-green-bg: #e7f4ec;
+      --sig-green-ink: #14683a;
+      --sig-amber: #e0920a;
+      --sig-amber-bg: #fdf3e0;
+      --sig-amber-ink: #8a5a06;
+      --sig-red: #d83a3e;
+      --sig-red-bg: #fceaea;
+      --sig-red-ink: #a3282b;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: radial-gradient(120% 80% at 15% 10%, #1b2b57, #06070c 55%);
+      background: var(--bg);
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       color: var(--text);
       min-height: 100vh;
@@ -30,7 +43,7 @@
     label { display: block; margin-top: 10px; color: var(--muted); font-size: 14px; }
     input {
       width: 100%; margin-top: 6px; padding: 11px 12px;
-      border-radius: 10px; border: 1px solid #24304c; background: #0c1424; color: var(--text);
+      border-radius: 10px; border: 1px solid var(--field-border); background: #ffffff; color: var(--text);
       font-size: 15px;
     }
     button {
@@ -38,34 +51,37 @@
       font-weight: 700; font-size: 14px; cursor: pointer;
       transition: transform 0.08s ease, filter 0.12s ease;
     }
-    button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
-    .primary { background: var(--accent); color: #06110b; }
-    .ghost { background: transparent; color: var(--text); border: 1px solid #2b3652; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
+    button:focus-visible { outline: 3px solid rgba(37,99,201,0.45); outline-offset: 2px; }
+    input:focus-visible, select:focus-visible { outline: 3px solid rgba(37,99,201,0.35); outline-offset: 1px; }
+    .primary { background: var(--accent); color: var(--accent-ink); }
+    .ghost { background: #ffffff; color: var(--text); border: 1px solid var(--field-border); }
     .danger { background: var(--danger); color: #fff; }
     .layout { max-width: 1200px; margin: 0 auto; display: grid; gap: 16px; }
-    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 16px 48px rgba(0,0,0,0.35); }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 1px 3px rgba(20,34,60,0.06); }
     .status {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line);
-      background: rgba(255,255,255,0.04); font-weight: 600; font-size: 14px;
+      background: var(--sunken); font-weight: 600; font-size: 14px;
     }
     .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
-    .dot.ok { background: var(--accent); box-shadow: 0 0 10px rgba(54,195,140,0.6); }
+    .dot.ok { background: var(--sig-green); box-shadow: 0 0 8px rgba(30,158,90,0.5); }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid #27324f; background: rgba(255,255,255,0.03); font-size: 13px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunken); font-size: 13px; }
     .room-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
     .room-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
     .room-card h3 { margin: 0; }
     .room-card .meta { color: var(--muted); font-size: 13px; }
     .board { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-    .member-row { display: grid; grid-template-columns: 34px 1fr 240px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #1b2340; gap: 8px; }
-    .member-row.ready { background: rgba(0, 255, 0, 0.5); }
+    .member-row { display: grid; grid-template-columns: 34px 1fr 240px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); gap: 8px; }
+    .member-row.ready { background: var(--sig-green-bg); box-shadow: inset 3px 0 0 var(--sig-green); }
+    .member-row.ready > div:first-child::before { content: "\270B"; color: var(--sig-green-ink); font-weight: 800; font-size: 18px; }
     .meta-line { color: var(--muted); font-size: 12px; }
     .ratings button { padding: 6px 8px; font-size: 12px; border-radius: 8px; }
     .log { max-height: 260px; overflow: auto; }
     .log table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--text); }
-    .log th, .log td { padding: 8px 6px; border-bottom: 1px solid #1c2440; text-align: left; }
+    .log th, .log td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; }
     .log .trash { padding: 4px 6px; font-size: 12px; border-radius: 6px; }
     details.panel > summary { cursor: pointer; font-weight: 700; list-style: none; }
     details.panel > summary::-webkit-details-marker { display: none; }
@@ -74,27 +90,27 @@
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
     .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
     .stat-card.clickable { cursor: pointer; }
-    .stat-card.clickable:hover { border-color: #2b3652; background: #0c1424; }
+    .stat-card.clickable:hover { border-color: var(--accent); background: var(--sunken); }
     .stat-card h4 { margin: 0 0 4px; }
     .small { font-size: 12px; color: var(--muted); }
     .poll { display: grid; gap: 8px; }
-    .poll input[type="text"], .poll textarea { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #24304c; background: #0c1424; color: var(--text); }
+    .poll input[type="text"], .poll textarea { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--field-border); background: #ffffff; color: var(--text); }
     .poll .options { display: grid; gap: 6px; }
     .poll .option { display: flex; align-items: center; gap: 6px; }
     .cloud { display: flex; flex-wrap: wrap; gap: 8px; }
-    .cloud .word { background: rgba(255,255,255,0.05); padding: 6px 10px; border-radius: 10px; }
+    .cloud .word { background: var(--sunken); padding: 6px 10px; border-radius: 10px; }
     .homework-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 8px; }
     .questions { max-height: 240px; overflow: auto; }
-    .q-item { padding: 8px 10px; border-bottom: 1px solid #1b2340; }
+    .q-item { padding: 8px 10px; border-bottom: 1px solid var(--line); }
     .q-time { color: var(--muted); font-size: 12px; }
     .checklist {
       min-width: 160px;
       max-width: 240px;
       max-height: 140px;
       overflow: auto;
-      border: 1px solid #24304c;
+      border: 1px solid var(--field-border);
       border-radius: 10px;
-      background: #0c1424;
+      background: #ffffff;
       padding: 6px 8px;
     }
     .checklist .item {
@@ -105,14 +121,14 @@
       padding: 4px 2px;
     }
     .rating { display: flex; gap: 6px; margin-top: 6px; }
-    .rating button { padding: 6px 8px; border-radius: 8px; border: 1px solid #2b3652; background: #0c1424; color: var(--text); }
-    .rating button.active { background: var(--accent); color: #06110b; }
-    .inbox-item { border: 1px solid #24304c; border-radius: 10px; padding: 10px; margin-top: 8px; background: #0c1424; }
+    .rating button { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--field-border); background: #ffffff; color: var(--text); }
+    .rating button.active { background: var(--accent); color: var(--accent-ink); }
+    .inbox-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 8px; background: var(--sunken); }
     .sent { animation: sentPop 0.35s ease-out; }
     @keyframes sentPop {
-      0% { transform: scale(1); box-shadow: 0 0 0 rgba(54,195,140,0.0); }
-      50% { transform: scale(1.04); box-shadow: 0 0 18px rgba(54,195,140,0.35); }
-      100% { transform: scale(1); box-shadow: 0 0 0 rgba(54,195,140,0.0); }
+      0% { transform: scale(1); box-shadow: 0 0 0 rgba(37,99,201,0.0); }
+      50% { transform: scale(1.04); box-shadow: 0 0 18px rgba(37,99,201,0.3); }
+      100% { transform: scale(1); box-shadow: 0 0 0 rgba(37,99,201,0.0); }
     }
     details.tool-card > summary { cursor: pointer; font-weight: 700; list-style: none; }
     details.tool-card > summary::-webkit-details-marker { display: none; }
@@ -297,7 +313,7 @@
         <div class="tool-card" id="timerPanel">
           <h2>Timer</h2>
           <div id="timerDisplay" style="font-size:2.4rem;font-weight:700;letter-spacing:0.05em;text-align:center;padding:8px 0">--:--</div>
-          <div id="timerFinished" style="display:none;text-align:center;background:#f0a500;color:#06110b;border-radius:8px;padding:8px;font-weight:700;margin:4px 0">
+          <div id="timerFinished" style="display:none;text-align:center;background:var(--sig-amber-bg);color:var(--sig-amber-ink);border:1px solid var(--sig-amber);border-radius:8px;padding:8px;font-weight:700;margin:4px 0">
             Timer abgelaufen
             <button id="timerFinishedClose" class="ghost" style="margin-left:8px">OK</button>
           </div>
@@ -322,7 +338,7 @@
               <div id="assignmentActiveTitle" style="font-weight:700;font-size:1.1rem"></div>
               <div id="assignmentActiveDesc" style="white-space:pre-wrap;margin:4px 0 8px 0;color:var(--muted)"></div>
               <div id="assignmentCountdown" style="font-size:2rem;font-weight:700;text-align:center;letter-spacing:0.05em;padding:4px 0">--:--</div>
-              <div id="assignmentFinished" style="display:none;text-align:center;background:#f0a500;color:#06110b;border-radius:8px;padding:6px;font-weight:700;margin:4px 0">Zeit abgelaufen</div>
+              <div id="assignmentFinished" style="display:none;text-align:center;background:var(--sig-amber-bg);color:var(--sig-amber-ink);border:1px solid var(--sig-amber);border-radius:8px;padding:6px;font-weight:700;margin:4px 0">Zeit abgelaufen</div>
               <button id="assignmentEndBtn" class="danger" style="margin-top:6px;width:100%">Auftrag beenden</button>
             </div>
             <div id="assignmentTemplateList" style="margin-bottom:10px;max-height:140px;overflow-y:auto"></div>
@@ -463,7 +479,7 @@
           <div id="feedbackQuestions" style="margin-top:8px;"></div>
           <label style="margin-top:8px;">
             Nachricht
-            <textarea id="feedbackText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+            <textarea id="feedbackText" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--field-border); background:#ffffff; color:var(--text);"></textarea>
           </label>
           <button id="feedbackSend" class="primary" style="margin-top:8px;">Absenden</button>
         </div>
@@ -488,11 +504,11 @@
             <input id="questionnaireTitleInput" placeholder="Titel" style="flex:1">
           </div>
           <div class="small" style="margin-top:6px;">Eine Frage pro Zeile</div>
-          <textarea id="questionnaireQuestionsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          <textarea id="questionnaireQuestionsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid var(--field-border); background:#ffffff; color:var(--text);"></textarea>
           <div class="small" style="margin-top:6px;">Optional: Hinweis pro Zeile (gleiche Reihenfolge)</div>
-          <textarea id="questionnaireHintsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          <textarea id="questionnaireHintsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid var(--field-border); background:#ffffff; color:var(--text);"></textarea>
           <div class="small" style="margin-top:6px;">Optional: Skala pro Zeile (z. B. 1-5 oder ja/nein)</div>
-          <textarea id="questionnaireScaleLines" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid #24304c; background:#0c1424; color:var(--text);"></textarea>
+          <textarea id="questionnaireScaleLines" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid var(--field-border); background:#ffffff; color:var(--text);"></textarea>
           <div class="row" style="margin-top:8px;">
             <button id="questionnaireLoad" class="ghost">Aktuell laden</button>
             <button id="questionnaireSave" class="primary">Speichern</button>
@@ -533,7 +549,7 @@
           <button id="seatSaveBtn" class="primary">Sitzplan speichern</button>
           <span class="small" id="seatStatus"></span>
         </div>
-        <div id="seatCanvas" style="position:relative;width:100%;height:460px;border:1px solid var(--line);border-radius:12px;background:#0c1424;overflow:hidden;touch-action:none;"></div>
+        <div id="seatCanvas" style="position:relative;width:100%;height:460px;border:1px solid var(--line);border-radius:12px;background:#eef2f8;overflow:hidden;touch-action:none;"></div>
         <div class="small" style="margin-top:6px;">Im Bearbeiten-Modus: Plätze ziehen, antippen zum Zuweisen/Entfernen. Im Live-Modus leuchten Meldungen auf; Antippen ruft auf.</div>
       </div>
     </div>

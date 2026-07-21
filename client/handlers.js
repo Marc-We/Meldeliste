@@ -66,17 +66,8 @@ export function bindHandlers() {
       sendJson({ type: 'authVerify', email: targetEmail, code });
       return;
     }
-    if (state.authMode === 'reset-request') {
-      if (!email) {
-        setAuthStatus('Bitte E-Mail eingeben.');
-        return;
-      }
-      state.pendingEmail = email;
-      sendJson({ type: 'authResetRequest', email });
-      return;
-    }
     if (state.authMode === 'reset-confirm') {
-      const targetEmail = state.pendingEmail || email;
+      const targetEmail = email;
       if (!targetEmail || !code || !password || !passwordConfirm) {
         setAuthStatus('Bitte alle Felder ausfüllen.');
         return;
@@ -106,8 +97,8 @@ export function bindHandlers() {
     renderProfileInfo();
   };
   els.forgotBtn.onclick = () => {
-    state.authMode = 'reset-request';
-    setAuthStatus('Code wird an die E-Mail gesendet.');
+    state.authMode = 'reset-confirm';
+    setAuthStatus('Klassencode und neues Passwort eingeben.');
     renderAuthFields();
   };
 

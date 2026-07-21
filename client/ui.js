@@ -34,7 +34,6 @@ export function renderAuthFields() {
   const isRegister = state.authMode === 'register';
   const isLogin = state.authMode === 'login';
   const isVerify = state.authMode === 'verify';
-  const isResetRequest = state.authMode === 'reset-request';
   const isResetConfirm = state.authMode === 'reset-confirm';
 
   setVisible(els.emailRow, true);
@@ -49,10 +48,9 @@ export function renderAuthFields() {
   if (isRegister) els.saveProfileBtn.textContent = 'Registrieren';
   if (isLogin) els.saveProfileBtn.textContent = 'Anmelden';
   if (isVerify) els.saveProfileBtn.textContent = 'Code bestätigen';
-  if (isResetRequest) els.saveProfileBtn.textContent = 'Code senden';
   if (isResetConfirm) els.saveProfileBtn.textContent = 'Passwort speichern';
   if (els.codeLabel) {
-    els.codeLabel.textContent = isRegister ? 'Klassen-Code' : 'Code';
+    els.codeLabel.textContent = (isRegister || isResetConfirm) ? 'Klassen-Code' : 'Code';
   }
 
   updateAuthModeButtons();

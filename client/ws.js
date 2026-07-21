@@ -132,11 +132,6 @@ function handleMessage(msg) {
       state.authMode = 'verify';
       setAuthStatus('Code gesendet. Bitte prüfen.');
       renderAuthFields();
-    } else if (msg.status === 'reset_sent') {
-      state.pendingEmail = msg.email || els.emailInput.value.trim();
-      state.authMode = 'reset-confirm';
-      setAuthStatus('Reset-Code gesendet.');
-      renderAuthFields();
     } else if (msg.status === 'reset_done') {
       state.authMode = 'login';
       setAuthStatus('Passwort aktualisiert. Bitte anmelden.');

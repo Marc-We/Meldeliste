@@ -1,7 +1,7 @@
 export const state = {
   ws: null,
   profile: { role: 'student', userId: null, email: '', firstName: '', lastName: '', className: '', courses: [] },
-  authMode: 'login', // login | register | verify | reset-request | reset-confirm
+  authMode: 'login', // login | register | verify | reset-confirm
   pendingEmail: '',
   classCatalog: [],
   courseCatalog: [],

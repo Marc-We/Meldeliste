@@ -497,9 +497,10 @@ export function renderAmpel() {
   Object.keys(map).forEach((k) => {
     const btn = map[k];
     if (!btn) return;
-    btn.style.outline = (own === k) ? '3px solid var(--text)' : 'none';
-    btn.style.fontWeight = (own === k) ? '800' : '700';
+    btn.style.outline = (own === k) ? '3px solid var(--accent)' : 'none';
+    btn.style.outlineOffset = (own === k) ? '2px' : '0';
+    btn.style.filter = (own === k) ? 'none' : (own ? 'grayscale(0.35) opacity(0.75)' : 'none');
   });
-  const label = { green: 'Verstanden', yellow: 'Unsicher', red: 'Nicht verstanden' };
+  const label = { green: '✓ Verstanden', yellow: '? Unsicher', red: '! Nicht verstanden' };
   els.ampelOwn.textContent = own ? `Deine Auswahl: ${label[own]}` : 'Bitte auswählen';
 }
