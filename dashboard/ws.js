@@ -334,6 +334,23 @@ function handleMessage(msg) {
     state.seatSubject = msg.subject || '';
     renderSeatView();
   }
+  if (msg.type === 'seatPlans') {
+    state.seatPlans = Array.isArray(msg.plans) ? msg.plans : [];
+    if (msg.className) state.seatClassName = msg.className;
+    if (msg.subject) state.seatSubject = msg.subject;
+    // Aktiven Plan bestimmen: Server-Vorgabe > bisher aktiver (falls noch vorhanden) > Standard > erster
+    let activeId = msg.activePlanId || null;
+    if (!activeId && state.seatActivePlanId && state.seatPlans.some((p) => p.id === state.seatActivePlanId)) {
+      activeId = state.seatActivePlanId;
+    }
+    if (!activeId) activeId = (state.seatPlans.find((p) => p.isDefault) || state.seatPlans[0] || {}).id || null;
+    state.seatActivePlanId = activeId;
+    const active = state.seatPlans.find((p) => p.id === activeId);
+    state.seats = active && Array.isArray(active.seats)
+      ? active.seats.map((s) => ({ id: s.id, x: s.x, y: s.y, userId: s.userId || null }))
+      : [];
+    renderSeatView();
+  }
   if (msg.type === 'seatPlanSaved') {
     if (els.seatStatus) { els.seatStatus.textContent = 'Gespeichert.'; setTimeout(() => { if (els.seatStatus) els.seatStatus.textContent = ''; }, 1500); }
   }

@@ -9,6 +9,8 @@ export const state = {
   seatView: 'list', // 'list' | 'seat'
   seatEdit: false,
   seats: [], // [{id, x, y, userId|null}]
+  seatPlans: [], // [{id, name, seats, isDefault}]
+  seatActivePlanId: null,
   seatClassName: '',
   seatSubject: '',
   logEntries: [],

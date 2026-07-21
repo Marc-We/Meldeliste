@@ -407,6 +407,7 @@ export function bindHandlers() {
       type: 'seatPlanSave',
       className: room.className || state.seatClassName,
       subject: room.subject || state.seatSubject || 'default',
+      planId: state.seatActivePlanId || null,
       seats: state.seats,
     });
     flashSend(els.seatSaveBtn);

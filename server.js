@@ -23,6 +23,7 @@ const CODES_FILE = path.join(DATA_DIR, 'codes.json');
 const BANS_FILE = path.join(DATA_DIR, 'bans.json');
 const REPORTS_FILE = path.join(DATA_DIR, 'reports.json');
 const GROUP_LAYOUTS_FILE = path.join(DATA_DIR, 'group_layouts.json');
+const SEAT_PLANS_FILE = path.join(DATA_DIR, 'seat_plans.json');
 const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const GRADE_SHEETS_FILE = path.join(DATA_DIR, 'grade_sheets.json');
@@ -74,6 +75,7 @@ if (!Array.isArray(bans.emails)) bans.emails = [];
 let reports = loadJson(REPORTS_FILE, []);
 if (!Array.isArray(reports)) reports = [];
 let savedGroupLayouts = new Map(Object.entries(loadJson(GROUP_LAYOUTS_FILE, {})));
+let savedSeatPlans = new Map(Object.entries(loadJson(SEAT_PLANS_FILE, {})));
 let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
 let notes = loadJson(NOTES_FILE, {});
 let gradeSheets = loadJson(GRADE_SHEETS_FILE, {});
@@ -128,6 +130,24 @@ function saveReports() {
 }
 function saveGroupLayouts() {
   saveJson(GROUP_LAYOUTS_FILE, Object.fromEntries(savedGroupLayouts));
+}
+function saveSeatPlans() {
+  saveJson(SEAT_PLANS_FILE, Object.fromEntries(savedSeatPlans));
+}
+// Schlüssel pro Lehrer+Klasse+Fach, damit jeder Lehrer eigene Sitzpläne hat
+function seatKey(teacherId, className, subject) {
+  return `${String(teacherId || '').trim()}::${String(className || '').trim()}::${String(subject || 'default').trim()}`;
+}
+// Sitze säubern (relative Koordinaten 0..1, nur gültige Einträge)
+function sanitizeSeats(rawSeats) {
+  return (Array.isArray(rawSeats) ? rawSeats : [])
+    .map((s) => ({
+      id: String(s.id || ''),
+      x: Math.max(0, Math.min(1, Number(s.x) || 0)),
+      y: Math.max(0, Math.min(1, Number(s.y) || 0)),
+      userId: s.userId ? String(s.userId) : null,
+    }))
+    .filter((s) => s.id);
 }
 function layoutKey(className, subject) {
   return `${String(className || '').trim()}::${String(subject || 'default').trim()}`;
@@ -2257,6 +2277,14 @@ wss.on('connection', (ws, req) => {
           }
         }
       }
+      // Lehrer: gespeicherte Sitzpläne dieses Kurs+Fach laden (Standard-Plan aktiv)
+      if (ws.role === 'teacher' || ws.role === 'admin') {
+        const room = rooms.get(roomId);
+        const seatEntry = room ? savedSeatPlans.get(seatKey(ws.userId, room.className, room.subject)) : null;
+        const plans = seatEntry && Array.isArray(seatEntry.plans) ? seatEntry.plans : [];
+        const activePlanId = plans.find((p) => p.isDefault)?.id || (plans[0] && plans[0].id) || null;
+        ws.send(JSON.stringify({ type: 'seatPlans', roomId, className: room.className, subject: room.subject, plans, activePlanId }));
+      }
       sendActiveQuestionnaireTo(ws, roomId);
       return;
     }
@@ -2572,6 +2600,124 @@ wss.on('connection', (ws, req) => {
       savedGroupLayouts.set(key, { groups, autoStart, updatedAt: Date.now() });
       saveGroupLayouts();
       ws.send(JSON.stringify({ type: 'groupLayoutSaved', className, subject }));
+      return;
+    }
+
+    // ---------- Sitzpläne (#16 – mehrere benannte Pläne pro Lehrer+Klasse+Fach) ----------
+    if (type === 'seatPlanRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      if (!className) return;
+      const key = seatKey(ws.userId, className, subject);
+      const entry = savedSeatPlans.get(key);
+      const plans = entry && Array.isArray(entry.plans) ? entry.plans : [];
+      ws.send(JSON.stringify({ type: 'seatPlans', className, subject, plans }));
+      return;
+    }
+
+    if (type === 'seatPlanSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      if (!className) return;
+      const key = seatKey(ws.userId, className, subject);
+      const entry = savedSeatPlans.get(key) || { plans: [] };
+      if (!Array.isArray(entry.plans)) entry.plans = [];
+      const seats = sanitizeSeats(msg.seats);
+      const planId = msg.planId ? String(msg.planId) : null;
+      let target = planId ? entry.plans.find((p) => p.id === planId) : null;
+      if (!target) {
+        // Kein (gültiger) Plan angegeben → Standard-Plan aktualisieren oder anlegen
+        target = entry.plans.find((p) => p.isDefault) || entry.plans[0];
+      }
+      if (target) {
+        target.seats = seats;
+        if (typeof msg.name === 'string' && msg.name.trim()) target.name = msg.name.trim();
+      } else {
+        target = { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: (msg.name && String(msg.name).trim()) || 'Sitzplan 1', seats, isDefault: true };
+        entry.plans.push(target);
+      }
+      if (!entry.plans.some((p) => p.isDefault)) target.isDefault = true;
+      entry.updatedAt = Date.now();
+      savedSeatPlans.set(key, entry);
+      saveSeatPlans();
+      ws.send(JSON.stringify({ type: 'seatPlanSaved', className, subject, planId: target.id }));
+      ws.send(JSON.stringify({ type: 'seatPlans', className, subject, plans: entry.plans }));
+      return;
+    }
+
+    if (type === 'seatPlanCreate' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      if (!className) return;
+      const key = seatKey(ws.userId, className, subject);
+      const entry = savedSeatPlans.get(key) || { plans: [] };
+      if (!Array.isArray(entry.plans)) entry.plans = [];
+      const name = (msg.name && String(msg.name).trim()) || `Sitzplan ${entry.plans.length + 1}`;
+      const plan = { id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, seats: sanitizeSeats(msg.seats), isDefault: entry.plans.length === 0 };
+      entry.plans.push(plan);
+      entry.updatedAt = Date.now();
+      savedSeatPlans.set(key, entry);
+      saveSeatPlans();
+      ws.send(JSON.stringify({ type: 'seatPlans', className, subject, plans: entry.plans, activePlanId: plan.id }));
+      return;
+    }
+
+    if (type === 'seatPlanRename' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      const planId = String(msg.planId || '');
+      const name = (msg.name && String(msg.name).trim()) || '';
+      if (!className || !planId || !name) return;
+      const key = seatKey(ws.userId, className, subject);
+      const entry = savedSeatPlans.get(key);
+      if (!entry || !Array.isArray(entry.plans)) return;
+      const plan = entry.plans.find((p) => p.id === planId);
+      if (!plan) return;
+      plan.name = name;
+      entry.updatedAt = Date.now();
+      savedSeatPlans.set(key, entry);
+      saveSeatPlans();
+      ws.send(JSON.stringify({ type: 'seatPlans', className, subject, plans: entry.plans }));
+      return;
+    }
+
+    if (type === 'seatPlanDelete' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      const planId = String(msg.planId || '');
+      if (!className || !planId) return;
+      const key = seatKey(ws.userId, className, subject);
+      const entry = savedSeatPlans.get(key);
+      if (!entry || !Array.isArray(entry.plans)) return;
+      const wasDefault = entry.plans.find((p) => p.id === planId)?.isDefault;
+      entry.plans = entry.plans.filter((p) => p.id !== planId);
+      // Falls der Standard gelöscht wurde, ersten verbleibenden zum Standard machen
+      if (wasDefault && entry.plans.length && !entry.plans.some((p) => p.isDefault)) {
+        entry.plans[0].isDefault = true;
+      }
+      entry.updatedAt = Date.now();
+      savedSeatPlans.set(key, entry);
+      saveSeatPlans();
+      const activePlanId = entry.plans.find((p) => p.isDefault)?.id || (entry.plans[0] && entry.plans[0].id) || null;
+      ws.send(JSON.stringify({ type: 'seatPlans', className, subject, plans: entry.plans, activePlanId }));
+      return;
+    }
+
+    if (type === 'seatPlanSetDefault' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      const planId = String(msg.planId || '');
+      if (!className || !planId) return;
+      const key = seatKey(ws.userId, className, subject);
+      const entry = savedSeatPlans.get(key);
+      if (!entry || !Array.isArray(entry.plans)) return;
+      let found = false;
+      entry.plans.forEach((p) => { p.isDefault = (p.id === planId); if (p.id === planId) found = true; });
+      if (!found) return;
+      entry.updatedAt = Date.now();
+      savedSeatPlans.set(key, entry);
+      saveSeatPlans();
+      ws.send(JSON.stringify({ type: 'seatPlans', className, subject, plans: entry.plans }));
       return;
     }
 
