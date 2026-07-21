@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout, flashSend } from './ui.js';
-import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions, renderGroups } from './render.js';
+import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions, renderGroups, renderPrepGroups } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -406,6 +406,74 @@ export function bindHandlers() {
     state.groupPreview = null;
     renderGroups();
     flashSend(els.groupCloseBtn);
+  };
+
+  // --- Gruppen vorbereiten (ohne Raum) ---
+  if (els.prepLoadBtn) els.prepLoadBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+    const className = els.prepClass.value;
+    const subject = els.prepSubject.value;
+    if (!className || !subject) { if (els.prepStatus) els.prepStatus.textContent = 'Bitte Klasse und Fach wählen.'; return; }
+    if (els.prepStatus) els.prepStatus.textContent = '';
+    state.prepPreview = null;
+    renderPrepGroups();
+    // Erst Roster, dann Layout laden (Reihenfolge egal, beide setzen State)
+    sendJson({ type: 'classRosterRequest', className });
+    sendJson({ type: 'groupLayoutRequest', className, subject });
+  };
+
+  function prepStudents() {
+    return (state.prepRoster || []).map((s) => ({ userId: s.userId, name: s.name }));
+  }
+  function buildPrep(mode, value) {
+    const students = prepStudents();
+    if (!students.length) { state.prepPreview = []; renderPrepGroups(); return; }
+    if (mode === 'empty') {
+      const groups = Array.from({ length: value }, (_, i) => ({ number: i + 1, members: [] }));
+      groups.push({ number: 0, members: students });
+      state.prepPreview = groups;
+      renderPrepGroups();
+      return;
+    }
+    const arr = students.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    let count;
+    if (mode === 'count') count = Math.min(value, arr.length);
+    else count = Math.max(1, Math.ceil(arr.length / value));
+    const groups = Array.from({ length: count }, (_, i) => ({ number: i + 1, members: [] }));
+    arr.forEach((s, idx) => groups[idx % count].members.push(s));
+    state.prepPreview = groups;
+    renderPrepGroups();
+  }
+  function prepCreate() {
+    const sel = els.prepMode.value;
+    const mode = sel === 'count' ? 'count' : (sel === 'empty' ? 'empty' : 'size');
+    const value = Math.max(1, Math.min(50, parseInt(els.prepValue.value, 10) || 0));
+    if (!value) return;
+    if (!(state.prepRoster || []).length) { if (els.prepStatus) els.prepStatus.textContent = 'Bitte zuerst laden.'; return; }
+    buildPrep(mode, value);
+  }
+  function updatePrepModeUi() {
+    const isEmpty = els.prepMode.value === 'empty';
+    if (els.prepShuffleBtn) els.prepShuffleBtn.style.display = isEmpty ? 'none' : '';
+    if (els.prepCreateBtn) els.prepCreateBtn.textContent = isEmpty ? 'Gruppen anlegen' : 'Einteilen';
+  }
+  if (els.prepMode) els.prepMode.onchange = updatePrepModeUi;
+  updatePrepModeUi();
+  if (els.prepCreateBtn) els.prepCreateBtn.onclick = () => { prepCreate(); flashSend(els.prepCreateBtn); };
+  if (els.prepShuffleBtn) els.prepShuffleBtn.onclick = () => { prepCreate(); flashSend(els.prepShuffleBtn); };
+  if (els.prepSaveBtn) els.prepSaveBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+    const className = els.prepClass.value;
+    const subject = els.prepSubject.value;
+    if (!className || !subject) return;
+    if (!Array.isArray(state.prepPreview) || !state.prepPreview.length) return;
+    const autoStart = els.prepAutoStart ? els.prepAutoStart.checked : false;
+    sendJson({ type: 'groupLayoutSave', className, subject, groups: state.prepPreview, autoStart });
+    flashSend(els.prepSaveBtn);
   };
 
   els.timerSetBtn.onclick = () => {

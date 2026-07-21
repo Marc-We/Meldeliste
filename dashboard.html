@@ -406,6 +406,32 @@
             <button id="groupCloseBtn" class="danger">Anzeige schließen</button>
           </div>
         </div>
+        <details class="tool-card" id="groupPreparePanel">
+          <summary><strong>Gruppen vorbereiten</strong></summary>
+          <div class="small" style="margin:6px 0;">Ohne aktiven Raum – aus der Klassenliste. Wird beim nächsten Raum dieses Kurses geladen.</div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+            <select id="prepClass" style="width:auto"><option value="">Klasse wählen</option></select>
+            <select id="prepSubject" style="width:auto"><option value="">Fach wählen</option></select>
+            <button id="prepLoadBtn" class="ghost">Laden</button>
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+            <select id="prepMode" style="width:auto">
+              <option value="size">Schüler pro Gruppe</option>
+              <option value="count">Anzahl Gruppen</option>
+              <option value="empty">Leere Gruppen (manuell)</option>
+            </select>
+            <input id="prepValue" type="number" min="1" max="50" value="4" style="width:80px">
+            <button id="prepCreateBtn" class="primary">Einteilen</button>
+            <button id="prepShuffleBtn" class="ghost">Neu mischen</button>
+          </div>
+          <div id="prepPreview" style="margin-top:10px"></div>
+          <label class="row" style="align-items:center;gap:8px;margin-top:8px;">
+            <input id="prepAutoStart" type="checkbox" style="width:auto">
+            Automatisches Starten in der nächsten Stunde
+          </label>
+          <button id="prepSaveBtn" class="primary" style="margin-top:8px" disabled>Vorbereitung speichern</button>
+          <div class="small" id="prepStatus" style="margin-top:6px"></div>
+        </details>
         <div class="tool-card" id="thoughtsPanel">
           <h2>Gedankenrunde</h2>
           <div class="row" style="margin-bottom:8px">

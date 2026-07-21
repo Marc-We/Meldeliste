@@ -16,6 +16,7 @@ import {
   renderMembers,
   renderPoll,
   renderGroups,
+  renderPrepGroups,
   renderQuestions,
   renderRooms,
   renderStats,
@@ -292,6 +293,34 @@ function handleMessage(msg) {
       els.groupAutoStart.checked = msg.autoStart;
     }
     renderGroups();
+  }
+  if (msg.type === 'classRoster') {
+    state.prepRoster = Array.isArray(msg.students) ? msg.students : [];
+    // Falls noch keine Vorbereitungs-Vorschau existiert, alle Schüler in den Pool legen
+    if (!state.prepPreview) {
+      state.prepPreview = state.prepRoster.length
+        ? [{ number: 0, members: state.prepRoster.map((s) => ({ userId: s.userId, name: s.name })) }]
+        : [];
+    }
+    renderPrepGroups();
+  }
+  if (msg.type === 'groupLayout') {
+    // Gespeichertes Layout als Vorbereitungs-Vorschau übernehmen (ohne Anwesenheit)
+    const groups = Array.isArray(msg.groups) ? msg.groups.map((g) => ({
+      number: Number(g.number),
+      members: (Array.isArray(g.members) ? g.members : []).map((m) => ({ userId: m.userId, name: m.name })),
+    })) : [];
+    // Roster-Schüler, die in keiner Gruppe sind → Pool
+    const assigned = new Set();
+    groups.forEach((g) => g.members.forEach((m) => assigned.add(m.userId)));
+    const pool = (state.prepRoster || []).filter((s) => !assigned.has(s.userId));
+    if (pool.length) groups.push({ number: 0, members: pool.map((s) => ({ userId: s.userId, name: s.name })) });
+    state.prepPreview = groups.length ? groups : null;
+    if (els.prepAutoStart) els.prepAutoStart.checked = Boolean(msg.autoStart);
+    renderPrepGroups();
+  }
+  if (msg.type === 'groupLayoutSaved') {
+    if (els.prepStatus) els.prepStatus.textContent = 'Vorbereitung gespeichert.';
   }
   if (msg.type === 'thoughtState' && msg.roomId === state.currentRoom) {
     if (msg.active) {

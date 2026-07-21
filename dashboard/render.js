@@ -110,6 +110,7 @@ export function renderCatalogs() {
   if (els.codeClassSelect) fillSelect(els.codeClassSelect, state.classCatalog, 'Klasse wählen');
   fillChecklist(els.roomClassList, state.classCatalog);
   fillChecklist(els.teachClassList, state.classCatalog);
+  renderPrepOptions();
 }
 
 function formatExpiry(ts) {
@@ -1010,4 +1011,95 @@ export function renderGroups() {
   // Senden nur erlauben, wenn mindestens eine echte Gruppe einen Schüler hat
   const hasAssigned = groups.some((g) => g.number !== 0 && (g.members || []).length > 0);
   if (els.groupPublishBtn) els.groupPublishBtn.disabled = !hasAssigned;
+}
+
+export function renderPrepOptions() {
+  // Klassen- und Fach-Dropdown im Vorbereiten-Panel füllen
+  if (els.prepClass) {
+    const prev = els.prepClass.value;
+    els.prepClass.innerHTML = '<option value="">Klasse wählen</option>' +
+      (state.classCatalog || []).map((c) => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+    if (prev) els.prepClass.value = prev;
+  }
+  if (els.prepSubject) {
+    const prev = els.prepSubject.value;
+    els.prepSubject.innerHTML = '<option value="">Fach wählen</option>' +
+      (state.subjectCatalog || []).map((s) => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
+    if (prev) els.prepSubject.value = prev;
+  }
+}
+
+export function renderPrepGroups() {
+  if (!els.prepPreview) return;
+  const groups = Array.isArray(state.prepPreview) ? state.prepPreview : null;
+  if (!groups) {
+    els.prepPreview.innerHTML = '';
+    if (els.prepSaveBtn) els.prepSaveBtn.disabled = true;
+    return;
+  }
+  if (!groups.length) {
+    els.prepPreview.innerHTML = '<div class="small">Keine Schüler in dieser Klasse.</div>';
+    if (els.prepSaveBtn) els.prepSaveBtn.disabled = true;
+    return;
+  }
+  const ordered = [...groups].sort((a, b) => {
+    const an = a.number === 0 ? Infinity : a.number;
+    const bn = b.number === 0 ? Infinity : b.number;
+    return an - bn;
+  });
+  els.prepPreview.innerHTML = ordered.map((g) => {
+    const isPool = g.number === 0;
+    const title = isPool ? 'Nicht zugeteilt' : `Gruppe ${g.number}`;
+    const rows = (g.members || []).map((m) => {
+      const color = isPool ? 'color:#36c38c;' : '';
+      return `<div class="row" style="justify-content:space-between;align-items:center;gap:6px;margin-top:2px;">
+        <span style="${color}">${escHtml(m.name || 'Unbekannt')}</span>
+        <span style="white-space:nowrap;">
+          <button class="ghost" data-prep-prev="${m.userId}" style="padding:2px 8px;">◀</button>
+          <button class="ghost" data-prep-next="${m.userId}" style="padding:2px 8px;">▶</button>
+        </span>
+      </div>`;
+    }).join('') || '<div class="small" style="margin-top:2px;">–</div>';
+    return `<div class="card" style="margin-top:6px;padding:8px;${isPool ? 'opacity:0.9;border-style:dashed;' : ''}">
+      <strong>${title}</strong> <span class="small">(${(g.members || []).length})</span>
+      <div style="margin-top:2px;">${rows}</div>
+    </div>`;
+  }).join('');
+
+  const movePrep = (userId, dir) => {
+    const gs = state.prepPreview;
+    if (!Array.isArray(gs)) return;
+    const order = gs.map((g) => g.number).sort((a, b) => {
+      const an = a === 0 ? Infinity : a;
+      const bn = b === 0 ? Infinity : b;
+      return an - bn;
+    });
+    let fromIdx = -1;
+    let student = null;
+    gs.forEach((g) => {
+      const hit = (g.members || []).find((m) => m.userId === userId);
+      if (hit) { fromIdx = order.indexOf(g.number); student = hit; }
+    });
+    if (fromIdx < 0 || !student) return;
+    let toIdx = fromIdx + dir;
+    if (toIdx < 0) toIdx = order.length - 1;
+    if (toIdx >= order.length) toIdx = 0;
+    const fromNum = order[fromIdx];
+    const toNum = order[toIdx];
+    if (fromNum === toNum) return;
+    const fromGroup = gs.find((g) => g.number === fromNum);
+    const toGroup = gs.find((g) => g.number === toNum);
+    fromGroup.members = fromGroup.members.filter((m) => m.userId !== userId);
+    toGroup.members.push(student);
+    renderPrepGroups();
+  };
+  els.prepPreview.querySelectorAll('[data-prep-prev]').forEach((btn) => {
+    btn.onclick = () => movePrep(btn.getAttribute('data-prep-prev'), -1);
+  });
+  els.prepPreview.querySelectorAll('[data-prep-next]').forEach((btn) => {
+    btn.onclick = () => movePrep(btn.getAttribute('data-prep-next'), 1);
+  });
+
+  const hasAssigned = groups.some((g) => g.number !== 0 && (g.members || []).length > 0);
+  if (els.prepSaveBtn) els.prepSaveBtn.disabled = !hasAssigned;
 }

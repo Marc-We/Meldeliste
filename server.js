@@ -2501,6 +2501,54 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    if (type === 'classRosterRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      if (!className) return;
+      const students = Array.from(users.values())
+        .filter((u) => u && u.role === 'student' && (u.className || '') === className)
+        .map((u) => ({ userId: u.id, name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Unbekannt' }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      ws.send(JSON.stringify({ type: 'classRoster', className, students }));
+      return;
+    }
+
+    if (type === 'groupLayoutRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      if (!className) return;
+      const saved = savedGroupLayouts.get(layoutKey(className, subject)) || null;
+      ws.send(JSON.stringify({
+        type: 'groupLayout',
+        className,
+        subject,
+        groups: saved && Array.isArray(saved.groups) ? saved.groups : [],
+        autoStart: saved ? Boolean(saved.autoStart) : false,
+      }));
+      return;
+    }
+
+    if (type === 'groupLayoutSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      if (!className) return;
+      const incoming = Array.isArray(msg.groups) ? msg.groups : [];
+      const groups = incoming
+        .map((g, idx) => ({
+          number: Number(g.number) || (idx + 1),
+          members: (Array.isArray(g.members) ? g.members : []).map((m) => ({
+            userId: String(m.userId || ''),
+            name: String(m.name || 'Unbekannt'),
+          })).filter((m) => m.userId),
+        }))
+        .filter((g) => g.number !== 0);
+      const autoStart = Boolean(msg.autoStart);
+      const key = layoutKey(className, subject);
+      savedGroupLayouts.set(key, { groups, autoStart, updatedAt: Date.now() });
+      saveGroupLayouts();
+      ws.send(JSON.stringify({ type: 'groupLayoutSaved', className, subject }));
+      return;
+    }
+
     if (type === 'pollVote') {
       const roomId = msg.roomId || ws.roomId;
       const poll = pollsMap.get(roomId);

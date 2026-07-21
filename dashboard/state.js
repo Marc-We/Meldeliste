@@ -27,6 +27,8 @@ export const state = {
   questions: [],
   poll: null,
   groupPreview: null,
+  prepRoster: [],
+  prepPreview: null,
   timer: null,
   thoughts: [],
   assignment: null,
