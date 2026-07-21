@@ -443,6 +443,11 @@ export function renderCurrentRoom() {
     els.membersBoard.innerHTML = '';
     els.logBox.innerHTML = '<div class="small">Noch keine Einträge</div>';
     els.statsGrid.innerHTML = '';
+    // Sitzplan zurücksetzen
+    state.seats = [];
+    state.seatView = 'list';
+    state.seatEdit = false;
+    if (typeof renderSeatView === 'function') renderSeatView();
     updateLayout();
     return;
   }
@@ -456,6 +461,7 @@ export function renderCurrentRoom() {
   renderMembers();
   renderLog();
   renderStats();
+  renderSeatView();
   updateLayout();
 }
 
@@ -548,6 +554,8 @@ export function renderMembers() {
       }
     };
   });
+  // Wenn Sitzplan-Ansicht aktiv ist, Plätze mit aktualisieren (Meldungen aufleuchten)
+  if (state.seatView === 'seat') renderSeatPlan();
 }
 
 export function renderLog() {
@@ -1117,4 +1125,125 @@ export function renderAmpel() {
     <span style="color:#f0a500;">🟡 ${c.yellow}</span>
     <span style="color:#f45b69;">🔴 ${c.red}</span>
   </div>`;
+}
+// ---------- Sitzplan (#16) ----------
+let seatDragState = null;
+
+export function renderSeatView() {
+  // Umschalter Liste/Sitzplan
+  if (!els.seatPlanWrap) return;
+  const isSeat = state.seatView === 'seat';
+  if (els.membersBoard) els.membersBoard.style.display = isSeat ? 'none' : '';
+  els.seatPlanWrap.style.display = isSeat ? '' : 'none';
+  if (els.viewListBtn) { els.viewListBtn.classList.toggle('primary', !isSeat); els.viewListBtn.classList.toggle('ghost', isSeat); }
+  if (els.viewSeatBtn) { els.viewSeatBtn.classList.toggle('primary', isSeat); els.viewSeatBtn.classList.toggle('ghost', !isSeat); }
+  if (els.seatEditToggle) els.seatEditToggle.textContent = state.seatEdit ? 'Bearbeiten: an' : 'Bearbeiten: aus';
+  if (els.seatEditToggle) els.seatEditToggle.classList.toggle('primary', state.seatEdit);
+  if (isSeat) renderSeatPlan();
+}
+
+function presentStudents() {
+  return Array.from(state.presence.values()).filter((m) => m.role !== 'teacher' && m.role !== 'admin');
+}
+
+export function renderSeatPlan() {
+  const canvas = els.seatCanvas;
+  if (!canvas) return;
+  const seats = Array.isArray(state.seats) ? state.seats : [];
+  const presence = state.presence;
+  canvas.innerHTML = '';
+
+  seats.forEach((seat) => {
+    const el = document.createElement('div');
+    el.className = 'seat';
+    el.setAttribute('data-seat-id', seat.id);
+    const member = seat.userId ? presence.get(seat.userId) : null;
+    const ready = member && member.ready;
+    const name = member ? (member.name || 'Schüler') : 'leer';
+    el.style.cssText = `position:absolute;transform:translate(-50%,-50%);left:${(seat.x*100).toFixed(2)}%;top:${(seat.y*100).toFixed(2)}%;
+      min-width:84px;max-width:120px;padding:8px 6px;border-radius:10px;text-align:center;font-size:13px;cursor:${state.seatEdit ? 'grab' : 'pointer'};
+      border:1px solid ${ready ? '#36c38c' : '#2b3652'};background:${ready ? 'rgba(54,195,140,0.25)' : (member ? '#111a2e' : 'rgba(255,255,255,0.03)')};
+      color:var(--text);user-select:none;box-shadow:${ready ? '0 0 14px rgba(54,195,140,0.6)' : 'none'};`;
+    el.innerHTML = `<div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${member ? escHtml(name) : '– leer –'}</div>` +
+      (member ? `<div style="font-size:11px;color:var(--muted);">${ready ? 'meldet sich' : (member.online ? 'online' : 'offline')}</div>` : '');
+    canvas.appendChild(el);
+    bindSeatEvents(el, seat);
+  });
+}
+
+function bindSeatEvents(el, seat) {
+  const canvas = els.seatCanvas;
+  // Live-Modus: Klick = aufrufen (wenn zugewiesen)
+  // Edit-Modus: Ziehen zum Positionieren, Klick = zuweisen/entfernen
+  let moved = false;
+  let startX = 0, startY = 0;
+
+  el.onpointerdown = (ev) => {
+    if (!state.seatEdit) return;
+    ev.preventDefault();
+    moved = false;
+    startX = ev.clientX; startY = ev.clientY;
+    seatDragState = { seat, el, pointerId: ev.pointerId };
+    el.setPointerCapture(ev.pointerId);
+    el.style.cursor = 'grabbing';
+  };
+  el.onpointermove = (ev) => {
+    if (!seatDragState || seatDragState.seat.id !== seat.id) return;
+    const dx = Math.abs(ev.clientX - startX);
+    const dy = Math.abs(ev.clientY - startY);
+    if (dx > 4 || dy > 4) moved = true;
+    const rect = canvas.getBoundingClientRect();
+    let nx = (ev.clientX - rect.left) / rect.width;
+    let ny = (ev.clientY - rect.top) / rect.height;
+    nx = Math.max(0.02, Math.min(0.98, nx));
+    ny = Math.max(0.04, Math.min(0.96, ny));
+    seat.x = nx; seat.y = ny;
+    el.style.left = `${(nx*100).toFixed(2)}%`;
+    el.style.top = `${(ny*100).toFixed(2)}%`;
+  };
+  el.onpointerup = (ev) => {
+    if (state.seatEdit && seatDragState && seatDragState.seat.id === seat.id) {
+      el.releasePointerCapture(ev.pointerId);
+      el.style.cursor = 'grab';
+      seatDragState = null;
+      if (!moved) assignSeat(seat);
+      return;
+    }
+    // Live-Modus: aufrufen
+    if (!state.seatEdit) {
+      if (seat.userId && state.currentRoom && state.ws && state.ws.readyState === WebSocket.OPEN) {
+        sendJson({ type: 'ack', roomId: state.currentRoom, userId: seat.userId });
+        if (els.seatStatus) { els.seatStatus.textContent = 'Aufgerufen'; setTimeout(() => { if (els.seatStatus) els.seatStatus.textContent = ''; }, 1200); }
+      }
+    }
+  };
+}
+
+function assignSeat(seat) {
+  // Auswahl: freie anwesende Schüler + Option "leeren" + "Platz löschen"
+  const students = presentStudents();
+  const assignedElsewhere = new Set(state.seats.filter((s) => s.id !== seat.id && s.userId).map((s) => s.userId));
+  const free = students.filter((m) => !assignedElsewhere.has(m.userId));
+  const names = free.map((m, i) => `${i + 1}: ${m.name}`).join('\n');
+  const answer = prompt(
+    `Platz belegen:\n${names || '(keine freien anwesenden Schüler)'}\n\nNummer eingeben zum Zuweisen,\n"0" = Platz leeren,\n"x" = Platz löschen`,
+    seat.userId ? '0' : ''
+  );
+  if (answer === null) return;
+  const trimmed = answer.trim().toLowerCase();
+  if (trimmed === 'x') {
+    state.seats = state.seats.filter((s) => s.id !== seat.id);
+    renderSeatPlan();
+    return;
+  }
+  if (trimmed === '0' || trimmed === '') {
+    seat.userId = null;
+    renderSeatPlan();
+    return;
+  }
+  const idx = parseInt(trimmed, 10) - 1;
+  if (Number.isInteger(idx) && idx >= 0 && idx < free.length) {
+    seat.userId = free[idx].userId;
+    renderSeatPlan();
+  }
 }

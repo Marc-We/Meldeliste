@@ -23,6 +23,7 @@ const CODES_FILE = path.join(DATA_DIR, 'codes.json');
 const BANS_FILE = path.join(DATA_DIR, 'bans.json');
 const REPORTS_FILE = path.join(DATA_DIR, 'reports.json');
 const GROUP_LAYOUTS_FILE = path.join(DATA_DIR, 'group_layouts.json');
+const SEAT_PLANS_FILE = path.join(DATA_DIR, 'seat_plans.json');
 const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const GRADE_SHEETS_FILE = path.join(DATA_DIR, 'grade_sheets.json');
@@ -74,6 +75,7 @@ if (!Array.isArray(bans.emails)) bans.emails = [];
 let reports = loadJson(REPORTS_FILE, []);
 if (!Array.isArray(reports)) reports = [];
 let savedGroupLayouts = new Map(Object.entries(loadJson(GROUP_LAYOUTS_FILE, {})));
+let savedSeatPlans = new Map(Object.entries(loadJson(SEAT_PLANS_FILE, {})));
 let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
 let notes = loadJson(NOTES_FILE, {});
 let gradeSheets = loadJson(GRADE_SHEETS_FILE, {});
@@ -128,6 +130,9 @@ function saveReports() {
 }
 function saveGroupLayouts() {
   saveJson(GROUP_LAYOUTS_FILE, Object.fromEntries(savedGroupLayouts));
+}
+function saveSeatPlans() {
+  saveJson(SEAT_PLANS_FILE, Object.fromEntries(savedSeatPlans));
 }
 function layoutKey(className, subject) {
   return `${String(className || '').trim()}::${String(subject || 'default').trim()}`;
@@ -2271,6 +2276,14 @@ wss.on('connection', (ws, req) => {
           }
         }
       }
+      // Lehrer: gespeicherten Sitzplan dieses Kurs+Fach laden
+      if (ws.role === 'teacher' || ws.role === 'admin') {
+        const room = rooms.get(roomId);
+        const savedSeat = room ? savedSeatPlans.get(layoutKey(room.className, room.subject)) : null;
+        if (savedSeat && Array.isArray(savedSeat.seats)) {
+          ws.send(JSON.stringify({ type: 'seatPlan', roomId, className: room.className, subject: room.subject, seats: savedSeat.seats }));
+        }
+      }
       sendActiveQuestionnaireTo(ws, roomId);
       return;
     }
@@ -2586,6 +2599,40 @@ wss.on('connection', (ws, req) => {
       savedGroupLayouts.set(key, { groups, autoStart, updatedAt: Date.now() });
       saveGroupLayouts();
       ws.send(JSON.stringify({ type: 'groupLayoutSaved', className, subject }));
+      return;
+    }
+
+    if (type === 'seatPlanRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      if (!className) return;
+      const saved = savedSeatPlans.get(layoutKey(className, subject)) || null;
+      ws.send(JSON.stringify({
+        type: 'seatPlan',
+        className,
+        subject,
+        seats: saved && Array.isArray(saved.seats) ? saved.seats : [],
+      }));
+      return;
+    }
+
+    if (type === 'seatPlanSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const className = String(msg.className || '').trim();
+      const subject = String(msg.subject || 'default').trim();
+      if (!className) return;
+      const incoming = Array.isArray(msg.seats) ? msg.seats : [];
+      const seats = incoming
+        .map((s) => ({
+          id: String(s.id || ''),
+          x: Math.max(0, Math.min(1, Number(s.x) || 0)),
+          y: Math.max(0, Math.min(1, Number(s.y) || 0)),
+          userId: s.userId ? String(s.userId) : null,
+        }))
+        .filter((s) => s.id);
+      const key = layoutKey(className, subject);
+      savedSeatPlans.set(key, { seats, updatedAt: Date.now() });
+      saveSeatPlans();
+      ws.send(JSON.stringify({ type: 'seatPlanSaved', className, subject }));
       return;
     }
 

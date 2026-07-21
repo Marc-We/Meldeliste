@@ -17,6 +17,7 @@ import {
   renderPoll,
   renderGroups,
   renderAmpel,
+  renderSeatView,
   renderPrepGroups,
   renderQuestions,
   renderRooms,
@@ -326,6 +327,15 @@ function handleMessage(msg) {
   }
   if (msg.type === 'groupLayoutSaved') {
     if (els.prepStatus) els.prepStatus.textContent = 'Vorbereitung gespeichert.';
+  }
+  if (msg.type === 'seatPlan') {
+    state.seats = Array.isArray(msg.seats) ? msg.seats.map((s) => ({ id: s.id, x: s.x, y: s.y, userId: s.userId || null })) : [];
+    state.seatClassName = msg.className || '';
+    state.seatSubject = msg.subject || '';
+    renderSeatView();
+  }
+  if (msg.type === 'seatPlanSaved') {
+    if (els.seatStatus) { els.seatStatus.textContent = 'Gespeichert.'; setTimeout(() => { if (els.seatStatus) els.seatStatus.textContent = ''; }, 1500); }
   }
   if (msg.type === 'thoughtState' && msg.roomId === state.currentRoom) {
     if (msg.active) {

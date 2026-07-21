@@ -6,6 +6,11 @@ export const state = {
   rooms: [],
   currentRoom: null,
   presence: new Map(), // userId -> {ready, name, online}
+  seatView: 'list', // 'list' | 'seat'
+  seatEdit: false,
+  seats: [], // [{id, x, y, userId|null}]
+  seatClassName: '',
+  seatSubject: '',
   logEntries: [],
   stats: [],
   classCatalog: [],

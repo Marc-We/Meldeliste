@@ -521,7 +521,21 @@
           <button id="closeRoom" class="danger" disabled>Raum schließen</button>
         </div>
       </div>
+      <div class="row" style="gap:6px;margin-bottom:8px;">
+        <button id="viewListBtn" class="primary">Liste</button>
+        <button id="viewSeatBtn" class="ghost">Sitzplan</button>
+      </div>
       <div class="board" id="membersBoard"></div>
+      <div id="seatPlanWrap" style="display:none;">
+        <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          <button id="seatAddBtn" class="ghost">+ Platz</button>
+          <button id="seatEditToggle" class="ghost">Bearbeiten: aus</button>
+          <button id="seatSaveBtn" class="primary">Sitzplan speichern</button>
+          <span class="small" id="seatStatus"></span>
+        </div>
+        <div id="seatCanvas" style="position:relative;width:100%;height:460px;border:1px solid var(--line);border-radius:12px;background:#0c1424;overflow:hidden;touch-action:none;"></div>
+        <div class="small" style="margin-top:6px;">Im Bearbeiten-Modus: Plätze ziehen, antippen zum Zuweisen/Entfernen. Im Live-Modus leuchten Meldungen auf; Antippen ruft auf.</div>
+      </div>
     </div>
 
     <div class="panel" id="questionBanner" style="display:none">

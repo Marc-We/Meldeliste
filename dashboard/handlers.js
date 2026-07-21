@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout, flashSend } from './ui.js';
-import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions, renderGroups, renderPrepGroups } from './render.js';
+import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions, renderGroups, renderPrepGroups, renderSeatView, renderSeatPlan } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -384,6 +384,32 @@ export function bindHandlers() {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
     sendJson({ type: 'ampelStop', roomId: state.currentRoom });
     flashSend(els.ampelStopBtn);
+  };
+
+  // --- Sitzplan (#16) ---
+  if (els.viewListBtn) els.viewListBtn.onclick = () => { state.seatView = 'list'; renderSeatView(); };
+  if (els.viewSeatBtn) els.viewSeatBtn.onclick = () => { state.seatView = 'seat'; renderSeatView(); };
+  if (els.seatEditToggle) els.seatEditToggle.onclick = () => { state.seatEdit = !state.seatEdit; renderSeatView(); };
+  if (els.seatAddBtn) els.seatAddBtn.onclick = () => {
+    if (!Array.isArray(state.seats)) state.seats = [];
+    // Neuen Platz leicht versetzt in die Mitte legen, damit mehrere nicht exakt überlappen
+    const n = state.seats.length;
+    const offset = (n % 5) * 0.06;
+    state.seats.push({ id: `seat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, x: 0.3 + offset, y: 0.3 + offset, userId: null });
+    if (!state.seatEdit) { state.seatEdit = true; }
+    renderSeatView();
+  };
+  if (els.seatSaveBtn) els.seatSaveBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+    const room = state.rooms.find((r) => r.id === state.currentRoom);
+    if (!room) return;
+    sendJson({
+      type: 'seatPlanSave',
+      className: room.className || state.seatClassName,
+      subject: room.subject || state.seatSubject || 'default',
+      seats: state.seats,
+    });
+    flashSend(els.seatSaveBtn);
   };
 
   function requestGroups() {
