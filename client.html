@@ -74,7 +74,7 @@
     button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
     button:focus-visible { outline: 3px solid rgba(37,99,201,0.45); outline-offset: 2px; }
     input:focus-visible, select:focus-visible { outline: 3px solid rgba(37,99,201,0.35); outline-offset: 1px; }
-    .primary { background: var(--accent); color: var(--accent-ink); }
+    .primary { background: var(--accent); color: var(--accent-ink);background-color: #14683a; }
     .ghost { background: #ffffff; color: var(--text); border: 1px solid var(--field-border); }
     .row { display: flex; gap: 10px; flex-wrap: wrap; }
     .status {
@@ -195,7 +195,7 @@
           <select id="roomSelect"></select>
       </label>
       <div class="row" style="margin-top:12px">
-        <button id="readyBtn" class="primary" disabled>Ich melde mich</button>
+        <button id="readyBtn" class="primary" disabled>Melden</button>
         <button id="withdrawBtn" class="ghost" disabled>Meldung zurücknehmen</button>
         <button id="leaveBtn" class="ghost" disabled>Raum verlassen</button>
       </div>
@@ -302,13 +302,12 @@
       <h2>Postfach</h2>
       <div id="feedbackList"><div class="empty">Keine Nachrichten</div></div>
     </div>
-  </div>
 
-  <div class="layout">
     <div class="panel" id="homeworkPanel" style="display:none">
       <h2>Hausaufgaben</h2>
       <div id="homeworkList"><div class="empty">Keine Hausaufgaben</div></div>
     </div>
+
     <details class="panel" id="coursePanel" style="display:none">
       <summary>Meine Fächer/Kurse</summary>
       <div class="row" style="align-items:center; justify-content: space-between; margin-top:10px;">

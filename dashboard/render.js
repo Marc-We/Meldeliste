@@ -964,8 +964,8 @@ export function renderGroups() {
     const rows = (g.members || []).map((m) => {
       // rot = im Layout, aber nicht anwesend; grün = anwesend & im Pool
       let color = '';
-      if (m.present === false) color = 'color:#f45b69;';
-      else if (isPool) color = 'color:#36c38c;';
+      if (m.present === false) color = 'color:var(--sig-red-ink);';
+      else if (isPool) color = 'color:var(--sig-green-ink);';
       return `<div class="row" style="justify-content:space-between;align-items:center;gap:6px;margin-top:2px;">
         <span style="${color}">${escHtml(m.name || 'Unbekannt')}${m.present === false ? ' (fehlt)' : ''}</span>
         <span style="white-space:nowrap;">
@@ -1059,7 +1059,7 @@ export function renderPrepGroups() {
     const isPool = g.number === 0;
     const title = isPool ? 'Nicht zugeteilt' : `Gruppe ${g.number}`;
     const rows = (g.members || []).map((m) => {
-      const color = isPool ? 'color:#36c38c;' : '';
+      const color = isPool ? 'color:var(--sig-green-ink);' : '';
       return `<div class="row" style="justify-content:space-between;align-items:center;gap:6px;margin-top:2px;">
         <span style="${color}">${escHtml(m.name || 'Unbekannt')}</span>
         <span style="white-space:nowrap;">
@@ -1120,10 +1120,16 @@ export function renderAmpel() {
     return;
   }
   const c = a.counts || { green: 0, yellow: 0, red: 0 };
-  els.ampelResults.innerHTML = `<div class="row" style="gap:12px;font-size:1.1rem;font-weight:700;">
-    <span style="color:#36c38c;">🟢 ${c.green}</span>
-    <span style="color:#f0a500;">🟡 ${c.yellow}</span>
-    <span style="color:#f45b69;">🔴 ${c.red}</span>
+  els.ampelResults.innerHTML = `<div class="row" style="gap:10px;flex-wrap:wrap;">
+    <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:var(--sig-green-bg);border:1px solid var(--sig-green);color:var(--sig-green-ink);font-weight:700;">
+      <span style="font-size:1.1em;">✓</span> ${c.green}
+    </span>
+    <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:var(--sig-amber-bg);border:1px solid var(--sig-amber);color:var(--sig-amber-ink);font-weight:700;">
+      <span style="font-size:1.1em;">?</span> ${c.yellow}
+    </span>
+    <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:var(--sig-red-bg);border:1px solid var(--sig-red);color:var(--sig-red-ink);font-weight:700;">
+      <span style="font-size:1.1em;">!</span> ${c.red}
+    </span>
   </div>`;
 }
 // ---------- Sitzplan (#16) ----------
@@ -1160,12 +1166,20 @@ export function renderSeatPlan() {
     const member = seat.userId ? presence.get(seat.userId) : null;
     const ready = member && member.ready;
     const name = member ? (member.name || 'Schüler') : 'leer';
+    // Helle Palette: belegter Platz = weiße Fläche + dunkler Text; Meldung = grüne Signalfläche
+    let bg, border, ink, shadow;
+    if (ready) {
+      bg = 'var(--sig-green-bg)'; border = '2px solid var(--sig-green)'; ink = 'var(--sig-green-ink)'; shadow = '0 0 0 3px rgba(30,158,90,0.25)';
+    } else if (member) {
+      bg = '#ffffff'; border = '1px solid var(--field-border)'; ink = 'var(--text)'; shadow = '0 1px 3px rgba(20,34,60,0.12)';
+    } else {
+      bg = 'var(--sunken)'; border = '1px dashed var(--field-border)'; ink = 'var(--muted)'; shadow = 'none';
+    }
     el.style.cssText = `position:absolute;transform:translate(-50%,-50%);left:${(seat.x*100).toFixed(2)}%;top:${(seat.y*100).toFixed(2)}%;
       min-width:84px;max-width:120px;padding:8px 6px;border-radius:10px;text-align:center;font-size:13px;cursor:${state.seatEdit ? 'grab' : 'pointer'};
-      border:1px solid ${ready ? '#36c38c' : '#2b3652'};background:${ready ? 'rgba(54,195,140,0.25)' : (member ? '#111a2e' : 'rgba(255,255,255,0.03)')};
-      color:var(--text);user-select:none;box-shadow:${ready ? '0 0 14px rgba(54,195,140,0.6)' : 'none'};`;
-    el.innerHTML = `<div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${member ? escHtml(name) : '– leer –'}</div>` +
-      (member ? `<div style="font-size:11px;color:var(--muted);">${ready ? 'meldet sich' : (member.online ? 'online' : 'offline')}</div>` : '');
+      border:${border};background:${bg};color:${ink};user-select:none;box-shadow:${shadow};`;
+    el.innerHTML = `<div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${ink};">${ready ? '✋ ' : ''}${member ? escHtml(name) : '– leer –'}</div>` +
+      (member ? `<div style="font-size:11px;color:${ready ? 'var(--sig-green-ink)' : 'var(--muted)'};">${ready ? 'meldet sich' : (member.online ? 'online' : 'offline')}</div>` : '');
     canvas.appendChild(el);
     bindSeatEvents(el, seat);
   });
