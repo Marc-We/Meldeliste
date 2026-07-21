@@ -158,6 +158,7 @@ const importantMap = new Map(); // roomId -> Set<userId>
 const questionsMap = new Map(); // roomId -> [{id,text,ts}]
 const pollsMap = new Map(); // roomId -> {id, question, options:[{id,text,count}], multiple, votes: Map<userId, string[]>}
 const groupsMap = new Map(); // roomId -> {groups: [{number, members:[{userId,name}]}], publishedAt} (nur nach Freigabe)
+const ampelMap = new Map(); // roomId -> {active:bool, votes: Map<userId, 'green'|'yellow'|'red'>}
 const thoughtsMap = new Map(); // roomId -> {active:boolean, entries:string[]}
 const roomQuestionnaires = new Map(); // roomId -> {teacherId, subject, slot, activeAt}
 const timersMap = new Map(); // roomId -> {totalSeconds, remainingAtSnapshot, snapshotAt, running} | null
@@ -912,6 +913,31 @@ function isImportant(roomId, userId) {
   return Boolean(set && set.has(userId));
 }
 
+function broadcastAmpel(roomId) {
+  const ampel = ampelMap.get(roomId);
+  wss.clients.forEach((client) => {
+    if (client.readyState !== client.OPEN) return;
+    if (client.roomId !== roomId) return;
+    const isTeacher = client.role === 'teacher' || client.role === 'admin';
+    if (!ampel || !ampel.active) {
+      client.send(JSON.stringify({ type: 'ampel', roomId, active: false }));
+      return;
+    }
+    if (isTeacher) {
+      let green = 0, yellow = 0, red = 0;
+      ampel.votes.forEach((v) => {
+        if (v === 'green') green++;
+        else if (v === 'yellow') yellow++;
+        else if (v === 'red') red++;
+      });
+      client.send(JSON.stringify({ type: 'ampel', roomId, active: true, counts: { green, yellow, red } }));
+    } else {
+      const own = ampel.votes.get(client.userId) || null;
+      client.send(JSON.stringify({ type: 'ampel', roomId, active: true, own }));
+    }
+  });
+}
+
 function broadcastPoll(roomId) {
   const poll = pollsMap.get(roomId);
   if (!poll) return;
@@ -1558,6 +1584,7 @@ wss.on('connection', (ws, req) => {
         broadcastRoom(roomId, { type: 'questionnaireActive', roomId, active: false });
       }
       groupsMap.delete(roomId);
+      ampelMap.delete(roomId);
       wss.clients.forEach((client) => sendRoomList(client));
       return;
     }
@@ -2200,6 +2227,19 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'timer', roomId, timer: currentTimer }));
       const currentAssignment = activeAssignmentsMap.get(roomId) || null;
       ws.send(JSON.stringify({ type: 'assignment', roomId, assignment: currentAssignment }));
+      // Ampel-Zustand gezielt an diesen Client
+      const ampel = ampelMap.get(roomId);
+      if (ampel && ampel.active) {
+        if (ws.role === 'teacher' || ws.role === 'admin') {
+          let green = 0, yellow = 0, red = 0;
+          ampel.votes.forEach((v) => { if (v === 'green') green++; else if (v === 'yellow') yellow++; else if (v === 'red') red++; });
+          ws.send(JSON.stringify({ type: 'ampel', roomId, active: true, counts: { green, yellow, red } }));
+        } else {
+          ws.send(JSON.stringify({ type: 'ampel', roomId, active: true, own: ampel.votes.get(ws.userId) || null }));
+        }
+      } else {
+        ws.send(JSON.stringify({ type: 'ampel', roomId, active: false }));
+      }
       const activeGroups = groupsMap.get(roomId);
       if (activeGroups && Array.isArray(activeGroups.groups)) {
         const myGroup = activeGroups.groups.find((g) => g.members.some((m) => m.userId === ws.userId));
@@ -2579,6 +2619,32 @@ wss.on('connection', (ws, req) => {
       poll.open = false;
       pollsMap.set(roomId, poll);
       broadcastPoll(roomId);
+      return;
+    }
+
+    if (type === 'ampelStart' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      if (!rooms.has(roomId)) return;
+      ampelMap.set(roomId, { active: true, votes: new Map() });
+      broadcastAmpel(roomId);
+      return;
+    }
+
+    if (type === 'ampelStop' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      ampelMap.delete(roomId);
+      broadcastAmpel(roomId);
+      return;
+    }
+
+    if (type === 'ampelVote') {
+      const roomId = msg.roomId || ws.roomId;
+      const ampel = ampelMap.get(roomId);
+      if (!ampel || !ampel.active) return;
+      const choice = msg.choice;
+      if (!['green', 'yellow', 'red'].includes(choice)) return;
+      ampel.votes.set(ws.userId, choice);
+      broadcastAmpel(roomId);
       return;
     }
 

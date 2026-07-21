@@ -1103,3 +1103,18 @@ export function renderPrepGroups() {
   const hasAssigned = groups.some((g) => g.number !== 0 && (g.members || []).length > 0);
   if (els.prepSaveBtn) els.prepSaveBtn.disabled = !hasAssigned;
 }
+
+export function renderAmpel() {
+  if (!els.ampelResults) return;
+  const a = state.ampel;
+  if (!a || !a.active) {
+    els.ampelResults.textContent = 'Nicht aktiv';
+    return;
+  }
+  const c = a.counts || { green: 0, yellow: 0, red: 0 };
+  els.ampelResults.innerHTML = `<div class="row" style="gap:12px;font-size:1.1rem;font-weight:700;">
+    <span style="color:#36c38c;">🟢 ${c.green}</span>
+    <span style="color:#f0a500;">🟡 ${c.yellow}</span>
+    <span style="color:#f45b69;">🔴 ${c.red}</span>
+  </div>`;
+}

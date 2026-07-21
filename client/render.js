@@ -483,3 +483,23 @@ export function renderGroup() {
   els.groupMembers.textContent = names.length ? names.join(', ') : '–';
   els.groupPanel.style.display = '';
 }
+
+export function renderAmpel() {
+  if (!els.ampelPanel) return;
+  const a = state.ampel;
+  if (!a || !a.active) {
+    els.ampelPanel.style.display = 'none';
+    return;
+  }
+  els.ampelPanel.style.display = '';
+  const own = a.own || null;
+  const map = { green: els.ampelGreen, yellow: els.ampelYellow, red: els.ampelRed };
+  Object.keys(map).forEach((k) => {
+    const btn = map[k];
+    if (!btn) return;
+    btn.style.outline = (own === k) ? '3px solid var(--text)' : 'none';
+    btn.style.fontWeight = (own === k) ? '800' : '700';
+  });
+  const label = { green: 'Verstanden', yellow: 'Unsicher', red: 'Nicht verstanden' };
+  els.ampelOwn.textContent = own ? `Deine Auswahl: ${label[own]}` : 'Bitte auswählen';
+}

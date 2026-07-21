@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson, sendJoin } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, flashSend } from './ui.js';
-import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode, renderGroup } from './render.js';
+import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode, renderGroup, renderAmpel } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -132,6 +132,8 @@ export function bindHandlers() {
     if (prevRoom !== state.currentRoom) {
       state.group = null;
       renderGroup();
+      state.ampel = null;
+      renderAmpel();
     }
     if (prevRoom && prevRoom !== state.currentRoom) {
       state.activeQuestionnaire = null;
@@ -224,6 +226,8 @@ export function bindHandlers() {
     renderCalled(false);
     state.group = null;
     renderGroup();
+    state.ampel = null;
+    renderAmpel();
     state.activeQuestionnaire = null;
     if (state.questionnaire.slot !== 'default') {
       state.questionnaire.open = false;
@@ -239,6 +243,18 @@ export function bindHandlers() {
   els.calledBox.onclick = () => {
     renderCalled(false);
   };
+
+  function ampelVote(choice) {
+    if (!state.currentRoom || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+    if (!state.ampel || !state.ampel.active) return;
+    sendJson({ type: 'ampelVote', roomId: state.currentRoom, choice });
+    // eigene Wahl sofort lokal spiegeln (Server bestätigt per broadcast)
+    state.ampel.own = choice;
+    renderAmpel();
+  }
+  if (els.ampelGreen) els.ampelGreen.onclick = () => ampelVote('green');
+  if (els.ampelYellow) els.ampelYellow.onclick = () => ampelVote('yellow');
+  if (els.ampelRed) els.ampelRed.onclick = () => ampelVote('red');
 
   if (els.questionnaireClose) {
     els.questionnaireClose.onclick = () => {

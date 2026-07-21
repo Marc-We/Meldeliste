@@ -16,6 +16,7 @@ import {
   renderMembers,
   renderPoll,
   renderGroups,
+  renderAmpel,
   renderPrepGroups,
   renderQuestions,
   renderRooms,
@@ -282,6 +283,10 @@ function handleMessage(msg) {
     state.gradeStudentList = msg.students || [];
     state.gradeClassName = msg.className || '';
     renderGradeSheet();
+  }
+  if (msg.type === 'ampel' && msg.roomId === state.currentRoom) {
+    state.ampel = msg.active ? { active: true, counts: msg.counts || { green: 0, yellow: 0, red: 0 } } : null;
+    renderAmpel();
   }
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;

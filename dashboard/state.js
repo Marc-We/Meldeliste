@@ -27,6 +27,7 @@ export const state = {
   questions: [],
   poll: null,
   groupPreview: null,
+  ampel: null,
   prepRoster: [],
   prepPreview: null,
   timer: null,

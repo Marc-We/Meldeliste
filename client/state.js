@@ -19,6 +19,7 @@ export const state = {
   assignment: null,
   grade: null,
   group: null,
+  ampel: null,
   thoughtActive: false,
   pollCollapsed: false,
   homeworkItems: [],

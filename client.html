@@ -227,6 +227,16 @@
       <div id="groupMembers" style="color:var(--muted)"></div>
     </div>
 
+    <div class="panel" id="ampelPanel" style="display:none">
+      <h2>Verständnis</h2>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button id="ampelGreen" class="ghost" style="flex:1;background:rgba(54,195,140,0.15);border-color:#36c38c;">🟢 Verstanden</button>
+        <button id="ampelYellow" class="ghost" style="flex:1;background:rgba(240,165,0,0.15);border-color:#f0a500;">🟡 Unsicher</button>
+        <button id="ampelRed" class="ghost" style="flex:1;background:rgba(244,91,105,0.15);border-color:#f45b69;">🔴 Nicht verstanden</button>
+      </div>
+      <div id="ampelOwn" class="small" style="margin-top:8px"></div>
+    </div>
+
     <div class="panel" id="pollPanel">
       <h2>Umfrage</h2>
       <div id="pollContainer"><div class="empty">Keine Umfrage</div></div>

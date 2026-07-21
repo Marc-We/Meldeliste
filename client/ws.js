@@ -20,6 +20,7 @@ import {
   renderAssignment,
   renderGrade,
   renderGroup,
+  renderAmpel,
 } from './render.js';
 
 function courseKey(subject, teacherId) {
@@ -212,6 +213,10 @@ function handleMessage(msg) {
   if (msg.type === 'groupClosed' && msg.roomId === state.currentRoom) {
     state.group = null;
     renderGroup();
+  }
+  if (msg.type === 'ampel' && msg.roomId === state.currentRoom) {
+    state.ampel = msg.active ? { active: true, own: msg.own || null } : null;
+    renderAmpel();
   }
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;

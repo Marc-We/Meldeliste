@@ -375,6 +375,17 @@ export function bindHandlers() {
     flashSend(els.endPollBtn);
   };
 
+  if (els.ampelStartBtn) els.ampelStartBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    sendJson({ type: 'ampelStart', roomId: state.currentRoom });
+    flashSend(els.ampelStartBtn);
+  };
+  if (els.ampelStopBtn) els.ampelStopBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    sendJson({ type: 'ampelStop', roomId: state.currentRoom });
+    flashSend(els.ampelStopBtn);
+  };
+
   function requestGroups() {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
     const sel = els.groupMode.value;
