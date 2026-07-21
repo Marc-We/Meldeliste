@@ -15,6 +15,7 @@ import {
   renderLog,
   renderMembers,
   renderPoll,
+  renderGroups,
   renderQuestions,
   renderRooms,
   renderStats,
@@ -284,6 +285,13 @@ function handleMessage(msg) {
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;
     renderPoll();
+  }
+  if (msg.type === 'groupPreview' && msg.roomId === state.currentRoom) {
+    state.groupPreview = Array.isArray(msg.groups) ? msg.groups : [];
+    if (typeof msg.autoStart === 'boolean' && els.groupAutoStart) {
+      els.groupAutoStart.checked = msg.autoStart;
+    }
+    renderGroups();
   }
   if (msg.type === 'thoughtState' && msg.roomId === state.currentRoom) {
     if (msg.active) {

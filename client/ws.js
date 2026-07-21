@@ -19,6 +19,7 @@ import {
   renderTimer,
   renderAssignment,
   renderGrade,
+  renderGroup,
 } from './render.js';
 
 function courseKey(subject, teacherId) {
@@ -203,6 +204,14 @@ function handleMessage(msg) {
   if (msg.type === 'gradeSent') {
     state.grade = msg;
     renderGrade();
+  }
+  if (msg.type === 'groupAssignment' && msg.roomId === state.currentRoom) {
+    state.group = { number: msg.number, members: Array.isArray(msg.members) ? msg.members : [] };
+    renderGroup();
+  }
+  if (msg.type === 'groupClosed' && msg.roomId === state.currentRoom) {
+    state.group = null;
+    renderGroup();
   }
   if (msg.type === 'poll' && msg.roomId === state.currentRoom) {
     state.poll = msg.poll;

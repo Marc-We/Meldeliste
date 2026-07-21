@@ -470,3 +470,16 @@ export function updateStatsMode() {
     requestSubjectStats();
   }
 }
+
+export function renderGroup() {
+  if (!els.groupPanel) return;
+  const g = state.group;
+  if (!g) {
+    els.groupPanel.style.display = 'none';
+    return;
+  }
+  els.groupNumber.textContent = `Gruppe ${g.number}`;
+  const names = Array.isArray(g.members) ? g.members : [];
+  els.groupMembers.textContent = names.length ? names.join(', ') : '–';
+  els.groupPanel.style.display = '';
+}

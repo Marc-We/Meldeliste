@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout, flashSend } from './ui.js';
-import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions } from './render.js';
+import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions, renderGroups } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -373,6 +373,39 @@ export function bindHandlers() {
     if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
     sendJson({ type: 'pollEnd', roomId: state.currentRoom });
     flashSend(els.endPollBtn);
+  };
+
+  function requestGroups() {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    const sel = els.groupMode.value;
+    const mode = sel === 'count' ? 'count' : (sel === 'empty' ? 'empty' : 'size');
+    const value = Math.max(1, Math.min(50, parseInt(els.groupValue.value, 10) || 0));
+    if (!value) return;
+    sendJson({ type: 'groupCreate', roomId: state.currentRoom, mode, value });
+  }
+  function updateGroupModeUi() {
+    const isEmpty = els.groupMode.value === 'empty';
+    // Im manuellen Modus ist "Neu mischen" sinnlos
+    if (els.groupShuffleBtn) els.groupShuffleBtn.style.display = isEmpty ? 'none' : '';
+    if (els.groupCreateBtn) els.groupCreateBtn.textContent = isEmpty ? 'Gruppen anlegen' : 'Einteilen';
+  }
+  if (els.groupMode) els.groupMode.onchange = updateGroupModeUi;
+  updateGroupModeUi();
+  if (els.groupCreateBtn) els.groupCreateBtn.onclick = () => { requestGroups(); flashSend(els.groupCreateBtn); };
+  if (els.groupShuffleBtn) els.groupShuffleBtn.onclick = () => { requestGroups(); flashSend(els.groupShuffleBtn); };
+  if (els.groupPublishBtn) els.groupPublishBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    if (!Array.isArray(state.groupPreview) || !state.groupPreview.length) return;
+    const autoStart = els.groupAutoStart ? els.groupAutoStart.checked : false;
+    sendJson({ type: 'groupPublish', roomId: state.currentRoom, groups: state.groupPreview, autoStart });
+    flashSend(els.groupPublishBtn);
+  };
+  if (els.groupCloseBtn) els.groupCloseBtn.onclick = () => {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.currentRoom) return;
+    sendJson({ type: 'groupClose', roomId: state.currentRoom });
+    state.groupPreview = null;
+    renderGroups();
+    flashSend(els.groupCloseBtn);
   };
 
   els.timerSetBtn.onclick = () => {

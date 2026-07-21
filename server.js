@@ -22,6 +22,7 @@ const ROOM_STATS_FILE = path.join(DATA_DIR, 'room_stats.json');
 const CODES_FILE = path.join(DATA_DIR, 'codes.json');
 const BANS_FILE = path.join(DATA_DIR, 'bans.json');
 const REPORTS_FILE = path.join(DATA_DIR, 'reports.json');
+const GROUP_LAYOUTS_FILE = path.join(DATA_DIR, 'group_layouts.json');
 const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const GRADE_SHEETS_FILE = path.join(DATA_DIR, 'grade_sheets.json');
@@ -72,6 +73,7 @@ let bans = loadJson(BANS_FILE, { emails: [] });
 if (!Array.isArray(bans.emails)) bans.emails = [];
 let reports = loadJson(REPORTS_FILE, []);
 if (!Array.isArray(reports)) reports = [];
+let savedGroupLayouts = new Map(Object.entries(loadJson(GROUP_LAYOUTS_FILE, {})));
 let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
 let notes = loadJson(NOTES_FILE, {});
 let gradeSheets = loadJson(GRADE_SHEETS_FILE, {});
@@ -124,6 +126,12 @@ function saveBans() {
 function saveReports() {
   saveJson(REPORTS_FILE, reports);
 }
+function saveGroupLayouts() {
+  saveJson(GROUP_LAYOUTS_FILE, Object.fromEntries(savedGroupLayouts));
+}
+function layoutKey(className, subject) {
+  return `${String(className || '').trim()}::${String(subject || 'default').trim()}`;
+}
 function saveFeedback() {
   saveJson(FEEDBACK_FILE, feedback);
 }
@@ -149,6 +157,7 @@ const toiletMap = new Map(); // roomId -> Map<userId, {status: 'pending'|'allowe
 const importantMap = new Map(); // roomId -> Set<userId>
 const questionsMap = new Map(); // roomId -> [{id,text,ts}]
 const pollsMap = new Map(); // roomId -> {id, question, options:[{id,text,count}], multiple, votes: Map<userId, string[]>}
+const groupsMap = new Map(); // roomId -> {groups: [{number, members:[{userId,name}]}], publishedAt} (nur nach Freigabe)
 const thoughtsMap = new Map(); // roomId -> {active:boolean, entries:string[]}
 const roomQuestionnaires = new Map(); // roomId -> {teacherId, subject, slot, activeAt}
 const timersMap = new Map(); // roomId -> {totalSeconds, remainingAtSnapshot, snapshotAt, running} | null
@@ -482,6 +491,39 @@ function broadcastReports() {
       client.send(JSON.stringify({ type: 'reportList', reports }));
     }
   });
+}
+
+// Baut aus einem gespeicherten Layout eine Preview mit Anwesenheits-Flags.
+// present=false → im Layout, aber aktuell nicht im Raum (rot).
+// Pool (number 0) → anwesende Schüler, die in keiner Gruppe stehen (grün).
+function buildLayoutPreview(roomId, layout) {
+  const memberSet = roomMembers.get(roomId) || new Set();
+  const presentIds = new Set(
+    Array.from(memberSet).filter((uid) => {
+      const u = users.get(uid);
+      return u && u.role === 'student';
+    })
+  );
+  const assignedIds = new Set();
+  const groups = (Array.isArray(layout.groups) ? layout.groups : [])
+    .filter((g) => Number(g.number) !== 0)
+    .map((g) => ({
+      number: Number(g.number),
+      members: (Array.isArray(g.members) ? g.members : []).map((m) => {
+        assignedIds.add(m.userId);
+        return { userId: m.userId, name: m.name || 'Unbekannt', present: presentIds.has(m.userId) };
+      }),
+    }));
+  // Anwesende, die in keiner Gruppe sind → Pool
+  const pool = [];
+  presentIds.forEach((uid) => {
+    if (!assignedIds.has(uid)) {
+      const u = users.get(uid);
+      pool.push({ userId: uid, name: (u && (u.name || [u.firstName, u.lastName].filter(Boolean).join(' '))) || 'Unbekannt', present: true });
+    }
+  });
+  if (pool.length) groups.push({ number: 0, members: pool });
+  return groups;
 }
 
 function broadcastPendingTeachers() {
@@ -1515,6 +1557,7 @@ wss.on('connection', (ws, req) => {
         roomQuestionnaires.delete(roomId);
         broadcastRoom(roomId, { type: 'questionnaireActive', roomId, active: false });
       }
+      groupsMap.delete(roomId);
       wss.clients.forEach((client) => sendRoomList(client));
       return;
     }
@@ -2157,6 +2200,37 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'timer', roomId, timer: currentTimer }));
       const currentAssignment = activeAssignmentsMap.get(roomId) || null;
       ws.send(JSON.stringify({ type: 'assignment', roomId, assignment: currentAssignment }));
+      const activeGroups = groupsMap.get(roomId);
+      if (activeGroups && Array.isArray(activeGroups.groups)) {
+        const myGroup = activeGroups.groups.find((g) => g.members.some((m) => m.userId === ws.userId));
+        if (myGroup) {
+          ws.send(JSON.stringify({ type: 'groupAssignment', roomId, number: myGroup.number, members: myGroup.members.map((x) => x.name) }));
+        }
+      }
+      // Lehrer: gespeichertes Layout dieses Kurs+Fach laden
+      if ((ws.role === 'teacher' || ws.role === 'admin') && !activeGroups) {
+        const room = rooms.get(roomId);
+        const saved = room ? savedGroupLayouts.get(layoutKey(room.className, room.subject)) : null;
+        if (saved && Array.isArray(saved.groups) && saved.groups.length) {
+          const preview = buildLayoutPreview(roomId, saved);
+          ws.send(JSON.stringify({ type: 'groupPreview', roomId, groups: preview, autoStart: Boolean(saved.autoStart), loaded: true }));
+          // Auto-Start: sofort an anwesende Schüler senden
+          if (saved.autoStart) {
+            const publishGroups = preview
+              .filter((g) => g.number !== 0)
+              .map((g) => ({ number: g.number, members: g.members.filter((m) => m.present).map((m) => ({ userId: m.userId, name: m.name })) }))
+              .filter((g) => g.members.length);
+            if (publishGroups.length) {
+              groupsMap.set(roomId, { groups: publishGroups, publishedAt: Date.now() });
+              publishGroups.forEach((g) => {
+                g.members.forEach((m) => {
+                  sendToUser(m.userId, { type: 'groupAssignment', roomId, number: g.number, members: g.members.map((x) => x.name) });
+                });
+              });
+            }
+          }
+        }
+      }
       sendActiveQuestionnaireTo(ws, roomId);
       return;
     }
@@ -2331,6 +2405,99 @@ wss.on('connection', (ws, req) => {
       };
       pollsMap.set(roomId, poll);
       broadcastPoll(roomId);
+      return;
+    }
+
+    if (type === 'groupCreate' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      const mode = msg.mode === 'count' ? 'count' : (msg.mode === 'empty' ? 'empty' : 'size');
+      const value = Math.max(1, Math.min(50, parseInt(msg.value, 10) || 0));
+      if (!value) return;
+      const memberSet = roomMembers.get(roomId) || new Set();
+      const present = Array.from(memberSet)
+        .map((userId) => {
+          const u = users.get(userId);
+          if (!u || u.role !== 'student') return null;
+          return { userId, name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Unbekannt' };
+        })
+        .filter(Boolean);
+      if (!present.length) {
+        ws.send(JSON.stringify({ type: 'groupPreview', roomId, groups: [] }));
+        return;
+      }
+      if (mode === 'empty') {
+        // Leere Gruppen anlegen; alle Anwesenden landen im Pool (Gruppe 0 = unzugeteilt)
+        const groups = Array.from({ length: value }, (_, idx) => ({ number: idx + 1, members: [] }));
+        groups.push({ number: 0, members: present });
+        ws.send(JSON.stringify({ type: 'groupPreview', roomId, groups }));
+        return;
+      }
+      for (let i = present.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [present[i], present[j]] = [present[j], present[i]];
+      }
+      let groupCount;
+      if (mode === 'count') {
+        groupCount = Math.min(value, present.length);
+      } else {
+        groupCount = Math.max(1, Math.ceil(present.length / value));
+      }
+      const groups = Array.from({ length: groupCount }, (_, idx) => ({ number: idx + 1, members: [] }));
+      present.forEach((student, idx) => {
+        groups[idx % groupCount].members.push(student);
+      });
+      ws.send(JSON.stringify({ type: 'groupPreview', roomId, groups }));
+      return;
+    }
+
+    if (type === 'groupPublish' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      const incoming = Array.isArray(msg.groups) ? msg.groups : [];
+      if (!incoming.length) return;
+      const groups = incoming.map((g, idx) => ({
+        number: Number(g.number) || (idx + 1),
+        members: (Array.isArray(g.members) ? g.members : []).map((m) => ({
+          userId: String(m.userId || ''),
+          name: String(m.name || 'Unbekannt'),
+        })).filter((m) => m.userId),
+      })).filter((g) => g.number !== 0);
+      if (!groups.length) return;
+      groupsMap.set(roomId, { groups, publishedAt: Date.now() });
+      // Persistent pro Kurs+Fach speichern
+      const autoStart = Boolean(msg.autoStart);
+      const key = layoutKey(room.className, room.subject);
+      savedGroupLayouts.set(key, { groups, autoStart, updatedAt: Date.now() });
+      saveGroupLayouts();
+      groups.forEach((g) => {
+        g.members.forEach((m) => {
+          sendToUser(m.userId, {
+            type: 'groupAssignment',
+            roomId,
+            number: g.number,
+            members: g.members.map((x) => x.name),
+          });
+        });
+      });
+      return;
+    }
+
+    if (type === 'groupClose' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const roomId = msg.roomId || ws.roomId;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      const active = groupsMap.get(roomId);
+      groupsMap.delete(roomId);
+      if (active && Array.isArray(active.groups)) {
+        active.groups.forEach((g) => {
+          g.members.forEach((m) => {
+            sendToUser(m.userId, { type: 'groupClosed', roomId });
+          });
+        });
+      }
       return;
     }
 

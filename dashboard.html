@@ -384,6 +384,28 @@
           </div>
           <div class="questions" id="pollResults"><div class="small">Keine aktive Umfrage</div></div>
         </div>
+        <div class="tool-card" id="groupPanel">
+          <h2>Gruppen</h2>
+          <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+            <select id="groupMode" style="width:auto">
+              <option value="size">Schüler pro Gruppe</option>
+              <option value="count">Anzahl Gruppen</option>
+              <option value="empty">Leere Gruppen (manuell)</option>
+            </select>
+            <input id="groupValue" type="number" min="1" max="50" value="4" style="width:80px">
+            <button id="groupCreateBtn" class="primary">Einteilen</button>
+            <button id="groupShuffleBtn" class="ghost">Neu mischen</button>
+          </div>
+          <div id="groupPreview" style="margin-top:10px"></div>
+          <label class="row" style="align-items:center;gap:8px;margin-top:8px;">
+            <input id="groupAutoStart" type="checkbox" style="width:auto">
+            Automatisches Starten in der nächsten Stunde
+          </label>
+          <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">
+            <button id="groupPublishBtn" class="primary" disabled>An Schüler senden</button>
+            <button id="groupCloseBtn" class="danger">Anzeige schließen</button>
+          </div>
+        </div>
         <div class="tool-card" id="thoughtsPanel">
           <h2>Gedankenrunde</h2>
           <div class="row" style="margin-bottom:8px">

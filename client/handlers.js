@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson, sendJoin } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, flashSend } from './ui.js';
-import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode } from './render.js';
+import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode, renderGroup } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -129,6 +129,10 @@ export function bindHandlers() {
   els.roomSelect.onchange = () => {
     const prevRoom = state.currentRoom;
     state.currentRoom = els.roomSelect.value || null;
+    if (prevRoom !== state.currentRoom) {
+      state.group = null;
+      renderGroup();
+    }
     if (prevRoom && prevRoom !== state.currentRoom) {
       state.activeQuestionnaire = null;
       if (state.questionnaire.slot !== 'default') {
@@ -218,6 +222,8 @@ export function bindHandlers() {
     els.leaveBtn.disabled = true;
     els.withdrawBtn.disabled = true;
     renderCalled(false);
+    state.group = null;
+    renderGroup();
     state.activeQuestionnaire = null;
     if (state.questionnaire.slot !== 'default') {
       state.questionnaire.open = false;

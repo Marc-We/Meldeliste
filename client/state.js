@@ -18,6 +18,7 @@ export const state = {
   timer: null,
   assignment: null,
   grade: null,
+  group: null,
   thoughtActive: false,
   pollCollapsed: false,
   homeworkItems: [],

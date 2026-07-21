@@ -26,6 +26,7 @@ export const state = {
   toiletStates: new Map(), // userId -> {status,start}
   questions: [],
   poll: null,
+  groupPreview: null,
   timer: null,
   thoughts: [],
   assignment: null,
