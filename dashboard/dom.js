@@ -67,6 +67,7 @@ export const els = {
   viewListBtn: document.getElementById('viewListBtn'),
   viewSeatBtn: document.getElementById('viewSeatBtn'),
   seatPlanWrap: document.getElementById('seatPlanWrap'),
+  seatTabs: document.getElementById('seatTabs'),
   seatAddBtn: document.getElementById('seatAddBtn'),
   seatEditToggle: document.getElementById('seatEditToggle'),
   seatSaveBtn: document.getElementById('seatSaveBtn'),

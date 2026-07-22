@@ -1145,12 +1145,112 @@ export function renderSeatView() {
   if (els.viewSeatBtn) { els.viewSeatBtn.classList.toggle('primary', isSeat); els.viewSeatBtn.classList.toggle('ghost', !isSeat); }
   if (els.seatEditToggle) els.seatEditToggle.textContent = state.seatEdit ? 'Bearbeiten: an' : 'Bearbeiten: aus';
   if (els.seatEditToggle) els.seatEditToggle.classList.toggle('primary', state.seatEdit);
-  if (isSeat) renderSeatPlan();
+  if (isSeat) { renderSeatTabs(); renderSeatPlan(); }
 }
 
-function presentStudents() {
-  return Array.from(state.presence.values()).filter((m) => m.role !== 'teacher' && m.role !== 'admin');
+export function renderSeatTabs() {
+  if (!els.seatTabs) return;
+  const plans = Array.isArray(state.seatPlans) ? state.seatPlans : [];
+  const activeId = state.seatActivePlanId;
+  const tabHtml = plans.map((p) => {
+    const isActive = p.id === activeId;
+    const star = p.isDefault ? '★ ' : '';
+    return `<span class="seat-tab" data-plan="${p.id}" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px 8px 0 0;cursor:pointer;font-size:13px;font-weight:${isActive ? '700' : '500'};
+      background:${isActive ? 'var(--panel)' : 'var(--sunken)'};border:1px solid var(--line);border-bottom:${isActive ? '2px solid var(--accent)' : '1px solid var(--line)'};color:${isActive ? 'var(--text)' : 'var(--muted)'};">
+      <span class="seat-tab-name" title="Umbenennen: Doppelklick">${star}${escHtml(p.name || 'Plan')}</span>
+    </span>`;
+  }).join('');
+  els.seatTabs.innerHTML = tabHtml +
+    `<button id="seatTabAdd" class="ghost" style="padding:4px 10px;font-size:16px;line-height:1;border-radius:8px;" title="Neuen Sitzplan anlegen">+</button>` +
+    (plans.length ? `<span style="flex:1"></span>
+      <button id="seatTabDefault" class="ghost" style="padding:4px 8px;font-size:12px;" title="Diesen Plan als Standard für den Stundenbeginn">★ Standard</button>
+      <button id="seatTabRename" class="ghost" style="padding:4px 8px;font-size:12px;">Umbenennen</button>
+      <button id="seatTabDelete" class="ghost" style="padding:4px 8px;font-size:12px;color:var(--danger);">Löschen</button>` : '');
+
+  // Tab wechseln
+  els.seatTabs.querySelectorAll('.seat-tab').forEach((tab) => {
+    tab.onclick = () => {
+      const id = tab.getAttribute('data-plan');
+      if (id === state.seatActivePlanId) return;
+      switchSeatPlan(id);
+    };
+    tab.ondblclick = () => {
+      const id = tab.getAttribute('data-plan');
+      if (id === state.seatActivePlanId) renameActivePlan();
+    };
+  });
+  const addBtn = document.getElementById('seatTabAdd');
+  if (addBtn) addBtn.onclick = createSeatPlan;
+  const defBtn = document.getElementById('seatTabDefault');
+  if (defBtn) defBtn.onclick = setDefaultPlan;
+  const renBtn = document.getElementById('seatTabRename');
+  if (renBtn) renBtn.onclick = renameActivePlan;
+  const delBtn = document.getElementById('seatTabDelete');
+  if (delBtn) delBtn.onclick = deleteActivePlan;
 }
+
+function seatRoomInfo() {
+  const room = (state.rooms || []).find((r) => r.id === state.currentRoom);
+  return {
+    className: (room && room.className) || state.seatClassName,
+    subject: (room && room.subject) || state.seatSubject || 'default',
+  };
+}
+
+function saveCurrentSeatPlan() {
+  // aktuellen Plan sichern, bevor gewechselt/erstellt wird (kein Datenverlust)
+  if (!state.seatActivePlanId) return;
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+  const { className, subject } = seatRoomInfo();
+  if (!className) return;
+  sendJson({ type: 'seatPlanSave', className, subject, planId: state.seatActivePlanId, seats: state.seats });
+}
+
+function switchSeatPlan(id) {
+  saveCurrentSeatPlan();
+  state.seatActivePlanId = id;
+  const plan = (state.seatPlans || []).find((p) => p.id === id);
+  state.seats = plan && Array.isArray(plan.seats)
+    ? plan.seats.map((s) => ({ id: s.id, x: s.x, y: s.y, userId: s.userId || null }))
+    : [];
+  renderSeatView();
+}
+
+function createSeatPlan() {
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+  const { className, subject } = seatRoomInfo();
+  if (!className) return;
+  const name = prompt('Name für den neuen Sitzplan:', `Sitzplan ${(state.seatPlans || []).length + 1}`);
+  if (name === null) return;
+  saveCurrentSeatPlan();
+  sendJson({ type: 'seatPlanCreate', className, subject, name: name.trim() || undefined, seats: [] });
+}
+
+function renameActivePlan() {
+  if (!state.seatActivePlanId || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+  const { className, subject } = seatRoomInfo();
+  const plan = (state.seatPlans || []).find((p) => p.id === state.seatActivePlanId);
+  const name = prompt('Neuer Name für diesen Sitzplan:', plan ? plan.name : '');
+  if (name === null || !name.trim()) return;
+  sendJson({ type: 'seatPlanRename', className, subject, planId: state.seatActivePlanId, name: name.trim() });
+}
+
+function deleteActivePlan() {
+  if (!state.seatActivePlanId || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+  const { className, subject } = seatRoomInfo();
+  const plan = (state.seatPlans || []).find((p) => p.id === state.seatActivePlanId);
+  if (!confirm(`Sitzplan "${plan ? plan.name : ''}" wirklich löschen?`)) return;
+  sendJson({ type: 'seatPlanDelete', className, subject, planId: state.seatActivePlanId });
+  // aktiven Plan lokal zurücksetzen; Server schickt neue Liste + activePlanId
+  state.seatActivePlanId = null;
+}
+
+function setDefaultPlan() {
+  if (!state.seatActivePlanId || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+  const { className, subject } = seatRoomInfo();
+  sendJson({ type: 'seatPlanSetDefault', className, subject, planId: state.seatActivePlanId });
+}
+
 
 export function renderSeatPlan() {
   const canvas = els.seatCanvas;
