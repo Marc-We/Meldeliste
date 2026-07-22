@@ -1251,6 +1251,9 @@ function setDefaultPlan() {
   sendJson({ type: 'seatPlanSetDefault', className, subject, planId: state.seatActivePlanId });
 }
 
+function presentStudents() {
+  return Array.from(state.presence.values()).filter((m) => m.role !== 'teacher' && m.role !== 'admin');
+}
 
 export function renderSeatPlan() {
   const canvas = els.seatCanvas;
@@ -1291,18 +1294,20 @@ function bindSeatEvents(el, seat) {
   // Edit-Modus: Ziehen zum Positionieren, Klick = zuweisen/entfernen
   let moved = false;
   let startX = 0, startY = 0;
+  let dragging = false;
 
   el.onpointerdown = (ev) => {
     if (!state.seatEdit) return;
     ev.preventDefault();
     moved = false;
+    dragging = true;
     startX = ev.clientX; startY = ev.clientY;
     seatDragState = { seat, el, pointerId: ev.pointerId };
-    el.setPointerCapture(ev.pointerId);
+    try { el.setPointerCapture(ev.pointerId); } catch (e) {}
     el.style.cursor = 'grabbing';
   };
   el.onpointermove = (ev) => {
-    if (!seatDragState || seatDragState.seat.id !== seat.id) return;
+    if (!dragging || !seatDragState || seatDragState.seat.id !== seat.id) return;
     const dx = Math.abs(ev.clientX - startX);
     const dy = Math.abs(ev.clientY - startY);
     if (dx > 4 || dy > 4) moved = true;
@@ -1316,20 +1321,26 @@ function bindSeatEvents(el, seat) {
     el.style.top = `${(ny*100).toFixed(2)}%`;
   };
   el.onpointerup = (ev) => {
-    if (state.seatEdit && seatDragState && seatDragState.seat.id === seat.id) {
-      el.releasePointerCapture(ev.pointerId);
+    if (state.seatEdit) {
+      const wasClick = dragging && !moved;
+      dragging = false;
+      try { el.releasePointerCapture(ev.pointerId); } catch (e) {}
       el.style.cursor = 'grab';
       seatDragState = null;
-      if (!moved) assignSeat(seat);
+      // Pointer ist jetzt freigegeben – Prompt kann sauber geöffnet werden
+      if (wasClick) assignSeat(seat);
       return;
     }
     // Live-Modus: aufrufen
-    if (!state.seatEdit) {
-      if (seat.userId && state.currentRoom && state.ws && state.ws.readyState === WebSocket.OPEN) {
-        sendJson({ type: 'ack', roomId: state.currentRoom, userId: seat.userId });
-        if (els.seatStatus) { els.seatStatus.textContent = 'Aufgerufen'; setTimeout(() => { if (els.seatStatus) els.seatStatus.textContent = ''; }, 1200); }
-      }
+    if (seat.userId && state.currentRoom && state.ws && state.ws.readyState === WebSocket.OPEN) {
+      sendJson({ type: 'ack', roomId: state.currentRoom, userId: seat.userId });
+      if (els.seatStatus) { els.seatStatus.textContent = 'Aufgerufen'; setTimeout(() => { if (els.seatStatus) els.seatStatus.textContent = ''; }, 1200); }
     }
+  };
+  el.onpointercancel = () => {
+    dragging = false;
+    seatDragState = null;
+    el.style.cursor = state.seatEdit ? 'grab' : 'pointer';
   };
 }
 
@@ -1338,7 +1349,16 @@ function assignSeat(seat) {
   const students = presentStudents();
   const assignedElsewhere = new Set(state.seats.filter((s) => s.id !== seat.id && s.userId).map((s) => s.userId));
   const free = students.filter((m) => !assignedElsewhere.has(m.userId));
-  const names = free.map((m, i) => `${i + 1}: ${m.name}`).join('\n');
+  if (!free.length && !seat.userId) {
+    // Kein Schüler verfügbar: nur löschen anbieten, klare Rückmeldung
+    const del = confirm('Keine freien anwesenden Schüler zum Zuweisen.\n\nOK = diesen Platz löschen, Abbrechen = behalten.');
+    if (del) {
+      state.seats = state.seats.filter((s) => s.id !== seat.id);
+      renderSeatPlan();
+    }
+    return;
+  }
+  const names = free.map((m, i) => `${i + 1}: ${m.name || 'Schüler'}`).join('\n');
   const answer = prompt(
     `Platz belegen:\n${names || '(keine freien anwesenden Schüler)'}\n\nNummer eingeben zum Zuweisen,\n"0" = Platz leeren,\n"x" = Platz löschen`,
     seat.userId ? '0' : ''
@@ -1350,9 +1370,12 @@ function assignSeat(seat) {
     renderSeatPlan();
     return;
   }
-  if (trimmed === '0' || trimmed === '') {
+  if (trimmed === '0') {
     seat.userId = null;
     renderSeatPlan();
+    return;
+  }
+  if (trimmed === '') {
     return;
   }
   const idx = parseInt(trimmed, 10) - 1;
