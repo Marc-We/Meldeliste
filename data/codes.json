@@ -1,0 +1,30 @@
+{
+  "teacher:": {
+    "role": "teacher",
+    "className": "",
+    "code": "555868",
+    "createdAt": 1784577037322,
+    "expiresAt": 1785786637322
+  },
+  "student:10A": {
+    "role": "student",
+    "className": "10A",
+    "code": "748939",
+    "createdAt": 1784631919489,
+    "expiresAt": 1785841519489
+  },
+  "student:10B": {
+    "role": "student",
+    "className": "10B",
+    "code": "567467",
+    "createdAt": 1784631943536,
+    "expiresAt": 1785841543536
+  },
+  "student:test": {
+    "role": "student",
+    "className": "test",
+    "code": "415038",
+    "createdAt": 1784701870593,
+    "expiresAt": 1785911470593
+  }
+}

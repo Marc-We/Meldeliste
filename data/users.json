@@ -1,0 +1,210 @@
+{
+  "t-1": {
+    "id": "t-1",
+    "role": "teacher",
+    "name": "Lehrer*in",
+    "subjects": [
+      "default"
+    ],
+    "stats": {}
+  },
+  "s-mktnutua-pddp": {
+    "id": "s-mktnutua-pddp",
+    "role": "student",
+    "email": "marcwermke@icloud.com",
+    "emailVerified": true,
+    "firstName": "Marc",
+    "lastName": "Wermke",
+    "salutation": "",
+    "className": "10A",
+    "name": "Marc Wermke",
+    "passwordHash": "4764652c1c69d796b5a49a673dd3b61c:93c6bd5ad628e80f06e947650fa63ca4de3d09ed3d9a462557fe070c5e60b33507dbf0df648a4605aad085c90b18630aa64214125d39804ff2f6cce92ed2b6e3",
+    "stats": {
+      "Mathematik": {
+        "signals": 8,
+        "calls": 12,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {
+          "2026-01-25": {
+            "signals": 2,
+            "calls": 3,
+            "toiletSeconds": 0
+          },
+          "2026-01-27": {
+            "signals": 2,
+            "calls": 0,
+            "toiletSeconds": 0
+          },
+          "2026-07-21": {
+            "signals": 3,
+            "calls": 6,
+            "toiletSeconds": 0
+          },
+          "2026-07-22": {
+            "signals": 0,
+            "calls": 2,
+            "toiletSeconds": 0
+          },
+          "2026-07-25": {
+            "signals": 1,
+            "calls": 1,
+            "toiletSeconds": 0
+          }
+        }
+      },
+      "Deutsch": {
+        "signals": 4,
+        "calls": 3,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {
+          "2026-01-25": {
+            "signals": 4,
+            "calls": 3,
+            "toiletSeconds": 0
+          }
+        }
+      },
+      "Physik": {
+        "signals": 2,
+        "calls": 1,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {
+          "2026-01-25": {
+            "signals": 2,
+            "calls": 1,
+            "toiletSeconds": 0
+          }
+        }
+      },
+      "Informatik": {
+        "signals": 5,
+        "calls": 5,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        },
+        "toiletSeconds": 0,
+        "daily": {
+          "2026-01-28": {
+            "signals": 1,
+            "calls": 0,
+            "toiletSeconds": 0
+          },
+          "2026-07-21": {
+            "signals": 4,
+            "calls": 5,
+            "toiletSeconds": 0
+          }
+        }
+      }
+    },
+    "teachings": [],
+    "courses": [
+      {
+        "subject": "Mathematik",
+        "teacherId": "t-mi98l3de-kuar"
+      },
+      {
+        "subject": "Informatik",
+        "teacherId": "t-mi98lw9d-e2xu"
+      },
+      {
+        "subject": "Mathematik",
+        "teacherId": "t-mktnvwjm-rsat"
+      },
+      {
+        "subject": "Deutsch",
+        "teacherId": "t-mktnvwjm-rsat"
+      },
+      {
+        "subject": "Physik",
+        "teacherId": "t-mktnvwjm-rsat"
+      },
+      {
+        "subject": "Informatik",
+        "teacherId": "t-mktnvwjm-rsat"
+      }
+    ],
+    "lastIp": "127.0.0.1"
+  },
+  "t-mktnvwjm-rsat": {
+    "id": "t-mktnvwjm-rsat",
+    "role": "teacher",
+    "email": "marcwermke@outlook.com",
+    "emailVerified": true,
+    "firstName": "",
+    "lastName": "Briel",
+    "salutation": "Herr",
+    "className": "",
+    "name": "Herr Briel",
+    "passwordHash": "6b4efd319627b0dcca029c8a740dacd5:0367a01706832626047ce9f55a8c677fedebecf675f57e3754a81251a2ead0e784fe91fba251fc2a6d0c998143f5a47cbf2d37cd829aa97441fe25b9b0a1d090",
+    "stats": {},
+    "teachings": [
+      {
+        "className": "10A",
+        "subject": "Mathematik"
+      },
+      {
+        "className": "10A",
+        "subject": "Deutsch"
+      },
+      {
+        "classNames": [
+          "10A",
+          "10B"
+        ],
+        "subject": "Physik"
+      },
+      {
+        "classNames": [
+          "10A",
+          "10B",
+          "10C",
+          "10D",
+          "10E"
+        ],
+        "subject": "Informatik"
+      }
+    ],
+    "lastIp": "127.0.0.1"
+  },
+  "t-mkwpezo9-kqa1": {
+    "id": "t-mkwpezo9-kqa1",
+    "role": "admin",
+    "email": "marcwermke@gmail.com",
+    "emailVerified": true,
+    "firstName": "",
+    "lastName": "Wermke",
+    "salutation": "Herr",
+    "className": "",
+    "name": "Herr Wermke",
+    "passwordHash": "4b7d387fd3086d0cf5825029f78901af:d6991c223cd08148e27affed131d0db4a9f7c026b978504b1cbe557a41bd43f7ad5bb5c262dce2622ad9608dd1798d96f0e45ae0cf6d7a433ae1d2f6fc7d644b",
+    "stats": {},
+    "teachings": [],
+    "lastIp": "127.0.0.1"
+  }
+}
