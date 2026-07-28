@@ -4,7 +4,7 @@ import { sendJson, sendJoin } from './api.js';
 import { setPanelVisible, updateLayout } from './ui.js';
 
 function escHtml(str) {
-  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function formatDuration(start) {
@@ -47,7 +47,7 @@ export function renderRooms() {
     const classesLabel = Array.isArray(room.classNames) && room.classNames.length ? room.classNames.join(', ') : (room.className || '-');
     card.innerHTML = `
       <div class="row" style="justify-content: space-between; align-items: center;">
-        <h3>${room.name}</h3>
+        <h3>${escHtml(room.name)}</h3>
         <div class="pill">${room.active === false ? 'geschlossen' : 'aktiv'}</div>
       </div>
       <div class="meta">Klassen: ${classesLabel}</div>
@@ -125,7 +125,7 @@ export function renderCodes() {
     return;
   }
   const entry = state.classCode;
-  const label = entry.className ? `${entry.className}: ${entry.code}` : entry.code;
+  const label = entry.className ? `${escHtml(entry.className)}: ${entry.code}` : entry.code;
   els.classCodeInfo.textContent = `${label} (gültig bis ${formatExpiry(entry.expiresAt)})`;
 }
 
@@ -143,7 +143,7 @@ export function renderAdminPanel() {
     } else {
       els.pendingTeachers.innerHTML = state.pendingTeachers.map((t) => `
         <div class="row" style="justify-content: space-between; align-items: center; margin-top:6px;">
-          <div>${t.name || 'Lehrer'} (${t.email || '-'})</div>
+          <div>${escHtml(t.name || 'Lehrer')} (${t.email || '-'})</div>
           <div class="row">
             <button class="primary" data-approve="${t.id}">Freigeben</button>
             <button class="danger" data-deny="${t.id}">Ablehnen</button>
@@ -174,7 +174,7 @@ export function renderAdminPanel() {
     (state.adminStudents || []).forEach((s) => {
       const opt = document.createElement('option');
       opt.value = s.id;
-      opt.textContent = `${s.name} (${s.className || '-'})`;
+      opt.textContent = `${escHtml(s.name)} (${escHtml(s.className || '-')})`;
       els.moveStudentSelect.appendChild(opt);
     });
     if (prev && (state.adminStudents || []).some((s) => s.id === prev)) {
@@ -261,8 +261,8 @@ export function renderTeacherInbox() {
     const subject = item.subject || 'Fach';
     const answersList = Array.isArray(item.answersDetailed) ? item.answersDetailed : (item.answers || []);
     const qMap = new Map((state.questionnaireStudent?.questions || []).map((q) => [q.id, q.text]));
-    const answers = answersList.map((a) => `${a.text || qMap.get(a.id) || a.id}: ${a.value}`).join(' | ');
-    const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
+    const answers = answersList.map((a) => `${escHtml(a.text || qMap.get(a.id) || a.id)}: ${a.value}`).join(' | ');
+    const text = item.text ? `<div style="margin-top:6px;">${escHtml(item.text)}</div>` : '';
     const deleteBtn = item.id ? `<button class="ghost" data-delete="${item.id}">Löschen</button>` : '';
     return `
       <div class="inbox-item">
@@ -323,9 +323,9 @@ export function renderFeedbackForm() {
     });
     return `
       <div class="q-item">
-        <div>${q.text}</div>
+        <div>${escHtml(q.text)}</div>
         <div class="rating" data-q="${q.id}">
-          ${options.map((opt) => `<button class="${current === opt.value ? 'active' : ''}" data-val="${opt.value}">${opt.label}</button>`).join('')}
+          ${options.map((opt) => `<button class="${current === opt.value ? 'active' : ''}" data-val="${opt.value}">${escHtml(opt.label)}</button>`).join('')}
         </div>
         <div class="small">${hint}</div>
       </div>
@@ -398,11 +398,11 @@ export function renderTeachings() {
   const classesLabel = (t) => Array.isArray(t.classNames) && t.classNames.length ? t.classNames.join(', ') : (t.className || '');
   const classesValue = (t) => Array.isArray(t.classNames) && t.classNames.length ? t.classNames.join('|') : (t.className || '');
   els.teachingsList.innerHTML = list.map((t) => `
-    <div class="stat-card clickable" data-classnames="${classesValue(t)}" data-subject="${t.subject}">
+    <div class="stat-card clickable" data-classnames="${classesValue(t)}" data-subject="${escHtml(t.subject)}">
       <h4>${classesLabel(t)}</h4>
-      <div class="small">${t.subject}</div>
+      <div class="small">${escHtml(t.subject)}</div>
       <div class="row" style="margin-top:8px;">
-        <button class="primary" data-create-room="${classesValue(t)}|${t.subject}">Raum starten</button>
+        <button class="primary" data-create-room="${classesValue(t)}|${escHtml(t.subject)}">Raum starten</button>
       </div>
     </div>
   `).join('');
@@ -452,7 +452,7 @@ export function renderCurrentRoom() {
     return;
   }
   const roomClasses = Array.isArray(room.classNames) && room.classNames.length ? room.classNames.join(', ') : (room.className || '-');
-  els.currentRoomInfo.textContent = `${room.name} (Klassen ${roomClasses})`;
+  els.currentRoomInfo.textContent = `${escHtml(room.name)} (Klassen ${roomClasses})`;
   if (state.activeQuestionnaire && state.activeQuestionnaire.roomId !== room.id) {
     state.activeQuestionnaire = null;
     renderQuestionnaireBroadcast();
@@ -501,7 +501,7 @@ export function renderMembers() {
     <div class="member-row ${m.ready ? 'ready' : ''}">
       <div></div>
       <div>
-        <div>${m.name}</div>
+        <div>${escHtml(m.name)}</div>
         <div class="meta-line">${m.online ? 'online' : 'offline'}</div>
       </div>
       <div class="ratings" data-user="${m.userId}">
@@ -567,7 +567,7 @@ export function renderLog() {
     const time = new Date(e.ts).toLocaleTimeString();
     const action = e.action === 'rating' ? 'Bewertung' : 'Aufruf';
     const rating = e.rating ? e.rating : '';
-    return `<tr><td>${time}</td><td>${e.name}</td><td>${action}</td><td>${rating}</td><td><button class="ghost trash" data-log="${e.id}">🗑</button></td></tr>`;
+    return `<tr><td>${time}</td><td>${escHtml(e.name)}</td><td>${action}</td><td>${rating}</td><td><button class="ghost trash" data-log="${e.id}">🗑</button></td></tr>`;
   }).join('');
   els.logBox.innerHTML = `<table><thead><tr><th>Zeit</th><th>Name</th><th>Aktion</th><th>Bew.</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   els.logBox.querySelectorAll('[data-log]').forEach((btn) => {
@@ -591,7 +591,7 @@ export function renderStats() {
     const ratings = total.ratings || {};
     return `
     <div class="stat-card">
-      <h4>${s.name}</h4>
+      <h4>${escHtml(s.name)}</h4>
       <div class="small">Stunde: Meldungen ${session.signals || 0} · Aufrufe ${session.calls || 0}</div>
       <div class="small">Gesamt: Meldungen ${total.signals || 0} · Aufrufe ${total.calls || 0}</div>
       <div class="small">Bew.: -- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}</div>
@@ -605,7 +605,7 @@ export function renderClassStats() {
     els.classStatsPanel.style.display = 'none';
     return;
   }
-  const subjectLabel = state.classStats.subject ? ` · Fach ${state.classStats.subject}` : '';
+  const subjectLabel = state.classStats.subject ? ` · Fach ${escHtml(state.classStats.subject)}` : '';
   const classLabel = (state.classStats.classNames && state.classStats.classNames.length) ? state.classStats.classNames.join(', ') : state.classStats.className;
   els.classStatsTitle.textContent = `Klassen ${classLabel}${subjectLabel}`;
   if (!state.classStats.students.length) {
@@ -617,10 +617,10 @@ export function renderClassStats() {
   els.classStatsGrid.innerHTML = state.classStats.students.map((s) => {
     const total = s.total || { signals: 0, calls: 0, ratings: { '--': 0, '-': 0, '0': 0, '+': 0, '++': 0 } };
     const ratings = total.ratings || {};
-    const noteText = s.note ? `<div class="small">Notiz: ${s.note}</div>` : '';
+    const noteText = s.note ? `<div class="small">Notiz: ${escHtml(s.note)}</div>` : '';
     return `
       <div class="stat-card clickable" data-user="${s.userId}">
-        <h4>${s.name}</h4>
+        <h4>${escHtml(s.name)}</h4>
         <div class="small">Gesamt: Meldungen ${total.signals || 0} · Aufrufe ${total.calls || 0}</div>
         <div class="small">Bew.: -- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}</div>
         ${noteText}
@@ -667,9 +667,9 @@ export function renderClassStudentStats() {
     els.classStudentPanel.style.display = 'none';
     return;
   }
-  const subjectLabel = state.classStudentStats.subject ? ` · Fach ${state.classStudentStats.subject}` : '';
+  const subjectLabel = state.classStudentStats.subject ? ` · Fach ${escHtml(state.classStudentStats.subject)}` : '';
   const classLabel = (state.classStudentStats.classNames && state.classStudentStats.classNames.length) ? state.classStudentStats.classNames.join(', ') : state.classStudentStats.className;
-  els.classStudentTitle.textContent = `${state.classStudentStats.student.name} (Klassen ${classLabel}${subjectLabel})`;
+  els.classStudentTitle.textContent = `${escHtml(state.classStudentStats.student.name)} (Klassen ${classLabel}${subjectLabel})`;
   const sessions = state.classStudentStats.sessions || [];
   if (!sessions.length) {
     els.classStudentTable.innerHTML = '<div class="small">Keine Daten</div>';
@@ -681,7 +681,7 @@ export function renderClassStudentStats() {
     const stats = s.stats || {};
     const ratings = stats.ratings || {};
     const ratingText = `-- ${ratings['--'] || 0} | - ${ratings['-'] || 0} | 0 ${ratings['0'] || 0} | + ${ratings['+'] || 0} | ++ ${ratings['++'] || 0}`;
-    return `<tr><td>${time}</td><td>${s.name || '-'}</td><td>${s.subject || 'default'}</td><td>${stats.signals || 0}</td><td>${stats.calls || 0}</td><td>${ratingText}</td></tr>`;
+    return `<tr><td>${time}</td><td>${escHtml(s.name || '-')}</td><td>${escHtml(s.subject || 'default')}</td><td>${stats.signals || 0}</td><td>${stats.calls || 0}</td><td>${ratingText}</td></tr>`;
   }).join('');
   els.classStudentTable.innerHTML = `<table><thead><tr><th>Zeit</th><th>Raum</th><th>Fach</th><th>Meldungen</th><th>Aufrufe</th><th>Bewertungen</th></tr></thead><tbody>${rows}</tbody></table>`;
   els.classStudentPanel.style.display = 'block';
@@ -876,16 +876,16 @@ export function renderPoll() {
   const status = state.poll.open === false ? 'Beendet' : 'Aktiv';
   els.pollResultsBox.innerHTML = `
     <div class="q-item">
-      <div>${state.poll.question}</div>
+      <div>${escHtml(state.poll.question)}</div>
       <div class="q-time">${state.poll.multiple ? 'Mehrfachauswahl' : 'Einzelauswahl'} · ${state.poll.anonymous ? 'Anonym' : 'Namen sichtbar'} · ${status}</div>
     </div>
-    ${state.poll.options.map((o) => `<div class="q-item"><div>${o.text}</div><div class="q-time">${o.count || 0} Stimmen</div></div>`).join('')}
+    ${state.poll.options.map((o) => `<div class="q-item"><div>${escHtml(o.text)}</div><div class="q-time">${o.count || 0} Stimmen</div></div>`).join('')}
     ${state.poll.anonymous ? '' : `
       <div class="q-item">
         <div class="small">Stimmen</div>
         ${(state.poll.votesList || []).map((v) => {
           const labels = (v.options || []).map((id) => state.poll.options.find((o) => o.id === id)?.text || id);
-          return `<div class="small">${v.name}: ${labels.join(', ') || '-'}</div>`;
+          return `<div class="small">${escHtml(v.name)}: ${labels.join(', ') || '-'}</div>`;
         }).join('')}
       </div>
     `}
@@ -900,7 +900,7 @@ export function renderThoughts() {
   const max = Math.max(...state.thoughts.map((t) => t.count));
   els.thoughtsCloud.innerHTML = state.thoughts.map((t) => {
     const size = 12 + Math.round((t.count / max) * 18);
-    return `<span class="word" style="font-size:${size}px">${t.text} (${t.count})</span>`;
+    return `<span class="word" style="font-size:${size}px">${escHtml(t.text)} (${t.count})</span>`;
   }).join(' ');
 }
 
@@ -911,9 +911,9 @@ export function renderHomework() {
   }
   els.homeworkList.innerHTML = state.homeworkItems.map((item) => `
     <div class="homework-card">
-      <div class="small">Klasse: ${item.className || '-'} · Fach: ${item.subject || 'default'}</div>
-      ${item.homework.current ? `<div>Aktuell: ${item.homework.current.text || ''}</div>` : '<div>Aktuell: -</div>'}
-      ${item.homework.previous ? `<div class="small">Letzte Stunde: ${item.homework.previous.text || ''}</div>` : ''}
+      <div class="small">Klasse: ${escHtml(item.className || '-')} · Fach: ${escHtml(item.subject || 'default')}</div>
+      ${item.homework.current ? `<div>Aktuell: ${escHtml(item.homework.current.text || '')}</div>` : '<div>Aktuell: -</div>'}
+      ${item.homework.previous ? `<div class="small">Letzte Stunde: ${escHtml(item.homework.previous.text || '')}</div>` : ''}
     </div>
   `).join('');
 }
@@ -929,11 +929,11 @@ export function renderQuestions() {
     const time = new Date(q.ts).toLocaleTimeString();
     const isAnon = q.anonymous !== false;
     const author = isAnon ? 'Anonym' : (q.name || 'Unbekannt');
-    return `<div class="q-item"><div>${q.text}</div><div class="q-time">${time} | ${author}</div></div>`;
+    return `<div class="q-item"><div>${escHtml(q.text)}</div><div class="q-time">${time} | ${author}</div></div>`;
   }).join('');
   const latest = sorted[0];
   const latestAuthor = latest.anonymous !== false ? 'Anonym' : (latest.name || 'Unbekannt');
-  els.questionBannerText.innerHTML = `<div>${latest.text}</div><div class="q-time">${new Date(latest.ts).toLocaleTimeString()} | ${latestAuthor}</div>`;
+  els.questionBannerText.innerHTML = `<div>${escHtml(latest.text)}</div><div class="q-time">${new Date(latest.ts).toLocaleTimeString()} | ${latestAuthor}</div>`;
   els.questionBanner.style.display = 'block';
 }
 
@@ -1358,7 +1358,7 @@ function assignSeat(seat) {
     }
     return;
   }
-  const names = free.map((m, i) => `${i + 1}: ${m.name || 'Schüler'}`).join('\n');
+  const names = free.map((m, i) => `${i + 1}: ${escHtml(m.name || 'Schüler')}`).join('\n');
   const answer = prompt(
     `Platz belegen:\n${names || '(keine freien anwesenden Schüler)'}\n\nNummer eingeben zum Zuweisen,\n"0" = Platz leeren,\n"x" = Platz löschen`,
     seat.userId ? '0' : ''

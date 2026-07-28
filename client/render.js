@@ -3,6 +3,16 @@ import { els } from './dom.js';
 import { setVisible } from './ui.js';
 import { requestSubjectStats, sendJoin, sendJson } from './api.js';
 
+// Schützt vor XSS: wandelt Nutzereingaben in sicheren HTML-Text um.
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function renderHomework() {
   if (!state.homeworkItems.length) {
     els.homeworkList.innerHTML = '<div class="empty">Keine Hausaufgaben</div>';
@@ -13,7 +23,7 @@ export function renderHomework() {
   els.homeworkList.innerHTML = state.homeworkItems.map((item) => {
     const hw = item.homework || {};
     const cur = hw.current?.text || '';
-    return `<div class="card"><h3 style="margin:0 0 4px;">${item.subject || 'Fach'}</h3><div class="small">${item.className || ''}</div><div>${cur}</div></div>`;
+    return `<div class="card"><h3 style="margin:0 0 4px;">${escapeHtml(item.subject || 'Fach')}</h3><div class="small">${escapeHtml(item.className || '')}</div><div>${escapeHtml(cur)}</div></div>`;
   }).join('');
 }
 
@@ -57,7 +67,7 @@ export function renderCourseCatalog() {
     const key = courseKey(course.subject, course.teacherId);
     const checked = selected.has(key) ? 'checked' : '';
     const label = course.teacherName ? `${course.subject} (${course.teacherName})` : course.subject;
-    return `<label class="item"><input type="checkbox" value="${key}" data-subject="${course.subject}" data-teacher="${course.teacherId}" ${checked}>${label}</label>`;
+    return `<label class="item"><input type="checkbox" value="${escapeHtml(key)}" data-subject="${escapeHtml(course.subject)}" data-teacher="${escapeHtml(course.teacherId)}" ${checked}>${escapeHtml(label)}</label>`;
   }).join('');
   els.courseHint.textContent = 'Nur gewählte Kurse sind sichtbar.';
 }
@@ -164,10 +174,10 @@ export function renderSubjectStats() {
   els.subjectGrid.innerHTML = state.subjectStats.map((s) => {
     const total = s.total || { signals: 0, calls: 0 };
     return `
-      <div class="card clickable" data-subject="${s.subject}">
-        <h3>${s.subject}</h3>
+      <div class="card clickable" data-subject="${escapeHtml(s.subject)}">
+        <h3>${escapeHtml(s.subject)}</h3>
         <div class="num">M ${total.signals || 0} · A ${total.calls || 0}</div>
-        <button class="ghost" data-questionnaire="${s.subject}">Fragebogen</button>
+        <button class="ghost" data-questionnaire="${escapeHtml(s.subject)}">Fragebogen</button>
       </div>
     `;
   }).join('');
@@ -234,7 +244,7 @@ export function renderQuestionnaire() {
     els.questionnaireTeacherRow.style.display = 'none';
   } else if (teachers.length > 1) {
     els.questionnaireTeacherRow.style.display = 'block';
-    els.questionnaireTeacher.innerHTML = teachers.map((t) => `<option value="${t.teacherId}">${t.teacherName}</option>`).join('');
+    els.questionnaireTeacher.innerHTML = teachers.map((t) => `<option value="${escapeHtml(t.teacherId)}">${escapeHtml(t.teacherName)}</option>`).join('');
     if (!state.questionnaire.teacherId) {
       state.questionnaire.teacherId = teachers[0].teacherId;
     }
@@ -276,9 +286,9 @@ export function renderQuestionnaire() {
     });
     return `
       <div class="q-item">
-        <div>${q.text}</div>
+        <div>${escapeHtml(q.text)}</div>
         <div class="rating" data-q="${q.id}">
-          ${options.map((opt) => `<button class="${current === opt.value ? 'active' : ''}" data-val="${opt.value}">${opt.label}</button>`).join('')}
+          ${options.map((opt) => `<button class="${current === opt.value ? 'active' : ''}" data-val="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</button>`).join('')}
         </div>
         <div class="scale">${hint}</div>
       </div>
@@ -296,11 +306,11 @@ export function renderFeedbackInbox() {
   els.feedbackPanel.style.display = 'block';
   els.feedbackList.innerHTML = state.feedbackInbox.map((item) => {
     const time = new Date(item.ts || Date.now()).toLocaleString();
-    const from = item.fromName || 'Lehrer';
-    const subject = item.subject || 'Fach';
+    const from = escapeHtml(item.fromName || 'Lehrer');
+    const subject = escapeHtml(item.subject || 'Fach');
     const answersList = Array.isArray(item.answersDetailed) ? item.answersDetailed : (item.answers || []);
-    const answers = answersList.map((a) => `${a.text || a.id}: ${a.value}`).join(' | ');
-    const text = item.text ? `<div style="margin-top:6px;">${item.text}</div>` : '';
+    const answers = answersList.map((a) => `${escapeHtml(a.text || a.id)}: ${escapeHtml(a.value)}`).join(' | ');
+    const text = item.text ? `<div style="margin-top:6px;">${escapeHtml(item.text)}</div>` : '';
     const deleteBtn = item.id ? `<button class="ghost" data-delete="${item.id}">Löschen</button>` : '';
     return `
       <div class="inbox-item">
@@ -350,7 +360,7 @@ export function renderPoll() {
       ${state.poll.options.map((opt) => {
         const inputType = state.poll.multiple ? 'checkbox' : 'radio';
         const checked = state.pollSelection.includes(opt.id) ? 'checked' : '';
-        return `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;"><input type="${inputType}" name="pollopt" value="${opt.id}" ${checked}>${opt.text}</label>`;
+        return `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;"><input type="${inputType}" name="pollopt" value="${escapeHtml(opt.id)}" ${checked}>${escapeHtml(opt.text)}</label>`;
       }).join('')}
     </div>
   `;

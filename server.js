@@ -220,8 +220,38 @@ if (safePath === '/darts' || safePath === '/darts/') {
 
 const filePath = path.join(__dirname, safePath.replace(/^\/+/, ''));
 
-  // prevent path traversal
-  if (!filePath.startsWith(__dirname)) {
+  // Path-Traversal robust verhindern: relativer Pfad darf nicht aus __dirname herausführen
+  const rel = path.relative(__dirname, filePath);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    res.writeHead(403);
+    return res.end('Forbidden');
+  }
+
+  // Nur ausgewählte Datei-Typen ausliefern (kein JSON, keine Daten-Dateien)
+  const allowedExt = new Set(['.html', '.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.map']);
+  const ext = path.extname(filePath).toLowerCase();
+  if (!allowedExt.has(ext)) {
+    res.writeHead(404);
+    return res.end('Not found');
+  }
+
+  // Sensible Verzeichnisse komplett sperren (Datenbank, Konfiguration, node_modules)
+  const relDir = rel.replace(/\\/g, '/');
+  const blockedPrefixes = ['data/', 'node_modules/', '.git/'];
+  if (blockedPrefixes.some((p) => relDir === p.slice(0, -1) || relDir.startsWith(p))) {
+    res.writeHead(403);
+    return res.end('Forbidden');
+  }
+
+  // Server-Quellcode und Konfig im Wurzelverzeichnis nicht ausliefern.
+  // .js/.css nur aus den Frontend-Ordnern; .html/Assets aus der Wurzel sind ok.
+  const blockedFiles = new Set(['server.js', 'package.json', 'package-lock.json']);
+  if (blockedFiles.has(relDir)) {
+    res.writeHead(403);
+    return res.end('Forbidden');
+  }
+  if ((ext === '.js' || ext === '.map') && !relDir.includes('/')) {
+    // JS direkt im Wurzelordner (z.B. server.js) blockieren
     res.writeHead(403);
     return res.end('Forbidden');
   }
@@ -253,7 +283,7 @@ const CODE_TTL_MS = 15 * 60 * 1000;
 const CLASS_CODE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 function genId(prefix) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
 function normalizeEmail(value) {
@@ -283,7 +313,40 @@ function verifySecret(secret, stored) {
 }
 
 function generateCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
+}
+
+// ---- Rate-Limiting für Auth (Punkt 3): Brute-Force-Schutz pro IP ----
+const authAttempts = new Map(); // ip -> { count, firstAt, blockedUntil }
+const AUTH_WINDOW_MS = 5 * 60 * 1000; // 5 Minuten Fenster
+const AUTH_MAX_FAILS = 10;            // max. Fehlversuche pro Fenster
+const AUTH_BLOCK_MS = 5 * 60 * 1000;  // danach 5 Minuten Sperre
+function authIsBlocked(ip) {
+  const rec = authAttempts.get(ip || '');
+  if (!rec) return false;
+  if (rec.blockedUntil && rec.blockedUntil > Date.now()) return true;
+  // Fenster abgelaufen? zurücksetzen
+  if (rec.firstAt && Date.now() - rec.firstAt > AUTH_WINDOW_MS) {
+    authAttempts.delete(ip || '');
+    return false;
+  }
+  return false;
+}
+function authNoteFail(ip) {
+  const key = ip || '';
+  const now = Date.now();
+  let rec = authAttempts.get(key);
+  if (!rec || (rec.firstAt && now - rec.firstAt > AUTH_WINDOW_MS)) {
+    rec = { count: 0, firstAt: now, blockedUntil: 0 };
+  }
+  rec.count += 1;
+  if (rec.count >= AUTH_MAX_FAILS) {
+    rec.blockedUntil = now + AUTH_BLOCK_MS;
+  }
+  authAttempts.set(key, rec);
+}
+function authNoteSuccess(ip) {
+  authAttempts.delete(ip || '');
 }
 
 let mailTransport = null;
@@ -309,7 +372,8 @@ function sendEmail(to, subject, text) {
   const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@example.com';
   const transport = getMailer();
   if (!transport) {
-    console.log(`[MAIL DEBUG] To: ${to}\n${subject}\n${text}`);
+    // SICHERHEIT: Mail-Inhalt (kann Codes enthalten) NICHT ins Log schreiben.
+    console.log(`[MAIL] Kein SMTP konfiguriert – Nachricht an ${to} (Betreff: ${subject}) wurde nicht versendet.`);
     return;
   }
   transport.sendMail({ from, to, subject, text }, (err) => {
@@ -1170,24 +1234,44 @@ wss.on('connection', (ws, req) => {
     }
     const { type } = msg || {};
 
+    // Rate-Limiting: Auth-Nachrichten bei zu vielen Fehlversuchen kurz sperren
+    const AUTH_TYPES = new Set(['initProfile', 'authRegister', 'authVerify', 'authLogin', 'authResetConfirm']);
+    if (AUTH_TYPES.has(type) && authIsBlocked(ws.ip)) {
+      ws.send(JSON.stringify({ type: 'authError', reason: 'too_many_attempts' }));
+      return;
+    }
+
     // Profile init / creation
     if (type === 'initProfile') {
+      // SICHERHEIT: initProfile ist ein veraltetes Auth-System. Registrierung darüber
+      // ist deaktiviert (nur noch authRegister mit Code + Freigabe legt Accounts an).
+      // Rollen werden NIE aus der Client-Nachricht übernommen.
       const mode = msg.mode === 'login' ? 'login' : 'register';
+      if (mode !== 'login') {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'registration_disabled' }));
+        return;
+      }
       const incomingId = msg.userId;
-      const role = ['teacher', 'student', 'admin'].includes(msg.role) ? msg.role : 'student';
+      const password = String(msg.password || '').trim();
+      // Nur ein bereits existierender Account darf sich hier anmelden; die Rolle
+      // stammt ausschließlich aus dem gespeicherten User, niemals aus der Nachricht.
+      let user = incomingId ? users.get(incomingId) : null;
+      if (!user) {
+        ws.send(JSON.stringify({ type: 'authError', reason: 'not_found' }));
+        return;
+      }
+      const role = user.role;
       const firstName = role === 'student' ? String(msg.firstName || '').trim() : '';
       const lastName = String(msg.lastName || '').trim();
       const salutation = role === 'teacher' ? (msg.salutation === 'Frau' ? 'Frau' : 'Herr') : '';
-      const className = role === 'student' ? String(msg.className || '').trim() : String(msg.className || '').trim();
-      const password = String(msg.password || '').trim();
-
-      let user = incomingId ? users.get(incomingId) : null;
-      if (user) {
+      const className = String(msg.className || '').trim();
+      {
         if (password) {
           const ok = user.passwordHash
             ? verifySecret(password, user.passwordHash)
             : (!user.password || user.password === password);
           if (!ok) {
+            authNoteFail(ws.ip);
             ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_password' }));
             return;
           }
@@ -1196,45 +1280,9 @@ wss.on('connection', (ws, req) => {
             user.passwordHash = hashSecret(user.password);
             delete user.password;
           }
-        }
-      } else {
-        // Try to find existing by credentials on login
-        if (mode === 'login') {
-          const found = findUserByCredentials({ role, firstName, lastName, className, salutation, password });
-          if (!found) {
-            ws.send(JSON.stringify({ type: 'authError', reason: 'not_found' }));
-            return;
-          }
-          user = found;
         } else {
-          // register
-          if (!password || !lastName || (role === 'student' && !firstName)) {
-            ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
-            return;
-          }
-          // prevent duplicate for same identity
-          const existing = findUserByCredentials({ role, firstName, lastName, className, salutation, password });
-          if (existing) {
-            ws.send(JSON.stringify({ type: 'authError', reason: 'already_exists', userId: existing.id }));
-            return;
-          }
-          const id = genId(role === 'teacher' ? 't' : 's');
-          const name = role === 'teacher' || role === 'admin' ? `${salutation} ${lastName}` : `${firstName} ${lastName}`;
-          user = {
-            id,
-            role,
-            firstName,
-            lastName,
-            salutation,
-            className,
-            passwordHash: hashSecret(password),
-            name,
-            stats: {},
-            teachings: [],
-            courses: role === 'student' ? [] : undefined,
-          };
-          users.set(id, user);
-          saveUsers();
+          ws.send(JSON.stringify({ type: 'authError', reason: 'missing_fields' }));
+          return;
         }
       }
 
@@ -1263,6 +1311,7 @@ wss.on('connection', (ws, req) => {
 
       // send profile back and room list
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      authNoteSuccess(ws.ip);
       sendRoomList(ws);
       sendCatalogs(ws);
       if (user.role === 'student') sendCourseCatalog(ws, user);
@@ -1317,6 +1366,7 @@ wss.on('connection', (ws, req) => {
       if (role === 'student') {
         const entry = findCodeByValue('student', code);
         if (!entry || !entry.className) {
+          authNoteFail(ws.ip);
           ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
           return;
         }
@@ -1328,6 +1378,7 @@ wss.on('connection', (ws, req) => {
       if (role === 'teacher') {
         const entry = findCodeByValue('teacher', code);
         if (!entry) {
+          authNoteFail(ws.ip);
           ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
           return;
         }
@@ -1376,6 +1427,7 @@ wss.on('connection', (ws, req) => {
       ws.role = user.role;
       attachSocket(user.id, ws);
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      authNoteSuccess(ws.ip);
       sendRoomList(ws);
       sendCatalogs(ws);
       if (user.role === 'student') sendCourseCatalog(ws, user);
@@ -1398,10 +1450,12 @@ wss.on('connection', (ws, req) => {
       }
       const verify = user.verification || {};
       if (!verify.codeHash || !verify.expiresAt || verify.expiresAt < Date.now()) {
+        authNoteFail(ws.ip);
         ws.send(JSON.stringify({ type: 'authError', reason: 'code_expired' }));
         return;
       }
       if (!verifySecret(code, verify.codeHash)) {
+        authNoteFail(ws.ip);
         ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
         return;
       }
@@ -1415,6 +1469,7 @@ wss.on('connection', (ws, req) => {
       ws.role = user.role;
       attachSocket(user.id, ws);
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      authNoteSuccess(ws.ip);
       sendRoomList(ws);
       sendCatalogs(ws);
       if (user.role === 'student') sendCourseCatalog(ws, user);
@@ -1455,6 +1510,7 @@ wss.on('connection', (ws, req) => {
         saveUsers();
       }
       if (!verifySecret(password, user.passwordHash)) {
+        authNoteFail(ws.ip);
         ws.send(JSON.stringify({ type: 'authError', reason: 'wrong_password' }));
         return;
       }
@@ -1465,6 +1521,7 @@ wss.on('connection', (ws, req) => {
       ws.role = user.role;
       attachSocket(user.id, ws);
       ws.send(JSON.stringify({ type: 'profile', user: publicUser(user) }));
+      authNoteSuccess(ws.ip);
       sendRoomList(ws);
       sendCatalogs(ws);
       if (user.role === 'student') sendCourseCatalog(ws, user);
@@ -1492,10 +1549,12 @@ wss.on('connection', (ws, req) => {
       // Klassencode prüfen: muss gültig sein UND zur Klasse dieses Accounts gehören
       const entry = findCodeByValue('student', code);
       if (!entry || !entry.className) {
+        authNoteFail(ws.ip);
         ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
         return;
       }
       if ((user.className || '') !== entry.className) {
+        authNoteFail(ws.ip);
         ws.send(JSON.stringify({ type: 'authError', reason: 'code_invalid' }));
         return;
       }
