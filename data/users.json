@@ -22,7 +22,7 @@
     "stats": {
       "Mathematik": {
         "signals": 8,
-        "calls": 12,
+        "calls": 13,
         "ratings": {
           "0": 0,
           "--": 0,
@@ -54,6 +54,11 @@
           },
           "2026-07-25": {
             "signals": 1,
+            "calls": 1,
+            "toiletSeconds": 0
+          },
+          "2026-08-25": {
+            "signals": 0,
             "calls": 1,
             "toiletSeconds": 0
           }
@@ -149,7 +154,7 @@
         "teacherId": "t-mktnvwjm-rsat"
       }
     ],
-    "lastIp": "127.0.0.1"
+    "lastIp": "192.168.178.163"
   },
   "t-mktnvwjm-rsat": {
     "id": "t-mktnvwjm-rsat",
@@ -190,7 +195,7 @@
         "subject": "Informatik"
       }
     ],
-    "lastIp": "127.0.0.1"
+    "lastIp": "192.168.178.163"
   },
   "t-mkwpezo9-kqa1": {
     "id": "t-mkwpezo9-kqa1",

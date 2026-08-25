@@ -26,4 +26,7 @@ export const state = {
   questionnaire: { open: false, subject: '', teacherId: '', slot: 'default', data: null, answers: {}, loading: false },
   activeQuestionnaire: null,
   feedbackInbox: [],
+  qInbox: [],        // [{sendId, formName, teacherName, subject, sentAt, inRoom}]
+  qFill: null,       // {sendId, formName, teacherName, subject, questions, scaleType, scaleMin, scaleMax}
+  qFillAnswers: {},
 };

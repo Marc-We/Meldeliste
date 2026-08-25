@@ -21,6 +21,8 @@ import {
   renderGrade,
   renderGroup,
   renderAmpel,
+  renderQInbox,
+  renderQFill,
 } from './render.js';
 
 function courseKey(subject, teacherId) {
@@ -48,6 +50,7 @@ function handleMessage(msg) {
       sendJson({ type: 'homeworkListRequest' });
       requestSubjectStats();
       sendJson({ type: 'feedbackInboxRequest' });
+      sendJson({ type: 'qInboxRequest' });
     }
     renderRooms();
   }
@@ -217,6 +220,53 @@ function handleMessage(msg) {
     state.poll = msg.poll;
     state.pollSelection = [];
     renderPoll();
+  }
+  if (msg.type === 'qInbox') {
+    state.qInbox = Array.isArray(msg.items) ? msg.items : [];
+    renderQInbox();
+  }
+  if (msg.type === 'qInboxAdd' && msg.item) {
+    if (!Array.isArray(state.qInbox)) state.qInbox = [];
+    // Doppelte vermeiden
+    if (!state.qInbox.some((i) => i.sendId === msg.item.sendId)) {
+      state.qInbox.unshift(msg.item);
+    }
+    renderQInbox();
+  }
+  if (msg.type === 'qFormData') {
+    if (msg.alreadyAnswered) {
+      state.qInbox = (state.qInbox || []).filter((i) => i.sendId !== msg.sendId);
+      state.qFill = null;
+      renderQInbox();
+      renderQFill();
+      return;
+    }
+    state.qFill = {
+      sendId: msg.sendId,
+      formName: msg.formName,
+      teacherName: msg.teacherName,
+      subject: msg.subject,
+      questions: Array.isArray(msg.questions) ? msg.questions : [],
+      scaleType: msg.scaleType,
+      scaleMin: msg.scaleMin,
+      scaleMax: msg.scaleMax,
+    };
+    state.qFillAnswers = {};
+    renderQFill();
+  }
+  if (msg.type === 'qSubmitResult') {
+    if (msg.ok) {
+      state.qInbox = (state.qInbox || []).filter((i) => i.sendId !== msg.sendId);
+      state.qFill = null;
+      state.qFillAnswers = {};
+      if (els.qFillText) els.qFillText.value = '';
+      renderQInbox();
+      renderQFill();
+    } else if (els.qFillStatus) {
+      els.qFillStatus.textContent = msg.reason === 'already_answered'
+        ? 'Bereits abgegeben.'
+        : 'Bitte alle Fragen beantworten.';
+    }
   }
   if (msg.type === 'thoughtState' && msg.roomId === state.currentRoom) {
     state.thoughtActive = Boolean(msg.active);

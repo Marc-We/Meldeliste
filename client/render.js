@@ -514,3 +514,82 @@ export function renderAmpel() {
   const label = { green: '✓ Verstanden', yellow: '? Unsicher', red: '! Nicht verstanden' };
   els.ampelOwn.textContent = own ? `Deine Auswahl: ${label[own]}` : 'Bitte auswählen';
 }
+// ---------- Fragebogen-Postfach (neues System) ----------
+export function renderQInbox() {
+  if (!els.qInboxPanel) return;
+  const items = Array.isArray(state.qInbox) ? state.qInbox : [];
+  if (!items.length) {
+    els.qInboxPanel.style.display = 'none';
+    return;
+  }
+  els.qInboxPanel.style.display = 'block';
+  els.qInboxList.innerHTML = items.map((it) => {
+    const when = new Date(it.sentAt || Date.now()).toLocaleString();
+    return `<div class="inbox-item">
+      <div class="row" style="justify-content:space-between;align-items:center;gap:8px;">
+        <div>
+          <div style="font-weight:700;">${escapeHtml(it.formName || 'Fragebogen')}</div>
+          <div class="small">${escapeHtml(it.teacherName || 'Lehrer')} · ${escapeHtml(it.subject || '')}</div>
+          <div class="small">${escapeHtml(when)}</div>
+        </div>
+        <button class="primary" data-qopen="${escapeHtml(it.sendId)}">Ausfüllen</button>
+      </div>
+    </div>`;
+  }).join('');
+  els.qInboxList.querySelectorAll('[data-qopen]').forEach((btn) => {
+    btn.onclick = () => {
+      const sendId = btn.getAttribute('data-qopen');
+      state.qFillAnswers = {};
+      sendJson({ type: 'qFormFetch', sendId });
+    };
+  });
+}
+
+function qScaleFor(form, question) {
+  const globalType = form?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(form?.scaleMin)) ? Number(form.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(form?.scaleMax)) ? Number(form.scaleMax) : 5;
+  if (question?.scaleType === 'yesno') return { type: 'yesno', min: 0, max: 1 };
+  if (question?.scaleType === 'scale'
+      && Number.isFinite(Number(question.scaleMin)) && Number.isFinite(Number(question.scaleMax))) {
+    const a = Number(question.scaleMin); const b = Number(question.scaleMax);
+    return { type: 'scale', min: Math.min(a, b), max: Math.max(a, b) };
+  }
+  if (globalType === 'yesno') return { type: 'yesno', min: 0, max: 1 };
+  return { type: 'scale', min: Math.min(globalMin, globalMax), max: Math.max(globalMin, globalMax) };
+}
+
+export function renderQFill() {
+  if (!els.qFillPanel) return;
+  const f = state.qFill;
+  if (!f) {
+    els.qFillPanel.style.display = 'none';
+    return;
+  }
+  els.qFillPanel.style.display = 'block';
+  els.qFillTitle.textContent = f.formName || 'Fragebogen';
+  els.qFillMeta.textContent = `${f.teacherName || 'Lehrer'} · ${f.subject || ''}`;
+  const questions = Array.isArray(f.questions) ? f.questions : [];
+  els.qFillQuestions.innerHTML = questions.map((q) => {
+    const scale = qScaleFor(f, q);
+    const current = state.qFillAnswers[q.id];
+    let buttons = '';
+    if (scale.type === 'yesno') {
+      buttons = [{ v: 1, l: 'Ja' }, { v: 0, l: 'Nein' }]
+        .map((o) => `<button class="${current === o.v ? 'active' : ''}" data-val="${o.v}">${o.l}</button>`).join('');
+    } else {
+      for (let v = scale.min; v <= scale.max; v++) {
+        buttons += `<button class="${current === v ? 'active' : ''}" data-val="${v}">${v}</button>`;
+      }
+    }
+    const hint = q.hint ? `<div class="scale">${escapeHtml(q.hint)}</div>` : '';
+    return `<div class="q-item" data-q="${escapeHtml(q.id)}">
+      <div>${escapeHtml(q.text || '')}</div>
+      ${hint}
+      <div class="rating">${buttons}</div>
+    </div>`;
+  }).join('');
+  const answered = questions.filter((q) => state.qFillAnswers[q.id] !== undefined).length;
+  els.qFillStatus.textContent = `${answered} von ${questions.length} beantwortet`;
+  if (els.qFillSend) els.qFillSend.disabled = answered !== questions.length;
+}

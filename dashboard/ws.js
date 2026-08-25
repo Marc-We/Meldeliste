@@ -59,6 +59,7 @@ function handleMessage(msg) {
       sendJson({ type: 'feedbackInboxRequest' });
       sendJson({ type: 'assignmentListRequest' });
       sendJson({ type: 'gradeSheetListRequest' });
+      sendJson({ type: 'qFormListRequest' });
       sendJson({ type: 'questionnaireRequest', role: 'student' });
       sendJson({ type: 'questionnaireRequest', role: 'teacher' });
       if (state.profile.role === 'admin') {
@@ -202,7 +203,6 @@ function handleMessage(msg) {
   if (msg.type === 'questionnaire') {
     if (msg.role === 'student') {
       const slot = msg.slot || 'default';
-      if (els.questionnaireSlotSelect && els.questionnaireSlotSelect.value !== slot) return;
       state.questionnaireStudent = msg.data || null;
     } else if (msg.role === 'teacher') {
       state.questionnaireTeacher = msg.data || null;
@@ -248,7 +248,6 @@ function handleMessage(msg) {
   if (msg.type === 'questionnaireSaved') {
     if (msg.role === 'student') {
       const slot = msg.slot || 'default';
-      if (els.questionnaireSlotSelect && els.questionnaireSlotSelect.value !== slot) return;
       state.questionnaireStudent = msg.data || null;
     } else if (msg.role === 'teacher') {
       state.questionnaireTeacher = msg.data || null;
@@ -353,6 +352,16 @@ function handleMessage(msg) {
   }
   if (msg.type === 'seatPlanSaved') {
     if (els.seatStatus) { els.seatStatus.textContent = 'Gespeichert.'; setTimeout(() => { if (els.seatStatus) els.seatStatus.textContent = ''; }, 1500); }
+  }
+  if (msg.type === 'qFormList') {
+    state.qForms = Array.isArray(msg.forms) ? msg.forms : [];
+    // nach dem Speichern den gerade gespeicherten Bogen auswählen
+    if (msg.savedId) state.selectedQFormId = msg.savedId;
+    // gelöschter/nicht mehr vorhandener Bogen -> Auswahl zurücksetzen
+    if (state.selectedQFormId && !state.qForms.some((f) => f.id === state.selectedQFormId)) {
+      state.selectedQFormId = null;
+    }
+    renderQuestionnaireEditor();
   }
   if (msg.type === 'thoughtState' && msg.roomId === state.currentRoom) {
     if (msg.active) {

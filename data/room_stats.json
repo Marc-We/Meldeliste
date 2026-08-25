@@ -1,1 +1,39 @@
-{}
+{
+  "room-mt8eaktq-829f15": {
+    "roomId": "room-mt8eaktq-829f15",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1787646035438,
+    "closedAt": 1787646109718,
+    "students": {
+      "s-mktnutua-pddp": {
+        "signals": 0,
+        "calls": 1,
+        "toiletSeconds": 0,
+        "ratings": {
+          "0": 0,
+          "--": 0,
+          "-": 0,
+          "+": 0,
+          "++": 0
+        }
+      }
+    }
+  },
+  "room-mt8fxhb2-658757": {
+    "roomId": "room-mt8fxhb2-658757",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1787648783582,
+    "closedAt": 1787648839847,
+    "students": {}
+  }
+}

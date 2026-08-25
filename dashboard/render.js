@@ -334,48 +334,78 @@ export function renderFeedbackForm() {
 }
 
 export function renderQuestionnaireEditor() {
-  if (!els.questionnaireTypeSelect) return;
-  const type = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
-  const data = type === 'teacher' ? state.questionnaireTeacher : state.questionnaireStudent;
-  if (els.questionnaireSlotSelect) {
-    els.questionnaireSlotSelect.style.display = type === 'student' ? '' : 'none';
+  if (!els.qFormList) return;
+  const forms = Array.isArray(state.qForms) ? state.qForms : [];
+  // Liste der gespeicherten Fragebögen
+  if (!forms.length) {
+    els.qFormList.innerHTML = '<div class="small">Noch keine Fragebögen</div>';
+  } else {
+    els.qFormList.innerHTML = forms.map((f) => {
+      const active = f.id === state.selectedQFormId;
+      const count = Array.isArray(f.questions) ? f.questions.length : 0;
+      return `<div class="row" data-qform="${escHtml(f.id)}" style="cursor:pointer;justify-content:space-between;align-items:center;padding:6px 8px;margin-top:4px;border-radius:8px;border:1px solid ${active ? 'var(--accent)' : 'var(--line)'};background:${active ? 'var(--sunken)' : 'transparent'};">
+        <span style="font-weight:${active ? '700' : '500'};">${escHtml(f.name || 'Fragebogen')}</span>
+        <span class="small">${count} Frage${count === 1 ? '' : 'n'}</span>
+      </div>`;
+    }).join('');
+    els.qFormList.querySelectorAll('[data-qform]').forEach((row) => {
+      row.onclick = () => {
+        state.selectedQFormId = row.getAttribute('data-qform');
+        renderQuestionnaireEditor();
+      };
+    });
   }
-  if (data) {
-    if (els.questionnaireTitleInput) els.questionnaireTitleInput.value = data.title || '';
-    if (els.questionnaireQuestionsInput) {
-      const text = Array.isArray(data.questions) ? data.questions.map((q) => q.text).join('\n') : '';
-      els.questionnaireQuestionsInput.value = text;
-    }
-    if (els.questionnaireHintsInput) {
-      const hints = Array.isArray(data.questions) ? data.questions.map((q) => q.hint || '').join('\n') : '';
-      els.questionnaireHintsInput.value = hints;
-    }
-    if (els.questionnaireScaleLines) {
-      const lines = Array.isArray(data.questions)
-        ? data.questions.map((q) => {
-          if (q.scaleType === 'yesno') return 'ja/nein';
-          if (Number.isFinite(Number(q.scaleMin)) && Number.isFinite(Number(q.scaleMax))) {
-            return `${q.scaleMin}-${q.scaleMax}`;
-          }
-          return '';
-        }).join('\n')
-        : '';
-      els.questionnaireScaleLines.value = lines;
-    }
-    if (els.questionnaireScaleType) {
-      els.questionnaireScaleType.value = data.scaleType === 'yesno' ? 'yesno' : 'scale';
-    }
-    if (els.questionnaireScaleMin) {
-      els.questionnaireScaleMin.value = Number.isFinite(Number(data.scaleMin)) ? String(data.scaleMin) : '1';
-    }
-    if (els.questionnaireScaleMax) {
-      els.questionnaireScaleMax.value = Number.isFinite(Number(data.scaleMax)) ? String(data.scaleMax) : '5';
-    }
-    if (els.questionnaireScaleMin && els.questionnaireScaleMax && els.questionnaireScaleType) {
-      const isYesNo = els.questionnaireScaleType.value === 'yesno';
-      els.questionnaireScaleMin.disabled = isYesNo;
-      els.questionnaireScaleMax.disabled = isYesNo;
-    }
+
+  // Ausgewählten Fragebogen in die Felder laden
+  const sel = forms.find((f) => f.id === state.selectedQFormId) || null;
+  if (els.qFormNameInput) els.qFormNameInput.value = sel ? (sel.name || '') : '';
+  const questions = sel && Array.isArray(sel.questions) ? sel.questions : [];
+  if (els.questionnaireQuestionsInput) {
+    els.questionnaireQuestionsInput.value = questions.map((q) => q.text || '').join('\n');
+  }
+  if (els.questionnaireHintsInput) {
+    els.questionnaireHintsInput.value = questions.map((q) => q.hint || '').join('\n');
+  }
+  if (els.questionnaireScaleLines) {
+    els.questionnaireScaleLines.value = questions.map((q) => {
+      if (q.scaleType === 'yesno') return 'ja/nein';
+      if (Number.isFinite(Number(q.scaleMin)) && Number.isFinite(Number(q.scaleMax))) return `${q.scaleMin}-${q.scaleMax}`;
+      return '';
+    }).join('\n');
+  }
+  if (els.questionnaireScaleType) els.questionnaireScaleType.value = sel && sel.scaleType === 'yesno' ? 'yesno' : 'scale';
+  if (els.questionnaireScaleMin) els.questionnaireScaleMin.value = sel && Number.isFinite(Number(sel.scaleMin)) ? String(sel.scaleMin) : '1';
+  if (els.questionnaireScaleMax) els.questionnaireScaleMax.value = sel && Number.isFinite(Number(sel.scaleMax)) ? String(sel.scaleMax) : '5';
+  if (els.questionnaireScaleMin && els.questionnaireScaleMax && els.questionnaireScaleType) {
+    const isYesNo = els.questionnaireScaleType.value === 'yesno';
+    els.questionnaireScaleMin.disabled = isYesNo;
+    els.questionnaireScaleMax.disabled = isYesNo;
+  }
+  if (els.qFormDeleteBtn) els.qFormDeleteBtn.disabled = !sel;
+
+  renderQSendOptions();
+}
+
+// Auswahl-Dropdowns im Sende-Panel füllen
+export function renderQSendOptions() {
+  const forms = Array.isArray(state.qForms) ? state.qForms : [];
+  if (els.qSendFormSelect) {
+    const prev = els.qSendFormSelect.value;
+    els.qSendFormSelect.innerHTML = '<option value="">Fragebogen wählen</option>' +
+      forms.map((f) => `<option value="${escHtml(f.id)}">${escHtml(f.name || 'Fragebogen')}</option>`).join('');
+    if (prev && forms.some((f) => f.id === prev)) els.qSendFormSelect.value = prev;
+  }
+  if (els.qSendClassSelect) {
+    const prev = els.qSendClassSelect.value;
+    els.qSendClassSelect.innerHTML = '<option value="">Klasse wählen</option>' +
+      (state.classCatalog || []).map((c) => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+    if (prev) els.qSendClassSelect.value = prev;
+  }
+  if (els.qSendSubjectSelect) {
+    const prev = els.qSendSubjectSelect.value;
+    els.qSendSubjectSelect.innerHTML = '<option value="">Fach wählen</option>' +
+      (state.subjectCatalog || []).map((x) => `<option value="${escHtml(x)}">${escHtml(x)}</option>`).join('');
+    if (prev) els.qSendSubjectSelect.value = prev;
   }
 }
 
@@ -385,8 +415,8 @@ export function renderQuestionnaireBroadcast() {
     els.questionnaireBroadcastStatus.textContent = 'Kein Fragebogen aktiv';
     return;
   }
-  const slotLabel = state.activeQuestionnaire.slot === 'extra2' ? 'Extra 2' : 'Extra 1';
-  els.questionnaireBroadcastStatus.textContent = `Aktiv: ${slotLabel}`;
+  const name = state.activeQuestionnaire.formName || 'Fragebogen';
+  els.questionnaireBroadcastStatus.textContent = `Aktiv im Raum: ${name}`;
 }
 
 export function renderTeachings() {
@@ -507,8 +537,6 @@ export function renderMembers() {
       <div class="ratings" data-user="${m.userId}">
         <button data-call="only">Aufrufen</button>
         ${['--','-','0','+','++'].map((r) => `<button data-rating="${r}">${r}</button>`).join(' ')}
-        ${state.toiletStates.get(m.userId)?.status === 'pending' ? '<button data-allow="toilet">Erlauben</button>' : ''}
-        ${state.toiletStates.get(m.userId)?.status === 'allowed' ? `<span class="small">Toilette seit ${formatDuration(state.toiletStates.get(m.userId)?.start)}</span>` : ''}
         ${m.important ? '<button data-important="clear">Wichtig erledigt</button>' : ''}
         <button data-note="open">Notizen</button>
       </div>
@@ -521,17 +549,12 @@ export function renderMembers() {
       const userId = btn.parentElement.getAttribute('data-user');
       const ratingAttr = btn.getAttribute('data-rating');
       const isCallOnly = btn.getAttribute('data-call') === 'only';
-      const isAllowToilet = btn.getAttribute('data-allow') === 'toilet';
       const impAction = btn.getAttribute('data-important');
       const noteAction = btn.getAttribute('data-note');
       if (!state.currentRoom || !state.ws || state.ws.readyState !== WebSocket.OPEN) return;
 
       if (isCallOnly) {
         sendJson({ type: 'ack', roomId: state.currentRoom, userId });
-        return;
-      }
-      if (isAllowToilet) {
-        sendJson({ type: 'toiletAllow', roomId: state.currentRoom, userId });
         return;
       }
       if (impAction === 'clear') {

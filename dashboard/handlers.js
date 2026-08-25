@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, updateLayout, flashSend } from './ui.js';
-import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions, renderGroups, renderPrepGroups, renderSeatView, renderSeatPlan } from './render.js';
+import { renderClassStats, renderClassStudentStats, renderFeedbackForm, renderThoughts, renderAssignmentTemplates, renderGradeSheet, renderGradeClassOptions, renderGroups, renderPrepGroups, renderSeatView, renderSeatPlan, renderQuestionnaireEditor } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -251,24 +251,6 @@ export function bindHandlers() {
       state.feedbackAnswers = {};
     };
   }
-  if (els.questionnaireTypeSelect) {
-    els.questionnaireTypeSelect.onchange = () => {
-      const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
-      if (els.questionnaireSlotSelect) {
-        els.questionnaireSlotSelect.style.display = role === 'student' ? '' : 'none';
-      }
-      const slot = role === 'student' ? (els.questionnaireSlotSelect?.value || 'default') : '';
-      sendJson({ type: 'questionnaireRequest', role, slot });
-    };
-  }
-  if (els.questionnaireSlotSelect) {
-    els.questionnaireSlotSelect.onchange = () => {
-      const role = els.questionnaireTypeSelect?.value === 'teacher' ? 'teacher' : 'student';
-      if (role !== 'student') return;
-      const slot = els.questionnaireSlotSelect.value || 'default';
-      sendJson({ type: 'questionnaireRequest', role, slot });
-    };
-  }
   if (els.questionnaireScaleType) {
     els.questionnaireScaleType.onchange = () => {
       const isYesNo = els.questionnaireScaleType.value === 'yesno';
@@ -276,21 +258,34 @@ export function bindHandlers() {
       if (els.questionnaireScaleMax) els.questionnaireScaleMax.disabled = isYesNo;
     };
   }
-  if (els.questionnaireLoadBtn) {
-    els.questionnaireLoadBtn.onclick = () => {
-      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-      const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
-      const slot = role === 'student' ? (els.questionnaireSlotSelect?.value || 'default') : '';
-      sendJson({ type: 'questionnaireRequest', role, slot });
-      flashSend(els.questionnaireLoadBtn);
+
+  // --- Fragebögen verwalten (frei benennbar) ---
+  if (els.qFormNewBtn) {
+    els.qFormNewBtn.onclick = () => {
+      // Neuen, leeren Fragebogen zum Bearbeiten vorbereiten
+      state.selectedQFormId = null;
+      if (els.qFormNameInput) els.qFormNameInput.value = '';
+      if (els.questionnaireQuestionsInput) els.questionnaireQuestionsInput.value = '';
+      if (els.questionnaireHintsInput) els.questionnaireHintsInput.value = '';
+      if (els.questionnaireScaleLines) els.questionnaireScaleLines.value = '';
+      if (els.qFormStatus) els.qFormStatus.textContent = 'Neuer Fragebogen – Name eingeben und speichern.';
+      renderQuestionnaireEditor();
+      if (els.qFormNameInput) els.qFormNameInput.focus();
     };
   }
   if (els.questionnaireSaveBtn) {
     els.questionnaireSaveBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-      const role = els.questionnaireTypeSelect.value === 'teacher' ? 'teacher' : 'student';
-      const title = (els.questionnaireTitleInput.value || '').trim();
+      const name = (els.qFormNameInput?.value || '').trim();
+      if (!name) {
+        if (els.qFormStatus) els.qFormStatus.textContent = 'Bitte einen Namen eingeben.';
+        return;
+      }
       const lines = (els.questionnaireQuestionsInput.value || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      if (!lines.length) {
+        if (els.qFormStatus) els.qFormStatus.textContent = 'Bitte mindestens eine Frage eingeben.';
+        return;
+      }
       const hints = (els.questionnaireHintsInput?.value || '').split(/\r?\n/).map((l) => l.trim());
       const scaleLines = (els.questionnaireScaleLines?.value || '').split(/\r?\n/).map((l) => l.trim());
       const questions = lines.map((text, idx) => {
@@ -306,18 +301,50 @@ export function bindHandlers() {
       const scaleType = els.questionnaireScaleType?.value === 'yesno' ? 'yesno' : 'scale';
       const scaleMin = Number(els.questionnaireScaleMin?.value || 1);
       const scaleMax = Number(els.questionnaireScaleMax?.value || 5);
-      const slot = role === 'student' ? (els.questionnaireSlotSelect?.value || 'default') : '';
-      sendJson({ type: 'questionnaireSave', role, slot, data: { title, questions, scaleType, scaleMin, scaleMax } });
+      sendJson({
+        type: 'qFormSave',
+        id: state.selectedQFormId || undefined,
+        name, questions, scaleType, scaleMin, scaleMax,
+      });
+      if (els.qFormStatus) els.qFormStatus.textContent = 'Gespeichert.';
       flashSend(els.questionnaireSaveBtn);
     };
   }
-  if (els.questionnaireBroadcastStart) {
-    els.questionnaireBroadcastStart.onclick = () => {
+  if (els.qFormDeleteBtn) {
+    els.qFormDeleteBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-      if (!state.currentRoom) return;
-      const slot = els.questionnaireBroadcastSlot?.value === 'extra2' ? 'extra2' : 'extra1';
-      sendJson({ type: 'questionnaireActivate', roomId: state.currentRoom, slot });
-      flashSend(els.questionnaireBroadcastStart);
+      if (!state.selectedQFormId) return;
+      const form = (state.qForms || []).find((f) => f.id === state.selectedQFormId);
+      if (!confirm(`Fragebogen "${form ? form.name : ''}" wirklich löschen?`)) return;
+      sendJson({ type: 'qFormDelete', id: state.selectedQFormId });
+      state.selectedQFormId = null;
+      flashSend(els.qFormDeleteBtn);
+    };
+  }
+
+  // --- Fragebogen senden ---
+  if (els.qSendRoomBtn) {
+    els.qSendRoomBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const formId = els.qSendFormSelect?.value || '';
+      if (!formId) { if (els.questionnaireBroadcastStatus) els.questionnaireBroadcastStatus.textContent = 'Bitte Fragebogen wählen.'; return; }
+      if (!state.currentRoom) { if (els.questionnaireBroadcastStatus) els.questionnaireBroadcastStatus.textContent = 'Kein aktiver Raum.'; return; }
+      sendJson({ type: 'qSendRoom', formId, roomId: state.currentRoom });
+      flashSend(els.qSendRoomBtn);
+    };
+  }
+  if (els.qSendCourseBtn) {
+    els.qSendCourseBtn.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const formId = els.qSendFormSelect?.value || '';
+      const className = els.qSendClassSelect?.value || '';
+      const subject = els.qSendSubjectSelect?.value || '';
+      if (!formId || !className || !subject) {
+        if (els.questionnaireBroadcastStatus) els.questionnaireBroadcastStatus.textContent = 'Bitte Fragebogen, Klasse und Fach wählen.';
+        return;
+      }
+      sendJson({ type: 'qSendCourse', formId, className, subject });
+      flashSend(els.qSendCourseBtn);
     };
   }
   if (els.questionnaireBroadcastEnd) {

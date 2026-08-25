@@ -1,1 +1,20 @@
-{}
+{
+  "t-mktnvwjm-rsat::10A::Mathematik": {
+    "plans": [
+      {
+        "id": "plan-1787648805047-m9gx",
+        "name": "Sitzplan 1",
+        "seats": [
+          {
+            "id": "seat-1787648799375-cwoa",
+            "x": 0.4712692967409949,
+            "y": 0.7760869565217391,
+            "userId": "s-mktnutua-pddp"
+          }
+        ],
+        "isDefault": true
+      }
+    ],
+    "updatedAt": 1787648805047
+  }
+}

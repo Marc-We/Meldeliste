@@ -27,6 +27,8 @@ export const state = {
   questionnaireStudent: null,
   questionnaireTeacher: null,
   activeQuestionnaire: null,
+  qForms: [],          // [{id, name, questions, scaleType, scaleMin, scaleMax}]
+  selectedQFormId: null,
   studentNotes: {},
   pendingNoteUserId: '',
   feedbackAnswers: {},

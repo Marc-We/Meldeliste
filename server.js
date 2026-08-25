@@ -28,6 +28,8 @@ const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const GRADE_SHEETS_FILE = path.join(DATA_DIR, 'grade_sheets.json');
 const ASSIGNMENTS_FILE = path.join(DATA_DIR, 'assignments.json');
+const QFORMS_FILE = path.join(DATA_DIR, 'questionnaire_forms.json');
+const QSENDS_FILE = path.join(DATA_DIR, 'questionnaire_sends.json');
 const QUESTIONNAIRES_DIR = path.join(__dirname, 'questionnaires');
 const QUESTIONNAIRES_TEACHER_DIR = path.join(QUESTIONNAIRES_DIR, 'teachers');
 
@@ -80,6 +82,10 @@ let feedback = loadJson(FEEDBACK_FILE, { teacher: {}, student: {} });
 let notes = loadJson(NOTES_FILE, {});
 let gradeSheets = loadJson(GRADE_SHEETS_FILE, {});
 let assignmentTemplates = loadJson(ASSIGNMENTS_FILE, {});
+// Frei benennbare Fragebögen pro Lehrer: { id: {id, teacherId, name, questions, scaleType, scaleMin, scaleMax, ...} }
+let qForms = loadJson(QFORMS_FILE, {});
+// Versendete Fragebögen (Postfach): { id: {id, formId, teacherId, teacherName, className, subject, roomId|null, sentAt, recipients:[userId], answeredBy:[userId]} }
+let qSends = loadJson(QSENDS_FILE, {});
 
 // Seeds for demo if empty
 if (users.size === 0) {
@@ -161,6 +167,25 @@ function saveNotes() {
 function saveGradeSheets() {
   saveJson(GRADE_SHEETS_FILE, gradeSheets);
 }
+function saveQForms() {
+  saveJson(QFORMS_FILE, qForms);
+}
+// Baut einen Postfach-Eintrag (ohne die Fragen selbst - die kommen bei Bedarf).
+function buildInboxItem(snd) {
+  return {
+    sendId: snd.id,
+    formName: snd.formName,
+    teacherName: snd.teacherName,
+    subject: snd.subject,
+    className: snd.className,
+    sentAt: snd.sentAt,
+    inRoom: Boolean(snd.roomId),
+  };
+}
+
+function saveQSends() {
+  saveJson(QSENDS_FILE, qSends);
+}
 function saveAssignmentTemplates() {
   saveJson(ASSIGNMENTS_FILE, assignmentTemplates);
 }
@@ -173,7 +198,6 @@ const roomMembers = new Map(); // roomId -> Set<userId>
 const readyMap = new Map(); // roomId -> Set<userId>
 const readyAtMap = new Map(); // roomId -> Map<userId, ts>
 const roomCounters = new Map(); // roomId -> Map<userId, {signals, calls, toiletSeconds}>
-const toiletMap = new Map(); // roomId -> Map<userId, {status: 'pending'|'allowed'|'back', start: number|null}>
 const importantMap = new Map(); // roomId -> Set<userId>
 const questionsMap = new Map(); // roomId -> [{id,text,ts}]
 const pollsMap = new Map(); // roomId -> {id, question, options:[{id,text,count}], multiple, votes: Map<userId, string[]>}
@@ -183,6 +207,24 @@ const thoughtsMap = new Map(); // roomId -> {active:boolean, entries:string[]}
 const roomQuestionnaires = new Map(); // roomId -> {teacherId, subject, slot, activeAt}
 const timersMap = new Map(); // roomId -> {totalSeconds, remainingAtSnapshot, snapshotAt, running} | null
 const activeAssignmentsMap = new Map(); // roomId -> {assignmentId, title, description, totalSeconds, remainingAtSnapshot, snapshotAt, running} | null
+
+// Räumt alle raumbezogenen Live-Maps auf (verhindert langsam wachsenden Speicher).
+// Dauerhafte Statistiken liegen separat in roomStats und bleiben erhalten.
+function cleanupRoomMaps(roomId) {
+  roomMembers.delete(roomId);
+  readyMap.delete(roomId);
+  readyAtMap.delete(roomId);
+  roomCounters.delete(roomId);
+  importantMap.delete(roomId);
+  questionsMap.delete(roomId);
+  pollsMap.delete(roomId);
+  groupsMap.delete(roomId);
+  ampelMap.delete(roomId);
+  thoughtsMap.delete(roomId);
+  roomQuestionnaires.delete(roomId);
+  timersMap.delete(roomId);
+  activeAssignmentsMap.delete(roomId);
+}
 const homeworkMap = homework; // alias for clarity
 
 function normalizeHomework(entry) {
@@ -310,6 +352,13 @@ function verifySecret(secret, stored) {
   const hashBuf = Buffer.from(hashHex, 'hex');
   if (hashBuf.length !== derived.length) return false;
   return crypto.timingSafeEqual(hashBuf, derived);
+}
+
+// Eingaben trimmen und auf Maximallänge begrenzen (verhindert riesige Payloads).
+function cleanStr(value, maxLen) {
+  const s = String(value == null ? '' : value).trim();
+  const limit = Number.isFinite(maxLen) ? maxLen : 200;
+  return s.length > limit ? s.slice(0, limit) : s;
 }
 
 function generateCode() {
@@ -757,6 +806,66 @@ function saveQuestionnaire(role, teacherId, data, slot) {
   return payload;
 }
 
+// Einmalige Migration: alte Slot-Fragebögen (Standard/extra1/extra2) in das
+// neue Format mit frei benennbaren Fragebögen übernehmen. Läuft nur, solange
+// für einen Lehrer noch kein neuer Fragebogen existiert – überschreibt nie.
+function migrateLegacyQuestionnaires() {
+  try {
+    if (!fs.existsSync(QUESTIONNAIRES_TEACHER_DIR)) return;
+    const files = fs.readdirSync(QUESTIONNAIRES_TEACHER_DIR);
+    const slotLabel = { '': 'Fragebogen 1', extra1: 'Fragebogen 2', extra2: 'Fragebogen 3' };
+    let changed = false;
+    files.forEach((file) => {
+      // Muster: <teacherId>.student.json  oder  <teacherId>.student.extra1.json
+      const m = file.match(/^(.+)\.student(?:\.(extra1|extra2))?\.json$/);
+      if (!m) return;
+      const teacherId = m[1];
+      const slot = m[2] || '';
+      // Schon migriert? (gleicher Lehrer + gleicher Ursprungs-Slot)
+      const already = Object.values(qForms).some((f) => f.teacherId === teacherId && f.legacySlot === slot);
+      if (already) return;
+      const data = loadJson(path.join(QUESTIONNAIRES_TEACHER_DIR, file), null);
+      if (!data || !Array.isArray(data.questions) || !data.questions.length) return;
+      const id = genId('qform');
+      qForms[id] = {
+        id,
+        teacherId,
+        name: cleanStr(data.title, 120) || slotLabel[slot] || 'Fragebogen',
+        questions: data.questions.slice(0, 50).map((q, idx) => {
+          const item = {
+            id: String(q.id || `q${idx + 1}`),
+            text: cleanStr(q.text, 500),
+            hint: cleanStr(q.hint, 300),
+          };
+          if (q.scaleType === 'yesno') {
+            item.scaleType = 'yesno';
+          } else if (q.scaleMin != null && q.scaleMax != null
+                     && Number.isFinite(Number(q.scaleMin)) && Number.isFinite(Number(q.scaleMax))) {
+            item.scaleType = 'scale';
+            item.scaleMin = Number(q.scaleMin);
+            item.scaleMax = Number(q.scaleMax);
+          }
+          return item;
+        }).filter((q) => q.text),
+        scaleType: data.scaleType === 'yesno' ? 'yesno' : 'scale',
+        scaleMin: Number.isFinite(Number(data.scaleMin)) ? Number(data.scaleMin) : 1,
+        scaleMax: Number.isFinite(Number(data.scaleMax)) ? Number(data.scaleMax) : 5,
+        legacySlot: slot,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      changed = true;
+    });
+    if (changed) {
+      saveQForms();
+      console.log('[Migration] Bestehende Fragebögen wurden ins neue Format übernommen.');
+    }
+  } catch (err) {
+    console.error('[Migration] Fragebögen konnten nicht übernommen werden:', err?.message || err);
+  }
+}
+migrateLegacyQuestionnaires();
+
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
   const globalMin = Number.isFinite(Number(questionnaire?.scaleMin)) ? Number(questionnaire.scaleMin) : 1;
@@ -856,8 +965,6 @@ function forceLeaveRoom(userId, roomId) {
   resetReady(roomId, userId);
   const imp = importantMap.get(roomId);
   if (imp) imp.delete(userId);
-  const toilet = toiletMap.get(roomId);
-  if (toilet) toilet.delete(userId);
   const sockets = userSockets.get(userId);
   if (sockets) {
     sockets.forEach((client) => {
@@ -986,11 +1093,6 @@ function broadcastCatalogs() {
   });
 }
 
-function getToiletState(roomId, userId) {
-  const map = toiletMap.get(roomId);
-  if (!map) return null;
-  return map.get(userId) || null;
-}
 
 function isImportant(roomId, userId) {
   const set = importantMap.get(roomId);
@@ -1261,8 +1363,8 @@ wss.on('connection', (ws, req) => {
         return;
       }
       const role = user.role;
-      const firstName = role === 'student' ? String(msg.firstName || '').trim() : '';
-      const lastName = String(msg.lastName || '').trim();
+      const firstName = role === 'student' ? cleanStr(msg.firstName, 80) : '';
+      const lastName = cleanStr(msg.lastName, 80);
       const salutation = role === 'teacher' ? (msg.salutation === 'Frau' ? 'Frau' : 'Herr') : '';
       const className = String(msg.className || '').trim();
       {
@@ -1340,9 +1442,9 @@ wss.on('connection', (ws, req) => {
     if (type === 'authRegister') {
       const role = msg.role === 'teacher' || msg.role === 'student' ? msg.role : 'student';
       const email = normalizeEmail(msg.email);
-      const firstName = role === 'student' ? String(msg.firstName || '').trim() : '';
-      const lastName = String(msg.lastName || '').trim();
-      const className = role === 'student' ? String(msg.className || '').trim() : '';
+      const firstName = role === 'student' ? cleanStr(msg.firstName, 80) : '';
+      const lastName = cleanStr(msg.lastName, 80);
+      const className = role === 'student' ? cleanStr(msg.className, 80) : '';
       const salutation = role === 'teacher' ? (msg.salutation === 'Frau' ? 'Frau' : 'Herr') : '';
       const password = String(msg.password || '');
       const code = String(msg.code || '').trim();
@@ -1590,7 +1692,7 @@ wss.on('connection', (ws, req) => {
     }
 
     if (type === 'roomCreate' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const name = String(msg.name || '').trim() || 'Raum';
+      const name = cleanStr(msg.name, 80) || 'Raum';
       const subject = String(msg.subject || '').trim() || 'default';
       const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
@@ -1645,11 +1747,9 @@ wss.on('connection', (ws, req) => {
       saveRoomStats();
       broadcastRoom(roomId, { type: 'roomClosed', roomId });
       if (roomQuestionnaires.has(roomId)) {
-        roomQuestionnaires.delete(roomId);
         broadcastRoom(roomId, { type: 'questionnaireActive', roomId, active: false });
       }
-      groupsMap.delete(roomId);
-      ampelMap.delete(roomId);
+      cleanupRoomMaps(roomId);
       wss.clients.forEach((client) => sendRoomList(client));
       return;
     }
@@ -1870,10 +1970,72 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    // Neues System: Antwort auf einen versendeten Fragebogen
+    if (type === 'qSubmit' && ws.role === 'student') {
+      const sendId = String(msg.sendId || '');
+      const snd = qSends[sendId];
+      if (!snd || !snd.recipients.includes(ws.userId)) return;
+      if (snd.answeredBy.includes(ws.userId)) {
+        ws.send(JSON.stringify({ type: 'qSubmitResult', ok: false, reason: 'already_answered', sendId }));
+        return;
+      }
+      const form = qForms[snd.formId];
+      if (!form) return;
+      const qList = Array.isArray(form.questions) ? form.questions : [];
+      if (!qList.length) return;
+      const answers = Array.isArray(msg.answers) ? msg.answers : [];
+      const qMap = new Map(qList.map((q) => [q.id, q]));
+      const valid = answers.length === qList.length && answers.every((a) => {
+        const val = Number(a.value);
+        if (!Number.isFinite(val)) return false;
+        const q = qMap.get(a.id);
+        if (!q) return false;
+        const scale = resolveQuestionScale(form, q);
+        if (scale.type === 'yesno') return val === 1 || val === 0;
+        return val >= scale.min && val <= scale.max;
+      });
+      if (!valid) {
+        ws.send(JSON.stringify({ type: 'qSubmitResult', ok: false, reason: 'invalid', sendId }));
+        return;
+      }
+      const text = cleanStr(msg.text, 2000);
+      const student = users.get(ws.userId);
+      // Antwort beim Lehrer ins Postfach legen (bestehende Feedback-Struktur nutzen)
+      const entry = {
+        id: genId('qans'),
+        ts: Date.now(),
+        fromId: ws.userId,
+        fromName: student?.name || 'Schüler',
+        className: student?.className || snd.className,
+        subject: snd.subject,
+        questionnaireTitle: snd.formName || 'Fragebogen',
+        sendId,
+        answers: answers.map((a) => ({ id: a.id, value: Number(a.value) })),
+        answersDetailed: answers.map((a) => ({
+          id: a.id,
+          text: qMap.get(a.id)?.text || a.id,
+          value: Number(a.value),
+        })),
+        text,
+      };
+      if (!feedback.teacher) feedback.teacher = {};
+      if (!Array.isArray(feedback.teacher[snd.teacherId])) feedback.teacher[snd.teacherId] = [];
+      feedback.teacher[snd.teacherId].unshift(entry);
+      feedback.teacher[snd.teacherId] = feedback.teacher[snd.teacherId].slice(0, 500);
+      saveFeedback();
+
+      snd.answeredBy.push(ws.userId);
+      saveQSends();
+
+      ws.send(JSON.stringify({ type: 'qSubmitResult', ok: true, sendId }));
+      sendToUser(snd.teacherId, { type: 'feedbackInbox', role: 'teacher', items: feedback.teacher[snd.teacherId] });
+      return;
+    }
+
     if (type === 'questionnaireSubmit' && ws.role === 'student') {
       const teacherId = String(msg.teacherId || '').trim();
       const subject = String(msg.subject || '').trim() || 'default';
-      const text = String(msg.text || '').trim();
+      const text = cleanStr(msg.text, 2000);
       const slot = (msg.slot === 'extra1' || msg.slot === 'extra2') ? msg.slot : '';
       const answers = Array.isArray(msg.answers) ? msg.answers : [];
       if (!teacherId || !answers.length) return;
@@ -1921,7 +2083,7 @@ wss.on('connection', (ws, req) => {
     if (type === 'feedbackSubmit' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const studentId = String(msg.studentId || '').trim();
       const subject = String(msg.subject || '').trim() || 'default';
-      const text = String(msg.text || '').trim();
+      const text = cleanStr(msg.text, 2000);
       const answers = Array.isArray(msg.answers) ? msg.answers : [];
       if (!studentId || !answers.length) return;
       const questionnaire = loadQuestionnaire('teacher', ws.userId, '');
@@ -1990,7 +2152,7 @@ wss.on('connection', (ws, req) => {
     if (type === 'noteSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const studentId = String(msg.userId || '').trim();
       if (!studentId) return;
-      const text = String(msg.note || '').trim();
+      const text = cleanStr(msg.note, 2000);
       if (!notes[ws.userId]) notes[ws.userId] = {};
       if (text) {
         notes[ws.userId][studentId] = text;
@@ -2252,10 +2414,7 @@ wss.on('connection', (ws, req) => {
       // remove from previous room
       if (ws.roomId && ws.roomId !== roomId) {
         const prevSet = roomMembers.get(ws.roomId);
-        const prevToilet = getToiletState(ws.roomId, ws.userId);
-        if (!prevToilet || prevToilet.status === 'back') {
-          if (prevSet) prevSet.delete(ws.userId);
-        }
+        if (prevSet) prevSet.delete(ws.userId);
         const prevImp = importantMap.get(ws.roomId);
         if (prevImp) prevImp.delete(ws.userId);
         resetReady(ws.roomId, ws.userId);
@@ -2276,11 +2435,6 @@ wss.on('connection', (ws, req) => {
       updatePresence(roomId);
       sendLogUpdates(roomId);
       sendStats(roomId);
-      // falls Toilettenstatus existiert, erneut an alle senden, damit Lampen sichtbar bleiben
-      const tState = getToiletState(roomId, ws.userId);
-      if (tState && tState.status !== 'back') {
-        broadcastRoom(roomId, { type: 'toilet', roomId, userId: ws.userId, status: tState.status, start: tState.start || undefined });
-      }
       if (isImportant(roomId, ws.userId)) {
         broadcastRoom(roomId, { type: 'important', roomId, userId: ws.userId, status: 'pending' });
       }
@@ -2475,7 +2629,7 @@ wss.on('connection', (ws, req) => {
       const roomId = msg.roomId || ws.roomId;
       const room = rooms.get(roomId);
       if (!room) return;
-      const text = String(msg.text || '').trim();
+      const text = cleanStr(msg.text, 2000);
       const anonymous = msg.anonymous !== false;
       if (!text) return;
       if (!questionsMap.has(roomId)) questionsMap.set(roomId, []);
@@ -2502,8 +2656,10 @@ wss.on('connection', (ws, req) => {
       const roomId = msg.roomId || ws.roomId;
       const room = rooms.get(roomId);
       if (!room) return;
-      const question = String(msg.question || '').trim();
-      const options = Array.isArray(msg.options) ? msg.options.map((t) => String(t || '').trim()).filter(Boolean) : [];
+      const question = cleanStr(msg.question, 500);
+      const options = Array.isArray(msg.options)
+        ? msg.options.slice(0, 20).map((t) => cleanStr(t, 200)).filter(Boolean)
+        : [];
       const multiple = Boolean(msg.multiple);
       const anonymous = msg.anonymous !== false;
       if (!question || options.length < 2) return;
@@ -2968,6 +3124,185 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    // ---------- Frei benennbare Fragebögen (Etappe 1: Verwaltung) ----------
+    if (type === 'qFormListRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'qFormList', forms: mine }));
+      return;
+    }
+
+    if (type === 'qFormSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const id = String(msg.id || '') || genId('qform');
+      const existing = qForms[id];
+      // Fremde Fragebögen dürfen nicht überschrieben werden
+      if (existing && existing.teacherId !== ws.userId) return;
+      const name = cleanStr(msg.name, 120) || 'Fragebogen';
+      const scaleType = msg.scaleType === 'yesno' ? 'yesno' : 'scale';
+      const scaleMin = Math.max(0, Math.min(10, Number(msg.scaleMin) || 1));
+      const scaleMax = Math.max(scaleMin, Math.min(10, Number(msg.scaleMax) || 5));
+      const questions = (Array.isArray(msg.questions) ? msg.questions : [])
+        .slice(0, 50)
+        .map((q, idx) => {
+          const item = {
+            id: String(q.id || `q${idx + 1}`),
+            text: cleanStr(q.text, 500),
+            hint: cleanStr(q.hint, 300),
+          };
+          // Eigene Skala pro Frage nur setzen, wenn wirklich angegeben.
+          // (Number(null) wäre 0 und würde die Validierung kaputtmachen.)
+          if (q.scaleType === 'yesno') {
+            item.scaleType = 'yesno';
+          } else if (Number.isFinite(Number(q.scaleMin)) && Number.isFinite(Number(q.scaleMax))
+                     && q.scaleMin !== null && q.scaleMax !== null && q.scaleMin !== '' && q.scaleMax !== '') {
+            item.scaleType = 'scale';
+            item.scaleMin = Number(q.scaleMin);
+            item.scaleMax = Number(q.scaleMax);
+          }
+          return item;
+        })
+        .filter((q) => q.text);
+      qForms[id] = {
+        id,
+        teacherId: ws.userId,
+        name,
+        questions,
+        scaleType,
+        scaleMin,
+        scaleMax,
+        createdAt: existing?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+      };
+      saveQForms();
+      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'qFormList', forms: mine, savedId: id }));
+      return;
+    }
+
+    if (type === 'qFormDelete' && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const id = String(msg.id || '');
+      const form = qForms[id];
+      if (!form || form.teacherId !== ws.userId) return;
+      delete qForms[id];
+      saveQForms();
+      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId);
+      ws.send(JSON.stringify({ type: 'qFormList', forms: mine }));
+      return;
+    }
+
+    // ---------- Fragebögen senden (Etappe 2) ----------
+    // Legt einen Versand an, schickt ihn an die Empfänger und ins Postfach.
+    if ((type === 'qSendRoom' || type === 'qSendCourse') && (ws.role === 'teacher' || ws.role === 'admin')) {
+      const formId = String(msg.formId || '');
+      const form = qForms[formId];
+      if (!form || form.teacherId !== ws.userId) return;
+      const teacher = users.get(ws.userId);
+      const teacherName = teacher?.name || 'Lehrer';
+
+      let recipients = [];
+      let className = '';
+      let subject = '';
+      let roomId = null;
+
+      if (type === 'qSendRoom') {
+        roomId = msg.roomId || ws.roomId;
+        const room = rooms.get(roomId);
+        if (!room) return;
+        className = room.className || '';
+        subject = room.subject || 'default';
+        const memberSet = roomMembers.get(roomId) || new Set();
+        recipients = Array.from(memberSet).filter((uid) => users.get(uid)?.role === 'student');
+      } else {
+        className = cleanStr(msg.className, 80);
+        subject = cleanStr(msg.subject, 80);
+        if (!className || !subject) return;
+        // Alle Schüler dieser Klasse, die den Kurs bei diesem Lehrer belegt haben
+        recipients = Array.from(users.values())
+          .filter((u) => u && u.role === 'student' && (u.className || '') === className)
+          .filter((u) => !Array.isArray(u.courses) || !u.courses.length
+            || u.courses.some((c) => c && c.subject === subject && c.teacherId === ws.userId))
+          .map((u) => u.id);
+      }
+
+      if (!recipients.length) {
+        ws.send(JSON.stringify({ type: 'qSendResult', ok: false, reason: 'no_recipients' }));
+        return;
+      }
+
+      const sendId = genId('qsend');
+      qSends[sendId] = {
+        id: sendId,
+        formId,
+        formName: form.name,
+        teacherId: ws.userId,
+        teacherName,
+        className,
+        subject,
+        roomId: roomId || null,
+        sentAt: Date.now(),
+        recipients,
+        answeredBy: [],
+      };
+      saveQSends();
+
+      // Im Unterricht: Fragebogen direkt einblenden
+      if (type === 'qSendRoom' && roomId) {
+        roomQuestionnaires.set(roomId, { teacherId: ws.userId, subject, slot: sendId, activeAt: Date.now() });
+        broadcastRoom(roomId, {
+          type: 'questionnaireActive',
+          roomId,
+          active: true,
+          teacherId: ws.userId,
+          teacherName,
+          subject,
+          sendId,
+          formName: form.name,
+        });
+      }
+
+      // Postfach-Eintrag an alle Empfänger schicken
+      recipients.forEach((uid) => {
+        sendToUser(uid, { type: 'qInboxAdd', item: buildInboxItem(qSends[sendId]) });
+      });
+
+      ws.send(JSON.stringify({ type: 'qSendResult', ok: true, count: recipients.length, formName: form.name }));
+      return;
+    }
+
+    // Schüler fordert sein Fragebogen-Postfach an
+    if (type === 'qInboxRequest' && ws.role === 'student') {
+      const items = Object.values(qSends)
+        .filter((s) => s.recipients.includes(ws.userId) && !s.answeredBy.includes(ws.userId))
+        .sort((a, b) => b.sentAt - a.sentAt)
+        .map((s) => buildInboxItem(s));
+      ws.send(JSON.stringify({ type: 'qInbox', items }));
+      return;
+    }
+
+    // Schüler öffnet einen Fragebogen aus dem Postfach -> Fragen liefern
+    if (type === 'qFormFetch' && ws.role === 'student') {
+      const sendId = String(msg.sendId || '');
+      const snd = qSends[sendId];
+      if (!snd || !snd.recipients.includes(ws.userId)) return;
+      if (snd.answeredBy.includes(ws.userId)) {
+        ws.send(JSON.stringify({ type: 'qFormData', sendId, alreadyAnswered: true }));
+        return;
+      }
+      const form = qForms[snd.formId];
+      if (!form) return;
+      ws.send(JSON.stringify({
+        type: 'qFormData',
+        sendId,
+        formName: form.name,
+        teacherName: snd.teacherName,
+        subject: snd.subject,
+        questions: form.questions,
+        scaleType: form.scaleType,
+        scaleMin: form.scaleMin,
+        scaleMax: form.scaleMax,
+      }));
+      return;
+    }
+
     if (type === 'gradeStudentListRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const className = String(msg.className || '').trim();
       if (!className) return;
@@ -3052,7 +3387,7 @@ wss.on('connection', (ws, req) => {
       const classNames = Array.isArray(msg.classNames) ? msg.classNames.map((c) => String(c || '').trim()).filter(Boolean) : [];
       const className = String(msg.className || '').trim();
       const subject = String(msg.subject || '').trim() || 'default';
-      const text = String(msg.text || '').trim();
+      const text = cleanStr(msg.text, 2000);
       const classesToSet = classNames.length ? classNames : (className ? [className] : []);
       if (!classesToSet.length || !text) return;
       classesToSet.forEach((cls) => {
@@ -3114,85 +3449,10 @@ wss.on('connection', (ws, req) => {
       const roomId = msg.roomId || ws.roomId;
       const state = thoughtsMap.get(roomId);
       if (!state || !state.active) return;
-      const text = String(msg.text || '').trim();
+      const text = cleanStr(msg.text, 2000);
       if (!text) return;
       state.entries.push(text.toLowerCase());
       thoughtsMap.set(roomId, state);
-      return;
-    }
-
-    if (type === 'toilet') {
-      const roomId = msg.roomId || ws.roomId;
-      const room = rooms.get(roomId);
-      if (!room) return;
-      const actor = users.get(ws.userId);
-      if (actor?.role === 'teacher') return;
-      if (actor?.role === 'student' && !isStudentAllowedInRoom(actor, room)) {
-        ws.send(JSON.stringify({ type: 'joinDenied', reason: 'course' }));
-        return;
-      }
-      ws.roomId = roomId;
-      if (!roomMembers.has(roomId)) roomMembers.set(roomId, new Set());
-      roomMembers.get(roomId).add(ws.userId);
-      if (!toiletMap.has(roomId)) toiletMap.set(roomId, new Map());
-      toiletMap.get(roomId).set(ws.userId, { status: 'pending', start: null });
-      broadcastRoom(roomId, { type: 'toilet', roomId, userId: ws.userId, status: 'pending' });
-      updatePresence(roomId);
-      return;
-    }
-
-    if (type === 'toiletAllow' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const roomId = msg.roomId || ws.roomId;
-      const targetUserId = msg.userId;
-      if (!roomId || !targetUserId) return;
-      if (!toiletMap.has(roomId)) toiletMap.set(roomId, new Map());
-      const stateMap = toiletMap.get(roomId);
-      const now = Date.now();
-      stateMap.set(targetUserId, { status: 'allowed', start: now });
-      broadcastRoom(roomId, { type: 'toilet', roomId, userId: targetUserId, status: 'allowed', start: now });
-      sendToUser(targetUserId, { type: 'toiletAllowed', roomId, start: now });
-      return;
-    }
-
-    if (type === 'toiletBack') {
-      const roomId = msg.roomId || ws.roomId;
-      const room = rooms.get(roomId);
-      if (!room) return;
-      const stateMap = toiletMap.get(roomId);
-      const state = stateMap ? stateMap.get(ws.userId) : null;
-      const now = Date.now();
-      let durationSec = 0;
-      if (state && state.start) {
-        const ms = Math.max(0, now - state.start);
-        durationSec = Math.max(0, Math.round(ms / 10000) * 10);
-      }
-      if (stateMap) stateMap.delete(ws.userId);
-
-      const subject = room.subject || 'default';
-      const user = users.get(ws.userId);
-      if (user) {
-        const s = ensureStats(user, subject);
-        s.toiletSeconds = Math.max(0, (s.toiletSeconds || 0) + durationSec);
-        const today = new Date().toISOString().slice(0, 10);
-        const d = ensureDaily(user, subject, today);
-        d.toiletSeconds = Math.max(0, (d.toiletSeconds || 0) + durationSec);
-        saveUsers();
-      }
-
-      if (!roomCounters.has(roomId)) roomCounters.set(roomId, new Map());
-      const counter = roomCounters.get(roomId);
-      const current = counter.get(ws.userId) || { signals: 0, calls: 0, toiletSeconds: 0 };
-      current.toiletSeconds = Math.max(0, (current.toiletSeconds || 0) + durationSec);
-      counter.set(ws.userId, current);
-      const entry = ensureRoomStatsEntry(roomId, room);
-      const s = ensureRoomStudentStats(entry, ws.userId);
-      s.toiletSeconds = Math.max(0, (s.toiletSeconds || 0) + durationSec);
-      roomStats.set(roomId, entry);
-      saveRoomStats();
-
-      broadcastRoom(roomId, { type: 'toilet', roomId, userId: ws.userId, status: 'back', durationSec });
-      updatePresence(roomId);
-      sendStats(roomId);
       return;
     }
 
@@ -3327,13 +3587,9 @@ wss.on('connection', (ws, req) => {
     if (ws.userId) {
       detachSocket(ws.userId, ws);
       if (ws.roomId) {
-        const tState = getToiletState(ws.roomId, ws.userId);
-        const keepMember = tState && tState.status !== 'back';
-        if (!keepMember) {
           const set = roomMembers.get(ws.roomId);
           if (set) set.delete(ws.userId);
           resetReady(ws.roomId, ws.userId);
-        }
         updatePresence(ws.roomId);
       }
     }
@@ -3356,7 +3612,53 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);
   const ip = getLocalIP();
   if (ip) console.log(`Im Schulnetz erreichbar unter: http://${ip}:${PORT}`);
+  startMdns();
 });
+
+// ---- mDNS/Bonjour: Server im Netzwerk unter festem Namen ankündigen ----
+// Damit erreichen die iPads den Server als http://meldeliste.local:PORT,
+// auch wenn sich die IP-Adresse täglich ändert.
+// Schlägt etwas fehl (Paket fehlt, Netzwerk blockt Multicast), läuft der
+// Server unverändert weiter – die IP-Anzeige oben bleibt als Rückfallweg.
+const MDNS_NAME = process.env.MDNS_NAME || 'meldeliste';
+let mdnsInstance = null;
+function startMdns() {
+  let Bonjour;
+  try {
+    ({ Bonjour } = require('bonjour-service'));
+  } catch (err) {
+    console.log(`[mDNS] Paket "bonjour-service" nicht gefunden – Namensauflösung deaktiviert.`);
+    console.log(`[mDNS] Zum Aktivieren zuhause "npm install bonjour-service" ausführen und node_modules mitkopieren.`);
+    return;
+  }
+  try {
+    mdnsInstance = new Bonjour();
+    mdnsInstance.publish({
+      name: MDNS_NAME,
+      type: 'http',
+      port: PORT,
+      host: `${MDNS_NAME}.local`,
+    });
+    console.log(`[mDNS] Erreichbar als: http://${MDNS_NAME}.local:${PORT}`);
+  } catch (err) {
+    console.log('[mDNS] Ankündigung fehlgeschlagen – bitte IP-Adresse verwenden.', err?.message || err);
+    mdnsInstance = null;
+  }
+}
+
+function stopMdns() {
+  if (!mdnsInstance) return;
+  try {
+    mdnsInstance.unpublishAll(() => {
+      try { mdnsInstance.destroy(); } catch (e) {}
+    });
+  } catch (e) {}
+  mdnsInstance = null;
+}
+
+// Beim Beenden sauber abmelden, damit der Name nicht "verwaist" im Netz steht
+process.on('SIGINT', () => { stopMdns(); process.exit(0); });
+process.on('SIGTERM', () => { stopMdns(); process.exit(0); });
 
 process.on('uncaughtException', (err) => {
   console.error('[FEHLER] Unbehandelte Ausnahme:', err);

@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { sendJson, sendJoin } from './api.js';
 import { renderAuthFields, renderProfileInfo, setAuthStatus, flashSend } from './ui.js';
-import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode, renderGroup, renderAmpel } from './render.js';
+import { renderCalled, renderRooms, renderQuestionnaire, updateStatsMode, renderGroup, renderAmpel, renderQInbox, renderQFill } from './render.js';
 
 function resolveQuestionScale(questionnaire, question) {
   const globalType = questionnaire?.scaleType === 'yesno' ? 'yesno' : 'scale';
@@ -246,6 +246,52 @@ export function bindHandlers() {
   if (els.ampelGreen) els.ampelGreen.onclick = () => ampelVote('green');
   if (els.ampelYellow) els.ampelYellow.onclick = () => ampelVote('yellow');
   if (els.ampelRed) els.ampelRed.onclick = () => ampelVote('red');
+
+  // --- Fragebogen aus dem Postfach ausfüllen ---
+  if (els.qFillQuestions) {
+    els.qFillQuestions.onclick = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.tagName !== 'BUTTON') return;
+      const parent = target.closest('[data-q]');
+      if (!parent) return;
+      const qid = parent.getAttribute('data-q');
+      const val = Number(target.getAttribute('data-val'));
+      if (!qid || !Number.isFinite(val)) return;
+      state.qFillAnswers[qid] = val;
+      renderQFill();
+    };
+  }
+  if (els.qFillClose) {
+    els.qFillClose.onclick = () => {
+      // "Später": Fragebogen bleibt im Postfach
+      state.qFill = null;
+      state.qFillAnswers = {};
+      if (els.qFillText) els.qFillText.value = '';
+      renderQFill();
+      renderQInbox();
+    };
+  }
+  if (els.qFillSend) {
+    els.qFillSend.onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      const f = state.qFill;
+      if (!f) return;
+      const questions = Array.isArray(f.questions) ? f.questions : [];
+      const answers = questions.map((q) => ({ id: q.id, value: state.qFillAnswers[q.id] }));
+      if (answers.some((a) => a.value === undefined)) {
+        if (els.qFillStatus) els.qFillStatus.textContent = 'Bitte alle Fragen beantworten.';
+        return;
+      }
+      sendJson({
+        type: 'qSubmit',
+        sendId: f.sendId,
+        answers,
+        text: (els.qFillText?.value || '').trim(),
+      });
+      flashSend(els.qFillSend);
+    };
+  }
 
   if (els.questionnaireClose) {
     els.questionnaireClose.onclick = () => {

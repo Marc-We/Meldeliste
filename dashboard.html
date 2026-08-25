@@ -484,47 +484,50 @@
           <button id="feedbackSend" class="primary" style="margin-top:8px;">Absenden</button>
         </div>
         <details class="tool-card" id="questionnaireEditPanel" open>
-          <summary>Fragebogen bearbeiten</summary>
-          <div class="row" style="margin-top:10px;">
-            <select id="questionnaireType">
-              <option value="student">Schüler -> Lehrer</option>
-              <option value="teacher">Lehrer -> Schüler</option>
-            </select>
-            <select id="questionnaireSlot">
-              <option value="default">Standard</option>
-              <option value="extra1">Extra 1</option>
-              <option value="extra2">Extra 2</option>
-            </select>
+          <summary>Fragebögen verwalten</summary>
+          <div class="small" style="margin-top:8px;">Gespeicherte Fragebögen</div>
+          <div id="qFormList" style="margin-top:6px;"><div class="small">Noch keine Fragebögen</div></div>
+          <div class="row" style="margin-top:8px;">
+            <button id="qFormNewBtn" class="ghost">+ Neuer Fragebogen</button>
+            <button id="qFormDeleteBtn" class="danger">Löschen</button>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--line);margin:12px 0;">
+          <div class="row" style="margin-top:4px;">
+            <input id="qFormNameInput" placeholder="Name des Fragebogens" style="flex:1">
             <select id="questionnaireScaleType">
               <option value="scale">Skala</option>
               <option value="yesno">Ja/Nein</option>
             </select>
             <input id="questionnaireScaleMin" placeholder="Min" style="width:80px">
             <input id="questionnaireScaleMax" placeholder="Max" style="width:80px">
-            <input id="questionnaireTitleInput" placeholder="Titel" style="flex:1">
           </div>
           <div class="small" style="margin-top:6px;">Eine Frage pro Zeile</div>
           <textarea id="questionnaireQuestionsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid var(--field-border); background:#ffffff; color:var(--text);"></textarea>
           <div class="small" style="margin-top:6px;">Optional: Hinweis pro Zeile (gleiche Reihenfolge)</div>
           <textarea id="questionnaireHintsInput" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid var(--field-border); background:#ffffff; color:var(--text);"></textarea>
-          <div class="small" style="margin-top:6px;">Optional: Skala pro Zeile (z. B. 1-5 oder ja/nein)</div>
+          <div class="small" style="margin-top:6px;">Optional: Skala pro Zeile (z. B. 1 5 oder ja nein)</div>
           <textarea id="questionnaireScaleLines" rows="6" style="width:100%; margin-top:6px; padding:10px; border-radius:10px; border:1px solid var(--field-border); background:#ffffff; color:var(--text);"></textarea>
           <div class="row" style="margin-top:8px;">
-            <button id="questionnaireLoad" class="ghost">Aktuell laden</button>
             <button id="questionnaireSave" class="primary">Speichern</button>
+            <span class="small" id="qFormStatus"></span>
           </div>
         </details>
         <div class="tool-card" id="questionnaireBroadcastPanel">
           <h2>Fragebogen senden</h2>
           <div class="row">
-            <select id="questionnaireBroadcastSlot">
-              <option value="extra1">Extra 1</option>
-              <option value="extra2">Extra 2</option>
-            </select>
-            <button id="questionnaireBroadcastStart" class="primary">Senden</button>
+            <select id="qSendFormSelect" style="flex:1"><option value="">Fragebogen wählen</option></select>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <button id="qSendRoomBtn" class="primary">An aktuellen Raum senden</button>
             <button id="questionnaireBroadcastEnd" class="ghost">Beenden</button>
           </div>
-          <div class="small" id="questionnaireBroadcastStatus">Kein Fragebogen aktiv</div>
+          <div class="small" style="margin-top:10px;">Ohne Unterricht: an einen ganzen Kurs senden</div>
+          <div class="row" style="margin-top:6px;">
+            <select id="qSendClassSelect" style="width:auto"><option value="">Klasse wählen</option></select>
+            <select id="qSendSubjectSelect" style="width:auto"><option value="">Fach wählen</option></select>
+            <button id="qSendCourseBtn" class="ghost">An Kurs senden</button>
+          </div>
+          <div class="small" id="questionnaireBroadcastStatus" style="margin-top:8px;">Kein Fragebogen aktiv</div>
         </div>
       </div>
     </details>
