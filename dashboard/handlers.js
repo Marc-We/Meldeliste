@@ -245,7 +245,7 @@ export function bindHandlers() {
       });
       if (missing) return;
       const text = els.feedbackText.value.trim();
-      sendJson({ type: 'feedbackSubmit', studentId, subject, answers, text });
+      sendJson({ type: 'feedbackSubmit', studentId, subject, answers, text, formId: els.feedbackFormSelect?.value || undefined });
       flashSend(els.feedbackSendBtn);
       els.feedbackText.value = '';
       state.feedbackAnswers = {};
@@ -258,6 +258,28 @@ export function bindHandlers() {
       if (els.questionnaireScaleMax) els.questionnaireScaleMax.disabled = isYesNo;
     };
   }
+
+  // Wechsel des Feedbackbogens -> Fragen neu aufbauen
+  if (els.feedbackFormSelect) {
+    els.feedbackFormSelect.onchange = () => {
+      state.feedbackAnswers = {};
+      renderFeedbackForm();
+    };
+  }
+
+  // --- Umschalter Fragebögen / Feedbackbögen ---
+  function switchQKind(kind) {
+    state.qFormKind = kind === 'feedback' ? 'feedback' : 'student';
+    state.selectedQFormId = null;
+    if (els.qFormNameInput) els.qFormNameInput.value = '';
+    if (els.questionnaireQuestionsInput) els.questionnaireQuestionsInput.value = '';
+    if (els.questionnaireHintsInput) els.questionnaireHintsInput.value = '';
+    if (els.questionnaireScaleLines) els.questionnaireScaleLines.value = '';
+    if (els.qFormStatus) els.qFormStatus.textContent = '';
+    renderQuestionnaireEditor();
+  }
+  if (els.qKindStudentBtn) els.qKindStudentBtn.onclick = () => switchQKind('student');
+  if (els.qKindFeedbackBtn) els.qKindFeedbackBtn.onclick = () => switchQKind('feedback');
 
   // --- Fragebögen verwalten (frei benennbar) ---
   if (els.qFormNewBtn) {
@@ -304,6 +326,7 @@ export function bindHandlers() {
       sendJson({
         type: 'qFormSave',
         id: state.selectedQFormId || undefined,
+        kind: state.qFormKind === 'feedback' ? 'feedback' : 'student',
         name, questions, scaleType, scaleMin, scaleMax,
       });
       if (els.qFormStatus) els.qFormStatus.textContent = 'Gespeichert.';
@@ -314,7 +337,8 @@ export function bindHandlers() {
     els.qFormDeleteBtn.onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
       if (!state.selectedQFormId) return;
-      const form = (state.qForms || []).find((f) => f.id === state.selectedQFormId);
+      const list = state.qFormKind === 'feedback' ? (state.qFeedbackForms || []) : (state.qForms || []);
+      const form = list.find((f) => f.id === state.selectedQFormId);
       if (!confirm(`Fragebogen "${form ? form.name : ''}" wirklich löschen?`)) return;
       sendJson({ type: 'qFormDelete', id: state.selectedQFormId });
       state.selectedQFormId = null;

@@ -59,7 +59,8 @@ function handleMessage(msg) {
       sendJson({ type: 'feedbackInboxRequest' });
       sendJson({ type: 'assignmentListRequest' });
       sendJson({ type: 'gradeSheetListRequest' });
-      sendJson({ type: 'qFormListRequest' });
+      sendJson({ type: 'qFormListRequest', kind: 'student' });
+      sendJson({ type: 'qFormListRequest', kind: 'feedback' });
       sendJson({ type: 'questionnaireRequest', role: 'student' });
       sendJson({ type: 'questionnaireRequest', role: 'teacher' });
       if (state.profile.role === 'admin') {
@@ -354,11 +355,14 @@ function handleMessage(msg) {
     if (els.seatStatus) { els.seatStatus.textContent = 'Gespeichert.'; setTimeout(() => { if (els.seatStatus) els.seatStatus.textContent = ''; }, 1500); }
   }
   if (msg.type === 'qFormList') {
-    state.qForms = Array.isArray(msg.forms) ? msg.forms : [];
+    const kind = msg.kind === 'feedback' ? 'feedback' : 'student';
+    if (kind === 'feedback') state.qFeedbackForms = Array.isArray(msg.forms) ? msg.forms : [];
+    else state.qForms = Array.isArray(msg.forms) ? msg.forms : [];
+    const active = kind === 'feedback' ? state.qFeedbackForms : state.qForms;
     // nach dem Speichern den gerade gespeicherten Bogen auswählen
     if (msg.savedId) state.selectedQFormId = msg.savedId;
     // gelöschter/nicht mehr vorhandener Bogen -> Auswahl zurücksetzen
-    if (state.selectedQFormId && !state.qForms.some((f) => f.id === state.selectedQFormId)) {
+    if (state.selectedQFormId && !active.some((f) => f.id === state.selectedQFormId)) {
       state.selectedQFormId = null;
     }
     renderQuestionnaireEditor();

@@ -471,6 +471,9 @@
         <div class="tool-card" id="feedbackSendPanel">
           <h2>Feedback senden</h2>
           <div class="row">
+            <select id="feedbackFormSelect" style="flex:1">
+              <option value="">Feedbackbogen wählen</option>
+            </select>
             <select id="feedbackStudentSelect" style="flex:1">
               <option value="">Schüler wählen</option>
             </select>
@@ -484,8 +487,12 @@
           <button id="feedbackSend" class="primary" style="margin-top:8px;">Absenden</button>
         </div>
         <details class="tool-card" id="questionnaireEditPanel" open>
-          <summary>Fragebögen verwalten</summary>
-          <div class="small" style="margin-top:8px;">Gespeicherte Fragebögen</div>
+          <summary>Fragebögen &amp; Feedbackbögen verwalten</summary>
+          <div class="row" style="gap:6px;margin-top:10px;">
+            <button id="qKindStudentBtn" class="primary">Fragebögen (für Schüler)</button>
+            <button id="qKindFeedbackBtn" class="ghost">Feedbackbögen (für Lehrer)</button>
+          </div>
+          <div class="small" style="margin-top:8px;" id="qFormListLabel">Gespeicherte Fragebögen</div>
           <div id="qFormList" style="margin-top:6px;"><div class="small">Noch keine Fragebögen</div></div>
           <div class="row" style="margin-top:8px;">
             <button id="qFormNewBtn" class="ghost">+ Neuer Fragebogen</button>

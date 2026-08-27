@@ -361,6 +361,25 @@ function cleanStr(value, maxLen) {
   return s.length > limit ? s.slice(0, limit) : s;
 }
 
+// Prüft, ob ein Lehrer für einen bestimmten Schüler zuständig ist.
+// Zuständig heißt: Der Lehrer unterrichtet die Klasse des Schülers
+// (optional zusätzlich eingeschränkt auf ein Fach). Admins dürfen immer.
+function teacherMayAccessStudent(actor, studentId, subject) {
+  if (!actor || !studentId) return false;
+  if (actor.role === 'admin') return true;
+  if (actor.role !== 'teacher') return false;
+  const target = users.get(studentId);
+  if (!target || target.role !== 'student') return false;
+  const cls = target.className || '';
+  if (!cls) return false;
+  const teaches = Array.isArray(actor.teachings) ? actor.teachings : [];
+  return teaches.some((t) => {
+    if (subject && t.subject !== subject) return false;
+    if (Array.isArray(t.classNames)) return t.classNames.includes(cls);
+    return t.className === cls;
+  });
+}
+
 function generateCode() {
   return crypto.randomInt(100000, 1000000).toString();
 }
@@ -816,13 +835,14 @@ function migrateLegacyQuestionnaires() {
     const slotLabel = { '': 'Fragebogen 1', extra1: 'Fragebogen 2', extra2: 'Fragebogen 3' };
     let changed = false;
     files.forEach((file) => {
-      // Muster: <teacherId>.student.json  oder  <teacherId>.student.extra1.json
-      const m = file.match(/^(.+)\.student(?:\.(extra1|extra2))?\.json$/);
+      // Muster: <teacherId>.student.json / .student.extra1.json  ODER  <teacherId>.teacher.json (Feedbackbogen)
+      const m = file.match(/^(.+)\.(student|teacher)(?:\.(extra1|extra2))?\.json$/);
       if (!m) return;
       const teacherId = m[1];
-      const slot = m[2] || '';
+      const kind = m[2] === 'teacher' ? 'feedback' : 'student';
+      const slot = m[3] || '';
       // Schon migriert? (gleicher Lehrer + gleicher Ursprungs-Slot)
-      const already = Object.values(qForms).some((f) => f.teacherId === teacherId && f.legacySlot === slot);
+      const already = Object.values(qForms).some((f) => f.teacherId === teacherId && f.legacySlot === slot && (f.kind || 'student') === kind);
       if (already) return;
       const data = loadJson(path.join(QUESTIONNAIRES_TEACHER_DIR, file), null);
       if (!data || !Array.isArray(data.questions) || !data.questions.length) return;
@@ -830,7 +850,8 @@ function migrateLegacyQuestionnaires() {
       qForms[id] = {
         id,
         teacherId,
-        name: cleanStr(data.title, 120) || slotLabel[slot] || 'Fragebogen',
+        kind,
+        name: cleanStr(data.title, 120) || (kind === 'feedback' ? 'Feedbackbogen' : (slotLabel[slot] || 'Fragebogen')),
         questions: data.questions.slice(0, 50).map((q, idx) => {
           const item = {
             id: String(q.id || `q${idx + 1}`),
@@ -2086,7 +2107,19 @@ wss.on('connection', (ws, req) => {
       const text = cleanStr(msg.text, 2000);
       const answers = Array.isArray(msg.answers) ? msg.answers : [];
       if (!studentId || !answers.length) return;
-      const questionnaire = loadQuestionnaire('teacher', ws.userId, '');
+      // Feedback nur an Schüler, die dieser Lehrer unterrichtet
+      if (!teacherMayAccessStudent(users.get(ws.userId), studentId, '')) return;
+      // Neues System: konkreten Feedbackbogen per formId wählen.
+      // Ohne formId gilt weiter der alte Ein-Bogen-Weg (Abwärtskompatibilität).
+      const fbFormId = String(msg.formId || '');
+      let questionnaire = null;
+      if (fbFormId) {
+        const fbForm = qForms[fbFormId];
+        if (!fbForm || fbForm.teacherId !== ws.userId || (fbForm.kind || 'student') !== 'feedback') return;
+        questionnaire = fbForm;
+      } else {
+        questionnaire = loadQuestionnaire('teacher', ws.userId, '');
+      }
       const qList = Array.isArray(questionnaire?.questions) ? questionnaire.questions : [];
       if (!qList.length) return;
       const qMap = new Map(qList.map((q) => [q.id, q]));
@@ -2115,7 +2148,7 @@ wss.on('connection', (ws, req) => {
         answers,
         answersDetailed,
         text,
-        questionnaireTitle: questionnaire?.title || 'Feedback',
+        questionnaireTitle: questionnaire?.name || questionnaire?.title || 'Feedback',
       };
       pushFeedbackInbox('student', studentId, entry);
       sendStudentInbox(studentId);
@@ -2144,6 +2177,8 @@ wss.on('connection', (ws, req) => {
     if (type === 'noteRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const studentId = String(msg.userId || '').trim();
       if (!studentId) return;
+      // Nur Notizen zu Schülern, die dieser Lehrer auch unterrichtet
+      if (!teacherMayAccessStudent(users.get(ws.userId), studentId, '')) return;
       const teacherNotes = notes[ws.userId] || {};
       ws.send(JSON.stringify({ type: 'note', userId: studentId, note: teacherNotes[studentId] || '' }));
       return;
@@ -2152,6 +2187,7 @@ wss.on('connection', (ws, req) => {
     if (type === 'noteSave' && (ws.role === 'teacher' || ws.role === 'admin')) {
       const studentId = String(msg.userId || '').trim();
       if (!studentId) return;
+      if (!teacherMayAccessStudent(users.get(ws.userId), studentId, '')) return;
       const text = cleanStr(msg.note, 2000);
       if (!notes[ws.userId]) notes[ws.userId] = {};
       if (text) {
@@ -3126,8 +3162,10 @@ wss.on('connection', (ws, req) => {
 
     // ---------- Frei benennbare Fragebögen (Etappe 1: Verwaltung) ----------
     if (type === 'qFormListRequest' && (ws.role === 'teacher' || ws.role === 'admin')) {
-      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId);
-      ws.send(JSON.stringify({ type: 'qFormList', forms: mine }));
+      // kind: 'student' = Fragebogen für Schüler, 'feedback' = Feedbackbogen (Lehrer füllt aus)
+      const kind = msg.kind === 'feedback' ? 'feedback' : 'student';
+      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId && (f.kind || 'student') === kind);
+      ws.send(JSON.stringify({ type: 'qFormList', kind, forms: mine }));
       return;
     }
 
@@ -3161,9 +3199,11 @@ wss.on('connection', (ws, req) => {
           return item;
         })
         .filter((q) => q.text);
+      const kind = msg.kind === 'feedback' ? 'feedback' : (existing?.kind || 'student');
       qForms[id] = {
         id,
         teacherId: ws.userId,
+        kind,
         name,
         questions,
         scaleType,
@@ -3173,8 +3213,8 @@ wss.on('connection', (ws, req) => {
         updatedAt: Date.now(),
       };
       saveQForms();
-      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId);
-      ws.send(JSON.stringify({ type: 'qFormList', forms: mine, savedId: id }));
+      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId && (f.kind || 'student') === kind);
+      ws.send(JSON.stringify({ type: 'qFormList', kind, forms: mine, savedId: id }));
       return;
     }
 
@@ -3182,10 +3222,11 @@ wss.on('connection', (ws, req) => {
       const id = String(msg.id || '');
       const form = qForms[id];
       if (!form || form.teacherId !== ws.userId) return;
+      const kind = form.kind || 'student';
       delete qForms[id];
       saveQForms();
-      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId);
-      ws.send(JSON.stringify({ type: 'qFormList', forms: mine }));
+      const mine = Object.values(qForms).filter((f) => f.teacherId === ws.userId && (f.kind || 'student') === kind);
+      ws.send(JSON.stringify({ type: 'qFormList', kind, forms: mine }));
       return;
     }
 
@@ -3195,6 +3236,8 @@ wss.on('connection', (ws, req) => {
       const formId = String(msg.formId || '');
       const form = qForms[formId];
       if (!form || form.teacherId !== ws.userId) return;
+      // Feedbackbögen füllt der Lehrer selbst aus - sie werden nicht an Schüler verschickt
+      if ((form.kind || 'student') !== 'student') return;
       const teacher = users.get(ws.userId);
       const teacherName = teacher?.name || 'Lehrer';
 

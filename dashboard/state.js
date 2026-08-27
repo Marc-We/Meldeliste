@@ -27,7 +27,9 @@ export const state = {
   questionnaireStudent: null,
   questionnaireTeacher: null,
   activeQuestionnaire: null,
-  qForms: [],          // [{id, name, questions, scaleType, scaleMin, scaleMax}]
+  qForms: [],           // Fragebögen für Schüler
+  qFeedbackForms: [],   // Feedbackbögen (Lehrer füllt aus)
+  qFormKind: 'student', // welche Sorte wird gerade bearbeitet
   selectedQFormId: null,
   studentNotes: {},
   pendingNoteUserId: '',

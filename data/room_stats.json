@@ -35,5 +35,29 @@
     "createdAt": 1787648783582,
     "closedAt": 1787648839847,
     "students": {}
+  },
+  "room-mtbl50uw-3b75f9": {
+    "roomId": "room-mtbl50uw-3b75f9",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1787838932120,
+    "closedAt": 1787839399204,
+    "students": {}
+  },
+  "room-mtblujpl-c711ea": {
+    "roomId": "room-mtblujpl-c711ea",
+    "name": "Mathematik 10A",
+    "className": "10A",
+    "classNames": [
+      "10A"
+    ],
+    "subject": "Mathematik",
+    "createdAt": 1787840122954,
+    "closedAt": null,
+    "students": {}
   }
 }

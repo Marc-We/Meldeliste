@@ -304,18 +304,26 @@ export function renderFeedbackForm() {
       els.feedbackStudentSelect.value = prev;
     }
   }
-  const questions = Array.isArray(state.questionnaireTeacher?.questions) ? state.questionnaireTeacher.questions : [];
+  // Gewählter Feedbackbogen (neues System), sonst Rückfall auf den alten Bogen
+  const chosenId = els.feedbackFormSelect ? els.feedbackFormSelect.value : '';
+  const chosen = chosenId
+    ? (state.qFeedbackForms || []).find((f) => f.id === chosenId)
+    : null;
+  const source = chosen || state.questionnaireTeacher;
+  const questions = Array.isArray(source?.questions) ? source.questions : [];
   if (!questions.length) {
-    els.feedbackQuestions.innerHTML = '<div class="small">Kein Feedback-Fragebogen vorhanden.</div>';
+    els.feedbackQuestions.innerHTML = (state.qFeedbackForms || []).length
+      ? '<div class="small">Bitte oben einen Feedbackbogen wählen.</div>'
+      : '<div class="small">Kein Feedbackbogen vorhanden. Lege oben unter „Feedbackbögen“ einen an.</div>';
     return;
   }
-  const globalType = state.questionnaireTeacher?.scaleType === 'yesno' ? 'yesno' : 'scale';
-  const globalMin = Number.isFinite(Number(state.questionnaireTeacher?.scaleMin)) ? Number(state.questionnaireTeacher.scaleMin) : 1;
-  const globalMax = Number.isFinite(Number(state.questionnaireTeacher?.scaleMax)) ? Number(state.questionnaireTeacher.scaleMax) : 5;
-  const scaleHint = state.questionnaireTeacher?.scaleHint || (globalType === 'yesno' ? 'Ja / Nein' : `${globalMin} = trifft nicht zu, ${globalMax} = trifft voll zu`);
+  const globalType = source?.scaleType === 'yesno' ? 'yesno' : 'scale';
+  const globalMin = Number.isFinite(Number(source?.scaleMin)) ? Number(source.scaleMin) : 1;
+  const globalMax = Number.isFinite(Number(source?.scaleMax)) ? Number(source.scaleMax) : 5;
+  const scaleHint = source?.scaleHint || (globalType === 'yesno' ? 'Ja / Nein' : `${globalMin} = trifft nicht zu, ${globalMax} = trifft voll zu`);
   els.feedbackQuestions.innerHTML = questions.map((q) => {
     const current = state.feedbackAnswers[q.id];
-    const scale = resolveQuestionScale(state.questionnaireTeacher, q);
+    const scale = resolveQuestionScale(source, q);
     const hint = q.hint || (scale.type === 'yesno' ? 'Ja / Nein' : `${scale.min} = trifft nicht zu, ${scale.max} = trifft voll zu`) || scaleHint;
     const options = scale.type === 'yesno' ? [{ label: 'Ja', value: 1 }, { label: 'Nein', value: 0 }] : Array.from({ length: Math.max(1, scale.max - scale.min + 1) }).map((_, idx) => {
       const v = scale.min + idx;
@@ -335,10 +343,25 @@ export function renderFeedbackForm() {
 
 export function renderQuestionnaireEditor() {
   if (!els.qFormList) return;
-  const forms = Array.isArray(state.qForms) ? state.qForms : [];
+  const kind = state.qFormKind === 'feedback' ? 'feedback' : 'student';
+  const forms = kind === 'feedback'
+    ? (Array.isArray(state.qFeedbackForms) ? state.qFeedbackForms : [])
+    : (Array.isArray(state.qForms) ? state.qForms : []);
+  // Umschalter-Zustand und Beschriftung
+  if (els.qKindStudentBtn) {
+    els.qKindStudentBtn.classList.toggle('primary', kind === 'student');
+    els.qKindStudentBtn.classList.toggle('ghost', kind !== 'student');
+  }
+  if (els.qKindFeedbackBtn) {
+    els.qKindFeedbackBtn.classList.toggle('primary', kind === 'feedback');
+    els.qKindFeedbackBtn.classList.toggle('ghost', kind !== 'feedback');
+  }
+  if (els.qFormListLabel) {
+    els.qFormListLabel.textContent = kind === 'feedback' ? 'Gespeicherte Feedbackbögen' : 'Gespeicherte Fragebögen';
+  }
   // Liste der gespeicherten Fragebögen
   if (!forms.length) {
-    els.qFormList.innerHTML = '<div class="small">Noch keine Fragebögen</div>';
+    els.qFormList.innerHTML = `<div class="small">Noch keine ${kind === 'feedback' ? 'Feedbackbögen' : 'Fragebögen'}</div>`;
   } else {
     els.qFormList.innerHTML = forms.map((f) => {
       const active = f.id === state.selectedQFormId;
@@ -389,6 +412,15 @@ export function renderQuestionnaireEditor() {
 // Auswahl-Dropdowns im Sende-Panel füllen
 export function renderQSendOptions() {
   const forms = Array.isArray(state.qForms) ? state.qForms : [];
+  // Feedbackbögen im Feedback-Formular anbieten
+  if (els.feedbackFormSelect) {
+    const fbForms = Array.isArray(state.qFeedbackForms) ? state.qFeedbackForms : [];
+    const prevFb = els.feedbackFormSelect.value;
+    els.feedbackFormSelect.innerHTML = '<option value="">Feedbackbogen wählen</option>' +
+      fbForms.map((f) => `<option value="${escHtml(f.id)}">${escHtml(f.name || 'Feedbackbogen')}</option>`).join('');
+    if (prevFb && fbForms.some((f) => f.id === prevFb)) els.feedbackFormSelect.value = prevFb;
+    else if (fbForms.length === 1) els.feedbackFormSelect.value = fbForms[0].id;
+  }
   if (els.qSendFormSelect) {
     const prev = els.qSendFormSelect.value;
     els.qSendFormSelect.innerHTML = '<option value="">Fragebogen wählen</option>' +

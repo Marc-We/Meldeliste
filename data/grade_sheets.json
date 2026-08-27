@@ -1,1 +1,17 @@
-{}
+{
+  "gs-1787840411497-3zol9": {
+    "id": "gs-1787840411497-3zol9",
+    "teacherId": "t-mktnvwjm-rsat",
+    "label": "EPO Test 2",
+    "className": "10A",
+    "subject": "Mathe",
+    "entries": {
+      "s-mktnutua-pddp": {
+        "mss": 11,
+        "comment": "Test Kommentar"
+      }
+    },
+    "createdAt": 1787840411497,
+    "updatedAt": 1787840411497
+  }
+}
